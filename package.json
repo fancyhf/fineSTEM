@@ -1,0 +1,21 @@
+{
+  "name": "finestem-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev:web": "npm run dev --workspace=apps/web",
+    "dev:backend": "cd apps/backend && uvicorn main:app --reload --port 8001",
+    "build:web": "npm run build --workspace=apps/web",
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "preview": "npm run preview --workspace=apps/web"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "devDependencies": {
+    "eslint": "^8.57.0",
+    "prettier": "^3.2.5",
+    "typescript": "^5.2.2"
+  }
+}
