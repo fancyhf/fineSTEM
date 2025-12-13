@@ -1,5 +1,7 @@
 # fineSTEM
 
+[![License: CC BY-NC-SA 4.0](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc-sa/4.0/)
+
 fineSTEM 是一个致力于为 7-10 年级学生提供 AI + 创意学习体系的教育项目。
 
 ## 许可证 (License)
