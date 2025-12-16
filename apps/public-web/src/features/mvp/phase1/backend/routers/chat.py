@@ -26,9 +26,12 @@ async def chat_completions(request: ChatRequest):
     Handle chat completions using DeepSeek or other compatible APIs.
     If no API key is configured, returns a simulated response for demonstration.
     """
+    # Reload key from environment (in case it was set after module load)
+    api_key = os.getenv("DEEPSEEK_API_KEY", DEEPSEEK_API_KEY)
+    base_url = os.getenv("DEEPSEEK_BASE_URL", DEEPSEEK_BASE_URL)
     
     # 1. Check if we have a real key or should simulate
-    if DEEPSEEK_API_KEY == "sk-placeholder":
+    if not api_key or api_key == "sk-placeholder":
         return simulate_response(request.messages, request.context)
 
     # 2. Prepare the system prompt with context
@@ -41,9 +44,9 @@ async def chat_completions(request: ChatRequest):
     try:
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                f"{DEEPSEEK_BASE_URL}/chat/completions",
+                f"{base_url}/chat/completions",
                 headers={
-                    "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
+                    "Authorization": f"Bearer {api_key}",
                     "Content-Type": "application/json"
                 },
                 json={

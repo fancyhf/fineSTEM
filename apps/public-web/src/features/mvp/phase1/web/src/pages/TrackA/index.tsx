@@ -1,9 +1,12 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, RefreshCw, Settings2, Download, Zap, Video, Square } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Settings2, Download, Zap, Video, Square, Code2 } from 'lucide-react';
 import SimulationCanvas, { SimulationCanvasHandle } from '../../components/TrackA/SimulationCanvas';
 import { SimulationConfig, DEFAULT_CONFIG } from '../../types/trackA';
 import { useCanvasRecorder } from '../../hooks/useCanvasRecorder';
+import { useAnalytics } from '../../hooks/useAnalytics';
+import { AIChatPanel } from '../../components/Shared/AIChatPanel';
+import { CodeTourConfig, PresetQuestion } from '../../types/system';
 
 const PRESETS: Record<string, { label: string; config: SimulationConfig }> = {
   'default': { label: '默认设置', config: DEFAULT_CONFIG },
@@ -37,26 +40,32 @@ const TrackA: React.FC = () => {
   const [config, setConfig] = useState<SimulationConfig>(DEFAULT_CONFIG);
   const [key, setKey] = useState(0); // Force re-mount to reset simulation
   const [exporting, setExporting] = useState(false);
+  const [showCode, setShowCode] = useState(false);
   
   const canvasRef = useRef<SimulationCanvasHandle>(null);
-  const { isRecording, startRecording, stopRecording } = useCanvasRecorder({ current: canvasRef.current?.getCanvas() || null });
+  const { isRecording, startRecording, stopRecording } = useCanvasRecorder(() => canvasRef.current?.getCanvas() || null);
+  const { logEvent } = useAnalytics();
 
   const handleReset = () => {
+    logEvent({ category: 'track_a', event_name: 'reset' });
     setConfig(DEFAULT_CONFIG);
     setKey(prev => prev + 1);
   };
 
   const handleRestart = () => {
+    logEvent({ category: 'track_a', event_name: 'restart' });
     setKey(prev => prev + 1);
   };
 
   const applyPreset = (presetKey: string) => {
+    logEvent({ category: 'track_a', event_name: 'apply_preset', metadata: { preset: presetKey } });
     setConfig(PRESETS[presetKey].config);
     setKey(prev => prev + 1);
   };
 
   const handleExport = async () => {
     setExporting(true);
+    logEvent({ category: 'track_a', event_name: 'export_config' });
     try {
       const response = await fetch('http://localhost:8001/track-a/config/export', {
         method: 'POST',
@@ -77,6 +86,74 @@ const TrackA: React.FC = () => {
     }
   };
 
+  // 1. Generate pseudo-code string
+  const codeSnippet = `
+// --- 物理引擎核心代码 (Physics Core) ---
+
+// 1. 设置世界重力
+// 当前值: ${config.gravity} (标准地球重力约为 1.0)
+engine.world.gravity.y = ${config.gravity};
+
+// 2. 创建第一个摆球 (上方的球)
+const bob1 = Bodies.circle(x, y, size, {
+    mass: ${config.mass1}, 
+    frictionAir: ${config.frictionAir} 
+});
+
+// 3. 创建第一根连杆
+const stick1 = Constraint.create({
+    bodyA: anchor,
+    bodyB: bob1,
+    length: ${config.length1}, 
+    stiffness: 1
+});
+
+// 4. 创建第二个摆球 (下方的球)
+const bob2 = Bodies.circle(x, y, size, {
+    mass: ${config.mass2},
+    frictionAir: ${config.frictionAir}
+});
+`;
+
+  // 2. Define Tour Steps
+  const tourConfig: CodeTourConfig = {
+    codeSnippet,
+    steps: [
+      {
+        id: 'gravity',
+        title: '步骤 1: 设置重力',
+        description: '首先，我们需要定义物理世界的规则。重力决定了物体下落的速度。如果将重力设为 0，小球就会像在太空中一样漂浮。',
+        highlightLines: { start: 4, end: 6 }
+      },
+      {
+        id: 'bob1',
+        title: '步骤 2: 创建摆球 1',
+        description: '我们创建第一个小球（Bob 1）。"mass" 是质量，决定了它的惯性；"frictionAir" 是空气阻力，阻力越小，它摆动的时间就越长。',
+        highlightLines: { start: 9, end: 12 }
+      },
+      {
+        id: 'stick1',
+        title: '步骤 3: 连接摆球',
+        description: '使用 "Constraint"（约束）将小球连接到固定点。这就好比一根不可伸缩的棍子，限制了小球的运动范围。',
+        highlightLines: { start: 15, end: 20 }
+      },
+      {
+        id: 'bob2',
+        title: '步骤 4: 引入混沌',
+        description: '关键的一步！我们在第一个小球下面再挂一个球。正是这第二个球的加入，让整个系统的运动变得不可预测，产生了神奇的"混沌现象"。',
+        highlightLines: { start: 23, end: 26 }
+      }
+    ]
+  };
+
+  // 3. Define Preset Questions
+  const presetQuestions: PresetQuestion[] = [
+    { id: 'q1', label: '如何停下来？', question: '怎么让双摆停下来？' },
+    { id: 'q2', label: '重力为0', question: '如果把重力改为0会发生什么？' },
+    { id: 'q3', label: '什么是混沌？', question: '请简单解释一下什么是混沌效应？' },
+    { id: 'q4', label: '增加质量', question: '增加下方小球的质量会怎么影响摆动？' }
+  ];
+
   return (
     <div className="min-h-screen bg-gray-950 text-white p-4 md:p-8 flex flex-col">
       {/* Header */}
@@ -91,19 +168,31 @@ const TrackA: React.FC = () => {
         <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 text-transparent bg-clip-text">
           Track A: 双摆混沌模拟
         </h1>
-        <div className="w-24" /> {/* Spacer */}
+        <div className="flex gap-2">
+           <button
+            onClick={() => setShowCode(!showCode)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
+              showCode 
+                ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' 
+                : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+            }`}
+          >
+            <Code2 size={18} />
+            {showCode ? '隐藏代码' : '原理揭秘'}
+          </button>
+        </div>
       </div>
 
       {/* Main Content */}
-      <div className="flex flex-col lg:flex-row gap-8 max-w-7xl mx-auto w-full flex-1">
+      <div className="flex flex-col lg:flex-row gap-8 max-w-7xl mx-auto w-full flex-1 relative">
         
         {/* Left: Simulation Canvas */}
-        <div className="flex-1 min-h-[500px] lg:min-h-0">
+        <div className={`flex-1 bg-gray-900 rounded-2xl border border-gray-800 p-1 relative overflow-hidden shadow-2xl transition-all duration-300 ${showCode ? 'lg:mr-[440px]' : ''}`}>
           <SimulationCanvas key={key} config={config} ref={canvasRef} />
         </div>
 
         {/* Right: Controls */}
-        <div className="w-full lg:w-80 bg-gray-900 p-6 rounded-xl border border-gray-800 h-fit overflow-y-auto max-h-[80vh]">
+        <div className={`w-full bg-gray-900 p-6 rounded-xl border border-gray-800 h-fit overflow-y-auto max-h-[80vh] transition-all duration-300 ${showCode ? 'hidden lg:block fixed right-[460px] top-[88px] w-64 z-40' : 'lg:w-80'}`}>
           <div className="flex items-center gap-2 mb-6 text-blue-400">
             <Settings2 size={20} />
             <h2 className="font-semibold">参数控制</h2>
@@ -256,7 +345,15 @@ const TrackA: React.FC = () => {
               
               {/* Recording */}
               <button
-                onClick={isRecording ? stopRecording : startRecording}
+                onClick={() => {
+                  if (isRecording) {
+                    stopRecording();
+                    logEvent({ category: 'track_a', event_name: 'stop_recording' });
+                  } else {
+                    startRecording();
+                    logEvent({ category: 'track_a', event_name: 'start_recording' });
+                  }
+                }}
                 className={`w-full py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
                   isRecording 
                     ? 'bg-red-600 hover:bg-red-700 animate-pulse' 
@@ -270,6 +367,16 @@ const TrackA: React.FC = () => {
           </div>
         </div>
       </div>
+      {/* AI Chat Panel - Fixed Overlay */}
+      <AIChatPanel 
+        isOpen={showCode}
+        title="代码实验室 (Code Lab)"
+        contextData={config}
+        contextType="code"
+        tourConfig={tourConfig}
+        presetQuestions={presetQuestions}
+        onClose={() => setShowCode(false)} 
+      />
     </div>
   );
 };

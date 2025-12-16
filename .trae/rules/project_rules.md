@@ -28,12 +28,21 @@ fineSTEM 项目管理规范（v1.0.0）
 - 命名规则：
   - API/JSON 字段使用 `camelCase`；数据库列使用 `snake_case`；常量使用 `UPPER_SNAKE_CASE`；类型与类名使用 `PascalCase`；变量与函数使用 `camelCase`。
   - REST 路由资源使用复数名词与版本：如 `GET /v1/projects`；破坏性变更采用路径版本或请求头 `X-Api-Version: 2`。
-- 注释与文档：
-  - 公共接口采用结构化注释（JSDoc/TypeDoc/JavaDoc/PyDoc），包含参数、返回值、异常与示例；实现变更时同步更新注释与示例。
-  - 源文件头部标注用途、关键依赖与对应 API 文档路径与版本，例如：`links: .trae/documents/api/v1/api-spec.json#projects`。
+- 注释与文档（强制中文）：
+  - 类与接口：必须包含类级文档块（Class-level Docstring/JSDoc），说明职责、依赖与核心行为；
+  - 公共方法：必须说明参数（含义/约束）、返回值、可能抛出的异常与业务上下文；
+  - 关键逻辑：复杂算法、状态流转或 Hack 写法必须添加行内注释说明“为什么这样做”；
+  - 源文件头部：必须标注用途、维护者与对应 API 文档路径，例如：`links: .trae/documents/api/v1/api-spec.json#projects`。
 - 代码结构：
   - 后端分层：`controller → service → repository → model → infra`；前端分层：`components → hooks → services → pages → styles`；禁止跨层隐式耦合与共享状态。
   - 单一职责：函数建议 ≤30 行；模块聚焦一类职责；避免重复实现（DRY）。
+  - 文件组织：一个文件只包含一个类或主要组件；文件名应与导出的主要实体名称一致（PascalCase 或 camelCase 视语言规范而定）。
+- 最佳实践（General）：
+  - 变量命名：使用富有表现力的名称，避免 `data`, `info`, `temp` 等模糊词汇；布尔值使用 `is`, `has`, `can` 前缀。
+  - 魔法值：禁止在代码中直接使用魔法数字或字符串，必须提取为具名常量（UPPER_SNAKE_CASE）。
+  - 错误处理：禁止吞没异常（empty catch block）；必须记录错误上下文并向上抛出或优雅降级。
+  - 依赖注入：优先使用依赖注入（DI）而非硬编码依赖，以提升可测试性。
+  - 格式化：强制使用项目配置的 Prettier/Black/Ruff 规则，提交前自动格式化；禁止手动调整缩进或换行风格。
 - TypeScript 严格模式：
   - 启用 `strict/noImplicitAny/strictNullChecks/noUnusedLocals/noUnusedParameters/noImplicitReturns`；异常使用 `unknown` 捕获并分类处理。
 - 前端规范：

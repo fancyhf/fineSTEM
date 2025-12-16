@@ -15,8 +15,39 @@ fineSTEM/
 │     ├─ mcp/                    # MCP 连接、资源清单、权限与工作流
 │     └─ orchestrations/         # Agent 协同编排与任务路由
 ├─ apps/                         # 独立应用（技术中立）
-│  ├─ web/                       # 独立 Web 应用（路由、页面、适配）
-│  └─ portal/                    # 管理/运营门户（配置与仪表）
+│  ├─ public-web/                # 对外公众网站（学习者/访客）
+│  │  ├─ src/
+│  │  │  ├─ ui/                  # 视图与布局（技术中立）
+│  │  │  ├─ features/            # 业务功能（PBL查看器/媒体播放器）
+│  │  │  │  ├─ mvp/              # 早期 MVP 功能（迭代保留）
+│  │  │  │  │  └─ phase1/        # 第一阶段 MVP 代码（Track A / React+FastAPI）
+│  │  │  │  └─ pbl-viewer/       # 标准 PBL 查看器
+│  │  │  ├─ flows/               # 用户场景编排（浏览/参与）
+│  │  │  ├─ adapters/            # 外部接口适配（路由/API）
+│  │  │  ├─ agents/              # 前端 Agent 接入点
+│  │  │  ├─ mcp/                 # 资源映射与权限
+│  │  │  ├─ assets/              # 静态资源
+│  │  │  ├─ configs/             # 应用配置
+│  │  │  ├─ tests/               # 集成/E2E 测试
+│  │  │  ├─ docs/                # 局部文档索引（指向 .trae/documents）
+│  │  │  ├─ checklists/          # 页面/流程放行清单
+│  │  │  └─ logs/                # 运行日志占位
+│  └─ ops-portal/                # 运营管理门户（内部/创作者）
+│     ├─ src/
+│     │  ├─ ui/                  # 运营界面与布局
+│     │  ├─ features/            # 管理功能（PBL管理/媒体管线）
+│     │  ├─ dashboards/          # 监测与指标视图
+│     │  ├─ workbenches/         # 操作工作台（素材/审核）
+│     │  ├─ catalogs/            # 资源目录索引
+│     │  ├─ adapters/            # 系统适配层
+│     │  ├─ agents/              # 运营 Agent 脚本
+│     │  ├─ mcp/                 # 权限矩阵与工作流
+│     │  ├─ configs/             # 门户配置
+│     │  ├─ tests/               # 功能测试
+│     │  ├─ docs/                # 局部文档索引
+│     │  ├─ checklists/          # 发布/审核清单
+│     │  └─ logs/                # 操作审计日志
+
 ├─ prototype/                    # 原型与实验（限定范围，不入主线）
 │  ├─ ui/                        # UI/交互原型与快速验证
 │  ├─ dbdesign/                  # 数据与术语原型（模型草案）
