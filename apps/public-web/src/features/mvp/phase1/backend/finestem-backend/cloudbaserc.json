@@ -1,0 +1,6 @@
+{
+  "envId": "cloud1-5g07azl0fdf36b21",
+  "cloudrun": {
+    "name": "finestem-backend"
+  }
+}

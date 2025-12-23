@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  # 后端服务
+  backend:
+    build:
+      context: ./apps/public-web/src/features/mvp/phase1/backend
+      dockerfile: Dockerfile
+      args:
+        - DEBIAN_FRONTEND=noninteractive
+    container_name: finestem-backend
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PORT=8000
+    networks:
+      - finestem-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # 前端服务
+  frontend:
+    build:
+      context: ./apps/public-web/src/features/mvp/phase1/web
+      dockerfile: Dockerfile
+    container_name: finestem-frontend
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - finestem-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+# 网络配置
+networks:
+  finestem-network:
+    driver: bridge
+    name: finestem-network
+
+# 卷配置（如果需要）
+volumes:
+  nginx-logs:
+    driver: local

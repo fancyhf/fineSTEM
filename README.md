@@ -165,11 +165,21 @@ systemctl restart nginx
 
 ## 访问地址
 
-部署完成后，可以通过以下地址访问：
+### 本地开发
+- 前端应用：http://localhost:5173 (Vite开发服务器)
+- 后端 API：http://localhost:8000 (FastAPI服务器)
+- 健康检查：http://localhost:8000/health
 
-- 前端应用：http://localhost:80 或 https://your-domain.com
-- 后端 API：http://localhost:8000/api 或 https://your-domain.com/api
-- 健康检查：http://localhost:80/health 或 https://your-domain.com/health
+### CloudBase 生产部署
+- 前端应用：https://cloud1-5g07azl0fdf36b21-1361381967.tcloudbaseapp.com/
+- 后端 API (云函数)：https://service-bihqgye1-1258344699.sh.run.tcloudbaseapp.com/finestem-backend-http/
+- 后端 API (健康检查)：https://service-bihqgye1-1258344699.sh.run.tcloudbaseapp.com/finestem-backend-http/health
+
+### 部署资源
+- **静态托管**：CloudBase 静态网站托管
+- **云函数**：Node.js 16.13 运行时
+- **环境ID**：cloud1-5g07azl0fdf36b21
+- **区域**：ap-shanghai
 
 ## 日志管理
 

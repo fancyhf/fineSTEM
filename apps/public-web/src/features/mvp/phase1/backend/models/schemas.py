@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Union
 
 # --- Track A Models ---
 class PendulumArm(BaseModel):
@@ -33,4 +33,4 @@ class VisualizationDataset(BaseModel):
     meta: Dict[str, str]
     timeline: List[str]
     categories: List[str]
-    series: Dict[str, List[Dict[str, float | str | int]]] # Simplified for Pydantic
+    series: Dict[str, List[Dict[str, Union[float, str, int]]]] # Simplified for Pydantic
