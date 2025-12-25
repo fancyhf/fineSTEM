@@ -8,15 +8,18 @@ services:
       dockerfile: Dockerfile
       args:
         - DEBIAN_FRONTEND=noninteractive
-    container_name: finestem-backend
+    container_name: ${COMPOSE_PROJECT_NAME:-finestem}-backend
     restart: always
     ports:
-      - "8000:8000"
+      - "${BACKEND_HOST_PORT:-18080}:8000"
     environment:
       - PYTHONUNBUFFERED=1
       - PORT=8000
     networks:
-      - finestem-network
+      - ${COMPOSE_PROJECT_NAME:-finestem}-network
+    volumes:
+      - ${COMPOSE_PROJECT_NAME:-finestem}-data:/app/data
+      - ${COMPOSE_PROJECT_NAME:-finestem}-logs:/app/logs
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -29,14 +32,18 @@ services:
     build:
       context: ./apps/public-web/src/features/mvp/phase1/web
       dockerfile: Dockerfile
-    container_name: finestem-frontend
+      args:
+        BASE_PATH: ${BASE_PATH:-/}
+    container_name: ${COMPOSE_PROJECT_NAME:-finestem}-frontend
     restart: always
     ports:
-      - "80:80"
+      - "${FRONTEND_HOST_PORT:-8080}:80"
     depends_on:
       - backend
     networks:
-      - finestem-network
+      - ${COMPOSE_PROJECT_NAME:-finestem}-network
+    volumes:
+      - ${COMPOSE_PROJECT_NAME:-finestem}-logs:/var/log/nginx
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:80/"]
       interval: 30s
@@ -45,11 +52,13 @@ services:
 
 # 网络配置
 networks:
-  finestem-network:
+  ${COMPOSE_PROJECT_NAME:-finestem}-network:
     driver: bridge
-    name: finestem-network
+    name: ${COMPOSE_PROJECT_NAME:-finestem}-network
 
-# 卷配置（如果需要）
+# 卷配置（项目独立数据卷）
 volumes:
-  nginx-logs:
+  ${COMPOSE_PROJECT_NAME:-finestem}-data:
+    driver: local
+  ${COMPOSE_PROJECT_NAME:-finestem}-logs:
     driver: local

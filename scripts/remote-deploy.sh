@@ -12,9 +12,11 @@ NC="\033[0m"
 
 # 服务器配置（可通过环境变量覆盖）
 SERVER_IP="${SERVER_IP:-43.140.204.127}"
-PROJECT_DIR="${PROJECT_DIR:-/root/fineSTEM_20251222134107}"
-BACKEND_PORT="${BACKEND_PORT:-8000}"
-FRONTEND_PORT="${FRONTEND_PORT:-80}"
+PROJECT_DIR="${PROJECT_DIR:-/root/projects/finestem/app}"
+FRONTEND_HOST_PORT="${FRONTEND_HOST_PORT:-8080}"
+BACKEND_HOST_PORT="${BACKEND_HOST_PORT:-18080}"
+BASE_PATH="${BASE_PATH:-/finestem}"
+COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-finestem}"
 
 echo -e "${GREEN}==========================================${NC}"
 echo -e "${GREEN}    Lighthouse 远程自动部署脚本${NC}"
@@ -76,23 +78,23 @@ echo
 # 9. 健康检查
 echo -e "${BLUE}8. 健康检查${NC}"
 
-BACKEND_STATUS=$(ssh root@$SERVER_IP "curl -s -o /dev/null -w '%{http_code}' http://localhost:${BACKEND_PORT}/health 2>/dev/null || echo '000'")
+BACKEND_STATUS=$(ssh root@$SERVER_IP "curl -s -o /dev/null -w '%{http_code}' http://localhost:${BACKEND_HOST_PORT}/health 2>/dev/null || echo '000'")
 if [ "$BACKEND_STATUS" = "200" ]; then
-    echo -e "${GREEN}✓ 后端服务正常: http://$SERVER_IP:${BACKEND_PORT}/health${NC}"
+    echo -e "${GREEN}✓ 后端服务正常: http://$SERVER_IP:${BACKEND_HOST_PORT}/health${NC}"
 else
     echo -e "${RED}✗ 后端服务异常，状态码: $BACKEND_STATUS${NC}"
 fi
 
-FRONTEND_STATUS=$(ssh root@$SERVER_IP "curl -s -o /dev/null -w '%{http_code}' http://localhost:${FRONTEND_PORT} 2>/dev/null || echo '000'")
+FRONTEND_STATUS=$(ssh root@$SERVER_IP "curl -s -o /dev/null -w '%{http_code}' http://localhost:${FRONTEND_HOST_PORT} 2>/dev/null || echo '000'")
 if [ "$FRONTEND_STATUS" = "200" ]; then
-    echo -e "${GREEN}✓ 前端服务正常: http://$SERVER_IP${NC}"
+    echo -e "${GREEN}✓ 前端服务正常: http://$SERVER_IP:${FRONTEND_HOST_PORT}${BASE_PATH}${NC}"
 else
     echo -e "${RED}✗ 前端服务异常，状态码: $FRONTEND_STATUS${NC}"
 fi
 
-TRACK_E_STATUS=$(ssh root@$SERVER_IP "curl -s -o /dev/null -w '%{http_code}' http://localhost:${FRONTEND_PORT}/track-e/dataset/mock 2>/dev/null || echo '000'")
+TRACK_E_STATUS=$(ssh root@$SERVER_IP "curl -s -o /dev/null -w '%{http_code}' http://localhost:${FRONTEND_HOST_PORT}${BASE_PATH}/api/track-e/dataset/mock 2>/dev/null || echo '000'")
 if [ "$TRACK_E_STATUS" = "200" ]; then
-    echo -e "${GREEN}✓ Track E API 正常: http://$SERVER_IP/track-e/dataset/mock${NC}"
+    echo -e "${GREEN}✓ Track E API 正常: http://$SERVER_IP:${FRONTEND_HOST_PORT}${BASE_PATH}/api/track-e/dataset/mock${NC}"
 else
     echo -e "${YELLOW}⚠ Track E API 状态码: $TRACK_E_STATUS${NC}"
 fi
@@ -103,15 +105,16 @@ echo
 echo -e "${GREEN}==========================================${NC}"
 echo -e "${GREEN}         部署完成！${NC}"
 echo -e "${GREEN}==========================================${NC}"
-echo -e "${GREEN}访问地址: ${NC}http://$SERVER_IP"
-echo -e "${GREEN}Track E:  ${NC}http://$SERVER_IP/track-e"
-echo -e "${GREEN}Track A:  ${NC}http://$SERVER_IP/track-a"
+echo -e "${GREEN}访问地址: ${NC}http://$SERVER_IP${BASE_PATH}"
+echo -e "${GREEN}Track E:  ${NC}http://$SERVER_IP${BASE_PATH}/track-e"
+echo -e "${GREEN}Track A:  ${NC}http://$SERVER_IP${BASE_PATH}/track-a"
 echo
 echo -e "${BLUE}环境变量:${NC}"
 echo -e "  SERVER_IP=${SERVER_IP}"
 echo -e "  PROJECT_DIR=${PROJECT_DIR}"
-echo -e "  BACKEND_PORT=${BACKEND_PORT}"
-echo -e "  FRONTEND_PORT=${FRONTEND_PORT}"
+echo -e "  FRONTEND_HOST_PORT=${FRONTEND_HOST_PORT}"
+echo -e "  BACKEND_HOST_PORT=${BACKEND_HOST_PORT}"
+echo -e "  BASE_PATH=${BASE_PATH}"
 echo
 echo -e "${YELLOW}如果问题仍然存在：${NC}"
 echo -e "1. 清除浏览器缓存（Ctrl+Shift+Delete）"
@@ -120,6 +123,7 @@ echo -e "3. 在 URL 后添加版本参数: ?v=$(date +%Y%m%d%H%M)"
 echo -e "4. 检查浏览器控制台中的网络请求 URL"
 echo
 echo -e "${BLUE}管理命令:${NC}"
-echo -e "查看日志: ${YELLOW}ssh root@$SERVER_IP 'docker-compose logs -f frontend'${NC}"
-echo -e "重启服务: ${YELLOW}ssh root@$SERVER_IP 'docker-compose restart frontend'${NC}"
+echo -e "查看日志: ${YELLOW}ssh root@$SERVER_IP 'cd $PROJECT_DIR && docker-compose logs -f'${NC}"
+echo -e "重启服务: ${YELLOW}ssh root@$SERVER_IP 'cd $PROJECT_DIR && docker-compose restart'${NC}"
+echo -e "停止服务: ${YELLOW}ssh root@$SERVER_IP 'cd $PROJECT_DIR && docker-compose down'${NC}"
 echo -e "${GREEN}==========================================${NC}"
