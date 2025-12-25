@@ -7,8 +7,9 @@ WORKDIR /app
 # 使用淘宝镜像源
 RUN npm config set registry https://registry.npmmirror.com/
 
-# 复制依赖文件
+# 复制依赖文件和环境变量文件
 COPY package*.json ./
+COPY .env* ./
 
 # 清除npm缓存并安装依赖
 RUN npm cache clean --force && npm install --no-audit --no-fund
