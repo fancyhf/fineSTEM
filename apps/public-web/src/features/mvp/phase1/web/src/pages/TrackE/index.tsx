@@ -283,12 +283,12 @@ setInterval(() => {
         <div className="flex-1 bg-gray-900 rounded-2xl border border-gray-800 p-1 relative overflow-hidden shadow-2xl flex flex-col">
         {loading ? (
             <div className="flex-1 flex items-center justify-center text-gray-500">
-                加载数据中... (请确保后端已启动 http://localhost:8001)
+                加载数据中...
             </div>
         ) : !dataset ? (
             <div className="flex-1 flex items-center justify-center text-red-500 flex-col gap-2">
                 <p>数据加载失败</p>
-                <p className="text-sm text-gray-400">请检查后端服务是否运行在端口 8001</p>
+                <p className="text-sm text-gray-400">请检查网络连接或稍后重试</p>
             </div>
         ) : (
             <>

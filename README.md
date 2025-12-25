@@ -170,16 +170,8 @@ systemctl restart nginx
 - 后端 API：http://localhost:8000 (FastAPI服务器)
 - 健康检查：http://localhost:8000/health
 
-### CloudBase 生产部署
-- 前端应用：https://cloud1-5g07azl0fdf36b21-1361381967.tcloudbaseapp.com/
-- 后端 API (云函数)：https://service-bihqgye1-1258344699.sh.run.tcloudbaseapp.com/finestem-backend-http/
-- 后端 API (健康检查)：https://service-bihqgye1-1258344699.sh.run.tcloudbaseapp.com/finestem-backend-http/health
-
-### 部署资源
-- **静态托管**：CloudBase 静态网站托管
-- **云函数**：Node.js 16.13 运行时
-- **环境ID**：cloud1-5g07azl0fdf36b21
-- **区域**：ap-shanghai
+### 生产部署
+使用 Tencent Lighthouse 或其他云服务器部署，详细步骤请参考 [DEPLOYMENT.md](./DEPLOYMENT.md)
 
 ## 日志管理
 

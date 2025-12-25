@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001';
+// 使用环境变量或相对路径，避免硬编码
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '/';
 
 export type EventCategory = 'track_a' | 'track_e' | 'general';
 
