@@ -116,7 +116,7 @@ nano apps/public-web/src/features/mvp/phase1/web/.env.production
 ```
 
 主要配置项：
-- `VITE_API_BASE_URL`：后端 API 地址，如 `https://finestem.example.com/api`
+- `VITE_API_BASE_URL`：后端 API 地址，如 `http://43.140.204.127/finestem/api`
 - `VITE_APP_NAME`：应用名称
 - `VITE_ENV`：环境标识（production）
 

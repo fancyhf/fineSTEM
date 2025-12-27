@@ -67,7 +67,7 @@ const TrackA: React.FC = () => {
     setExporting(true);
     logEvent({ category: 'track_a', event_name: 'export_config' });
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/track-a/config/export`, {
+      const response = await fetch('/track-a/config/export', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(config)

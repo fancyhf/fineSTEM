@@ -35,14 +35,14 @@ export const InteractiveCodeTour: React.FC<InteractiveCodeTourProps> = ({ config
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'zh-CN'; // Set language to Chinese
     utterance.rate = 1.0; // Normal speed
-    
+
     // Fix for long text truncation in Chrome/Edge
     // Split text into sentences and speak them sequentially if needed
     // For now, let's ensure we are using a valid voice
     const voices = synthRef.current.getVoices();
     // Prioritize Microsoft voices (often better quality on Windows) or Google
     const chineseVoice = voices.find(v => (v.lang.includes('zh') || v.lang.includes('CN')) && !v.name.includes('Hong Kong') && !v.name.includes('Taiwan'));
-    
+
     if (chineseVoice) {
         utterance.voice = chineseVoice;
     } else {
@@ -56,7 +56,11 @@ export const InteractiveCodeTour: React.FC<InteractiveCodeTourProps> = ({ config
         // Speech finished normally
     };
     utterance.onerror = (e) => {
-        console.error('Speech error:', e);
+        // "interrupted" errors are expected when speech is cancelled
+        // Only log other errors
+        if (e.error !== 'interrupted' && e.error !== 'canceled') {
+            console.error('Speech error:', e);
+        }
     };
 
     utteranceRef.current = utterance;

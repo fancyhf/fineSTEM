@@ -17,7 +17,9 @@ RUN npm cache clean --force && npm install --no-audit --no-fund
 # 复制应用代码
 COPY . .
 
-# 构建生产版本
+# 构建生产版本（传入BASE_PATH环境变量）
+ARG BASE_PATH
+ENV VITE_BASE_PATH=${BASE_PATH}
 RUN npm run build
 
 # 运行阶段

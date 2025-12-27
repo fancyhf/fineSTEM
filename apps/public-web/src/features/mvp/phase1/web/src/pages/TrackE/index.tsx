@@ -49,7 +49,7 @@ export default function TrackE() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/track-e/dataset/mock`);
+        const response = await fetch('/track-e/dataset/mock');
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }

@@ -64,7 +64,7 @@ Code Snippet:
 ${tourConfig?.codeSnippet || 'No code snippet provided'}
 `;
 
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/chat/completions`, {
+      const response = await fetch('/api/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

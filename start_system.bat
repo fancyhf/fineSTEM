@@ -5,8 +5,8 @@ echo       FineSTEM System Launcher
 echo ==========================================
 
 echo.
-echo [1/3] Starting Backend Server (Port 8001)...
-start "FineSTEM Backend" cmd /k "cd apps\public-web\src\features\mvp\phase1\backend && python -m uvicorn main:app --reload --port 8001"
+echo [1/3] Starting Backend Server (Port 8000)...
+start "FineSTEM Backend" cmd /k "cd apps\public-web\src\features\mvp\phase1\backend && python -m uvicorn main:app --reload --port 8000"
 
 echo.
 echo [2/3] Starting Frontend Server (Port 5173)...
