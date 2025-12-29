@@ -4,6 +4,7 @@ npm-debug.log
 yarn-error.log
 .pnpm-debug.log
 dist/
+deploysettings/敏感
 build/
 .env
 .env.local
