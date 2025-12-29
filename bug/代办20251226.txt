@@ -1,0 +1,5 @@
+我们解决了部署的问题。你做个部署总结log文档，放到log目录。
+- 包括清除了cloubase部署的设置
+- 包括解决了track e的访问报错问题。
+- Tencent Lighthouse的服务器上部署fineSTEM ok，各功能都能良好访问。
+- 修改了服务器端，来支持多项目部署。

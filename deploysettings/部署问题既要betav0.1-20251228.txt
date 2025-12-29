@@ -1,0 +1,25 @@
+现在，本地有个系统fineSTEM。目前只有2个子功能，未来会扩展。需要部署到Tencent Lighthouse服务器（43.140.204.127）。
+目前，需要重新审视和重构部署方案。
+
+- fineSTEM在本地运行良好，各功能正常运行，web ai chat功能也能连上deepseek（已配置deepseek api key）。
+- 在之前的若干次部署过程中，发现目前的部署方案，不太能稳定解决好这几个问题：
+  1、Tencent Lighthouse服务器（43.140.204.127）需要支持多项目部署。
+  2、有时候部署时，会把fineSTEM的子功能track a，track e，当成独立的项目。
+  3、对fastapi的配置，在url跳转设置时，容易出问题。
+     虽然本地运行很好，但是在服务端作为多项目时，很容易把api和url和端口搞错，导致页面功能出不来。track e尤其容易出错。
+  4、在服务端，哪怕本地配置好了deepseek api key，有时候服务端配置成功了，有时候不成功。
+  5、一些常见的部署问题在这个文档
+- Tencent Lighthouse有AI自然语言辅助部署功能。
+  在tecent的AI工具，只要有docker、DEPLOYMENT.md之类设置，腾讯AI就会自动部署。
+- 项目目前的部署概述，在这个文档
+   还有
+- 之前的服务端多项目部署方案是。
+ 还有一个多项目部署文档
+- 目前Lighthouse服务端是先会部署fineSTEM项目，fineSTEM项目未来还会增加新的功能和页面。
+  将来，Lighthouse服务端还会部署其他项目，其他项目跟fineSTEM将毫无关系。
+- 之前在项目的子功能目录下会有部署配置，不知道是否合理。
+  1、apps\public-web\src\features\mvp\phase1\backend
+  2、apps\public-web\src\features\mvp\phase1\web
+- 因为目前项目在本地localhost运行一切正常，所以我希望部署时能尽量少改动本地代码。
+
+请检查项目部署情况，给出部署优化方案。调用智能体 云端部署专家、

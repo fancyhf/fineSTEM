@@ -1,0 +1,71 @@
+version: '3.8'
+
+services:
+  # 后端服务
+  backend:
+    build:
+      context: ./apps/public-web/src/features/mvp/phase1/backend
+      dockerfile: Dockerfile
+      args:
+        - DEBIAN_FRONTEND=noninteractive
+    container_name: finestem-backend
+    restart: always
+    ports:
+      - "8000:8000"
+    # 优先使用 environment 覆盖 .env 文件中的配置
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PORT=8000
+      - ROOT_PATH=/finestem/api
+      # 确保从系统环境变量或 .env 文件中传递 Key
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+    env_file:
+      - ./apps/public-web/src/features/mvp/phase1/backend/.env.production
+    networks:
+      - finestem-network
+    volumes:
+      - finestem-data:/app/data
+      - finestem-logs:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # 前端服务
+  frontend:
+    build:
+      context: ./apps/public-web/src/features/mvp/phase1/web
+      dockerfile: Dockerfile
+      args:
+        BASE_PATH: /finestem/
+        API_BASE_URL: /finestem/api
+    container_name: finestem-frontend
+    restart: always
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+    networks:
+      - finestem-network
+    volumes:
+      - finestem-logs:/var/log/nginx
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/finestem/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+# 网络配置
+networks:
+  finestem-network:
+    driver: bridge
+    name: finestem-network
+
+# 卷配置（项目独立数据卷）
+volumes:
+  finestem-data:
+    driver: local
+  finestem-logs:
+    driver: local
