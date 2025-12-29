@@ -35,11 +35,14 @@ echo
 
 # 3. 配置主机级 Nginx
 echo -e "${YELLOW}3. 配置主机级 Nginx${NC}"
-if [ -f "nginx-projects.conf" ]; then
-    cp nginx-projects.conf /root/docker/nginx/conf.d/projects.conf
+if [ -f "nginx-root.conf" ]; then
+    cp nginx-root.conf /etc/nginx/conf.d/projects.conf
+    echo -e "${GREEN}✓ 主机 Nginx 配置已复制${NC}"
+elif [ -f "nginx-projects.conf" ]; then
+    cp nginx-projects.conf /etc/nginx/conf.d/projects.conf
     echo -e "${GREEN}✓ 主机 Nginx 配置已复制${NC}"
 else
-    echo -e "${YELLOW}⚠ 未找到 nginx-projects.conf，请手动配置${NC}"
+    echo -e "${YELLOW}⚠ 未找到 nginx 配置文件，请手动配置${NC}"
 fi
 
 # 4. 配置 Nginx 主配置文件

@@ -3,6 +3,8 @@ import { X, Bot, Send, User, AlertCircle, Sparkles } from 'lucide-react';
 import { InteractiveCodeTour } from './InteractiveCodeTour';
 import { CodeTourConfig, PresetQuestion } from '../../types/system';
 
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
+
 interface AIChatPanelProps {
   title: string;
   onClose: () => void;
@@ -64,7 +66,7 @@ Code Snippet:
 ${tourConfig?.codeSnippet || 'No code snippet provided'}
 `;
 
-      const response = await fetch('/api/chat/completions', {
+      const response = await fetch(`${API_BASE}/chat/completions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

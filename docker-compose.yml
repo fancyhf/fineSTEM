@@ -17,8 +17,8 @@ services:
       - PYTHONUNBUFFERED=1
       - PORT=8000
       - ROOT_PATH=/finestem/api
-      # 确保从系统环境变量或 .env 文件中传递 Key
-      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      # DeepSeek API Key 从 .env.production 文件读取
+      # DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
     env_file:
       - ./apps/public-web/src/features/mvp/phase1/backend/.env.production
     networks:
