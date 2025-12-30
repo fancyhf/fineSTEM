@@ -30,7 +30,8 @@ export default defineConfig(({ mode }) => {
     },
     define: {
       'import.meta.env.VITE_API_BASE_URL': JSON.stringify(
-        env.VITE_API_BASE_URL || '/'
+        // env.VITE_API_BASE_URL || '/' 本地AI chaturl报错，注释
+        env.VITE_API_BASE_URL || '/api'
       ),
       'import.meta.env.VITE_APP_NAME': JSON.stringify(
         env.VITE_APP_NAME || 'FineSTEM'
