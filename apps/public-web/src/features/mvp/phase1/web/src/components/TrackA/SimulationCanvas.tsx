@@ -2,14 +2,33 @@ import { useEffect, useRef, useImperativeHandle, forwardRef } from 'react';
 import Matter from 'matter-js';
 import { SimulationConfig } from '../../types/trackA';
 
+/**
+ * 模拟画布组件的属性定义
+ */
 interface SimulationCanvasProps {
+  /** 物理模拟的配置参数（质量、长度、角度等） */
   config: SimulationConfig;
 }
 
+/**
+ * 暴露给父组件的句柄方法
+ */
 export interface SimulationCanvasHandle {
+  /** 获取底层的 HTMLCanvasElement 实例 */
   getCanvas: () => HTMLCanvasElement | null;
 }
 
+/**
+ * 双摆模拟画布组件
+ * 
+ * 职责：
+ * - 初始化 Matter.js 物理引擎
+ * - 根据 config 渲染双摆系统
+ * - 处理实时动画循环与轨迹绘制
+ * - 提供 Canvas 实例供录制功能使用
+ * 
+ * @component
+ */
 const SimulationCanvas = forwardRef<SimulationCanvasHandle, SimulationCanvasProps>(({ config }, ref) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<Matter.Engine | null>(null);
@@ -17,6 +36,7 @@ const SimulationCanvas = forwardRef<SimulationCanvasHandle, SimulationCanvasProp
   const runnerRef = useRef<Matter.Runner | null>(null);
   const trailRef = useRef<Array<{ x: number; y: number }>>([]);
 
+  // 暴露方法给父组件
   useImperativeHandle(ref, () => ({
     getCanvas: () => canvasRef.current
   }));
@@ -24,7 +44,7 @@ const SimulationCanvas = forwardRef<SimulationCanvasHandle, SimulationCanvasProp
   useEffect(() => {
     if (!canvasRef.current) return;
 
-    // 1. Setup Matter.js
+    // 1. 初始化 Matter.js 模块
     const Engine = Matter.Engine,
       Render = Matter.Render,
       Runner = Matter.Runner,
@@ -43,23 +63,23 @@ const SimulationCanvas = forwardRef<SimulationCanvasHandle, SimulationCanvasProp
         width: 800,
         height: 600,
         wireframes: false,
-        background: '#0f172a', // Tailwind slate-900
+        background: '#0f172a', // Tailwind slate-900 背景色
       },
     });
     renderRef.current = render;
 
-    // 2. Create Double Pendulum
+    // 2. 创建双摆实体
     const centerX = 400;
     const centerY = 150;
 
-    // Anchor point (fixed)
+    // 锚点（固定不动）
     const anchor = Bodies.circle(centerX, centerY, 10, { isStatic: true, render: { fillStyle: '#64748b' } });
 
-    // First pendulum arm
+    // 第一个摆臂
     const bob1 = Bodies.circle(
       centerX + config.length1 * Math.sin(config.initialAngle1),
       centerY + config.length1 * Math.cos(config.initialAngle1),
-      Math.sqrt(config.mass1) * 4, // Visual size based on mass
+      Math.sqrt(config.mass1) * 4, // 根据质量决定视觉大小
       { 
         mass: config.mass1,
         frictionAir: config.frictionAir,
@@ -75,7 +95,7 @@ const SimulationCanvas = forwardRef<SimulationCanvasHandle, SimulationCanvasProp
       render: { strokeStyle: '#475569', lineWidth: 2 }
     });
 
-    // Second pendulum arm
+    // 第二个摆臂
     const bob2 = Bodies.circle(
       bob1.position.x + config.length2 * Math.sin(config.initialAngle2),
       bob1.position.y + config.length2 * Math.cos(config.initialAngle2),
@@ -97,7 +117,7 @@ const SimulationCanvas = forwardRef<SimulationCanvasHandle, SimulationCanvasProp
 
     Composite.add(engine.world, [anchor, bob1, bob2, constraint1, constraint2]);
 
-    // 3. Custom Rendering for Trails
+    // 3. 自定义渲染循环（用于绘制轨迹）
     Events.on(render, 'afterRender', () => {
       const context = render.context;
       if (!context) return;

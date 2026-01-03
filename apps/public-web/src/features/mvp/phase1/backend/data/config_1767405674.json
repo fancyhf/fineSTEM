@@ -1,0 +1,19 @@
+{
+  "meta": {
+    "version": "1.0.0",
+    "exportedAt": "2026-01-03T02:01:14.085235",
+    "author": "FineSTEM \u7528\u6237"
+  },
+  "config": {
+    "gravity": 1.0,
+    "frictionAir": 0.005,
+    "length1": 150.0,
+    "length2": 100.0,
+    "mass1": 20.0,
+    "mass2": 15.0,
+    "initialAngle1": 1.5707963267948966,
+    "initialAngle2": 1.5707963267948966,
+    "trailLength": 200,
+    "colorMode": "neon"
+  }
+}

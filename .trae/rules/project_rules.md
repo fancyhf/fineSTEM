@@ -33,6 +33,10 @@ fineSTEM 项目管理规范（v1.0.0）
   - 公共方法：必须说明参数（含义/约束）、返回值、可能抛出的异常与业务上下文；
   - 关键逻辑：复杂算法、状态流转或 Hack 写法必须添加行内注释说明“为什么这样做”；
   - 源文件头部：必须标注用途、维护者与对应 API 文档路径，例如：`links: .trae/documents/api/v1/api-spec.json#projects`。
+- 语言与国际化（强制中文）：
+  - 系统输出：所有的日志（Logs）、控制台打印（Print）、异常信息（Exception Message）必须使用简体中文，确保研发人员可直接阅读。
+  - 用户界面：所有的 UI 文本、提示信息（Alert/Toast）、表单验证错误必须使用简体中文。
+  - 变量命名：仍保持英文（Code is written in English, read in Chinese），禁止使用拼音命名变量。
 - 代码结构：
   - 后端分层：`controller → service → repository → model → infra`；前端分层：`components → hooks → services → pages → styles`；禁止跨层隐式耦合与共享状态。
   - 单一职责：函数建议 ≤30 行；模块聚焦一类职责；避免重复实现（DRY）。

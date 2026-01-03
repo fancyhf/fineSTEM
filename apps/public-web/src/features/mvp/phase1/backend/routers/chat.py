@@ -13,60 +13,97 @@ class Message(BaseModel):
 class ChatRequest(BaseModel):
     messages: List[Message]
     context: Optional[str] = None
-    provider: Optional[str] = "deepseek" # default to deepseek, could be qwen
+    provider: Optional[str] = None # 如果为 None，则使用 env 中的 AI_PROVIDER
 
-# Mock configuration - in production use env vars
-# Users should provide their own keys in a real deployment
-DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "sk-placeholder") 
-DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
+def get_provider_config(requested_provider: Optional[str] = None):
+    """
+    获取指定或默认 AI 服务提供商的配置。
+    """
+    # 1. 确定提供商: 请求参数 > 环境变量 > 默认(deepseek)
+    provider = requested_provider
+    if not provider:
+        provider = os.getenv("AI_PROVIDER", "deepseek")
+    
+    provider = provider.lower()
+    
+    config = {
+        "api_key": None,
+        "base_url": None,
+        "model": None,
+        "name": provider
+    }
+
+    if provider == "siliconflow":
+        config["api_key"] = os.getenv("SILICONFLOW_API_KEY")
+        config["base_url"] = os.getenv("SILICONFLOW_BASE_URL", "https://api.siliconflow.cn/v1")
+        config["model"] = os.getenv("SILICONFLOW_MODEL", "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B")
+    elif provider == "deepseek":
+        config["api_key"] = os.getenv("DEEPSEEK_API_KEY")
+        config["base_url"] = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
+        config["model"] = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
+    elif provider == "openai":
+        config["api_key"] = os.getenv("OPENAI_API_KEY")
+        config["base_url"] = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
+        config["model"] = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
+    
+    return config
 
 @router.post("/completions")
 async def chat_completions(request: ChatRequest):
     """
-    Handle chat completions using DeepSeek or other compatible APIs.
-    If no API key is configured, returns a simulated response for demonstration.
+    处理聊天补全请求，支持动态切换 AI 提供商。
     """
-    # Reload key from environment (in case it was set after module load)
-    api_key = os.getenv("DEEPSEEK_API_KEY", DEEPSEEK_API_KEY)
-    base_url = os.getenv("DEEPSEEK_BASE_URL", DEEPSEEK_BASE_URL)
+    config = get_provider_config(request.provider)
     
-    # 1. Check if we have a real key or should simulate
-    if not api_key or api_key == "sk-placeholder":
-        return simulate_response(request.messages, request.context)
-
-    # 2. Prepare the system prompt with context
-    system_prompt = "You are a helpful AI programming tutor for children. Explain code simply and clearly."
+    # 系统提示词工程
+    system_prompt = "You are a helpful STEM education assistant."
     if request.context:
-        system_prompt += f"\n\nCurrent Code/Context:\n{request.context}"
+        system_prompt += f"\nContext: {request.context}"
+    
+    # 构造完整的消息列表
+    full_messages = [{"role": "system", "content": system_prompt}] + [m.model_dump() for m in request.messages]
 
-    full_messages = [{"role": "system", "content": system_prompt}] + [m.dict() for m in request.messages]
+    # 检查是否有 API Key，如果没有则使用模拟模式
+    if not config["api_key"]:
+        print(f"[警告] 未找到提供商 {config['name']} 的 API Key。使用模拟响应。")
+        return {
+            "role": "assistant",
+            "content": f"[模拟响应 ({config['name']})] 这是一个模拟的 AI 回复。请在 .env 文件中配置 {config['name'].upper()}_API_KEY 以获得真实回复。"
+        }
+
+    headers = {
+        "Authorization": f"Bearer {config['api_key']}",
+        "Content-Type": "application/json"
+    }
+    
+    payload = {
+        "model": config["model"],
+        "messages": full_messages,
+        "temperature": 0.7
+    }
 
     try:
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                f"{base_url}/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json"
-                },
-                json={
-                    "model": "deepseek-chat",
-                    "messages": full_messages,
-                    "stream": False
-                },
-                timeout=30.0
+                f"{config['base_url']}/chat/completions",
+                headers=headers,
+                json=payload,
+                timeout=60.0
             )
             
             if response.status_code != 200:
-                print(f"DeepSeek API Error: {response.text}")
-                return simulate_response(request.messages, request.context)
+                print(f"AI 服务提供商 ({config['name']}) 错误: {response.text}")
+                raise HTTPException(status_code=response.status_code, detail=f"AI 提供商错误: {response.text}")
                 
             data = response.json()
-            return {"role": "assistant", "content": data["choices"][0]["message"]["content"]}
+            # 适配 OpenAI 格式的响应
+            return data["choices"][0]["message"]
             
     except Exception as e:
-        print(f"Chat Error: {e}")
-        return simulate_response(request.messages, request.context)
+        import traceback
+        traceback.print_exc()
+        print(f"聊天补全异常: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 def simulate_response(messages: List[Message], context: Optional[str]):
     """
