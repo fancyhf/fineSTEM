@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>fineSTEM 系统</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            max-width: 800px;
+            width: 100%;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        .logo {
+            font-size: 48px;
+            font-weight: bold;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 10px;
+        }
+        .status {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 30px;
+            padding: 15px;
+            background: #f0f9ff;
+            border-radius: 8px;
+        }
+        .status-icon {
+            font-size: 24px;
+        }
+        .status-text {
+            font-size: 16px;
+            color: #0369a1;
+            font-weight: 600;
+        }
+        .links {
+            display: grid;
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        .link-item {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 20px;
+            background: #f8fafc;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            text-decoration: none;
+            color: inherit;
+            transition: all 0.3s ease;
+        }
+        .link-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            border-color: #667eea;
+        }
+        .link-icon {
+            font-size: 28px;
+        }
+        .link-info {
+            flex: 1;
+        }
+        .link-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 4px;
+        }
+        .link-url {
+            font-size: 14px;
+            color: #64748b;
+            word-break: break-all;
+        }
+        .info {
+            background: #fef3c7;
+            border-left: 4px solid #f59e0b;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 20px;
+        }
+        .info p {
+            color: #92400e;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 class="logo">fineSTEM</h1>
+            <p style="color: #64748b; font-size: 18px;">STEM 教育学习系统</p>
+        </div>
+
+        <div class="status">
+            <span class="status-icon">✓</span>
+            <span class="status-text">系统正在运行中</span>
+        </div>
+
+        <div class="links">
+            <a href="http://122.51.71.4:8000/finestem/api/" class="link-item" target="_blank">
+                <span class="link-icon">🚀</span>
+                <div class="link-info">
+                    <div class="link-title">后端 API</div>
+                    <div class="link-url">http://122.51.71.4:8000/finestem/api/</div>
+                </div>
+            </a>
+            <a href="http://122.51.71.4:8000/finestem/api/docs" class="link-item" target="_blank">
+                <span class="link-icon">📚</span>
+                <div class="link-info">
+                    <div class="link-title">API 文档</div>
+                    <div class="link-url">http://122.51.71.4:8000/finestem/api/docs</div>
+                </div>
+            </a>
+            <a href="http://122.51.71.4:8888" class="link-item" target="_blank">
+                <span class="link-icon">⚙️</span>
+                <div class="link-info">
+                    <div class="link-title">宝塔面板</div>
+                    <div class="link-url">http://122.51.71.4:8888</div>
+                </div>
+            </a>
+        </div>
+
+        <div class="info">
+            <p>
+                <strong>部署说明：</strong><br>
+                • 后端服务运行在端口 8000<br>
+                • 前端服务正在配置中<br>
+                • 系统已成功部署到腾讯云轻量应用服务器<br>
+                • 如有问题请联系系统管理员
+            </p>
+        </div>
+    </div>
+
+    <script>
+        // 检查后端服务状态
+        async function checkBackendStatus() {
+            try {
+                const response = await fetch('http://122.51.71.4:8000/finestem/api/');
+                if (response.ok) {
+                    document.querySelector('.status').innerHTML = `
+                        <span class="status-icon">✓</span>
+                        <span class="status-text">后端API状态：正常</span>
+                    `;
+                } else {
+                    throw new Error('Backend not responding');
+                }
+            } catch (error) {
+                document.querySelector('.status').innerHTML = `
+                    <span class="status-icon">✗</span>
+                    <span class="status-text">后端API状态：异常</span>
+                `;
+                document.querySelector('.status').style.background = '#fef2f2';
+                document.querySelector('.status-text').style.color = '#dc2626';
+            }
+        }
+
+        // 页面加载后检查状态
+        window.addEventListener('load', checkBackendStatus);
+    </script>
+</body>
+</html>

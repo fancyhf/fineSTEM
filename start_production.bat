@@ -82,9 +82,9 @@ REM 显示访问地址
 echo ==========================================
 echo       服务启动完成！
 echo ==========================================
-echo 前端访问地址: http://localhost:8080/finestem
-echo 后端 API 地址: http://localhost:8000/api
-echo 健康检查地址: http://localhost:8080/health
+echo 前端访问地址: http://localhost:8081/finestem
+echo 后端 API 地址: http://localhost:8001/api
+echo 健康检查地址: http://localhost:8081/health
 echo ==========================================
 echo.
 echo 查看日志命令: %DOCKER_CMD% -f "%DOCKER_COMPOSE_FILE%" logs -f

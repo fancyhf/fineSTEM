@@ -81,12 +81,12 @@ def run_tests():
             
             # 1. 启动 Backend
             print("启动后端服务...")
-            backend_cmd = [sys.executable, "-m", "uvicorn", "main:app", "--host", "127.0.0.1", "--port", "8000"]
+            backend_cmd = [sys.executable, "-m", "uvicorn", "main:app", "--host", "127.0.0.1", "--port", "8001"]
             # 在 backend 目录下运行
             backend_proc = subprocess.Popen(backend_cmd, cwd=backend_dir, env=env_vars)
             processes.append(backend_proc)
             
-            if not wait_for_port("127.0.0.1", 8000, name="Backend"):
+            if not wait_for_port("127.0.0.1", 8001, name="Backend"):
                 raise Exception("后端启动失败")
 
             # 2. 启动 Frontend
@@ -97,11 +97,11 @@ def run_tests():
                 
             # Windows 下 npm 需要 shell=True 或者使用 npm.cmd
             npm_cmd = "npm.cmd" if os.name == 'nt' else "npm"
-            frontend_cmd = [npm_cmd, "run", "dev", "--", "--port", "5173"]
+            frontend_cmd = [npm_cmd, "run", "dev", "--", "--port", "5174"]
             frontend_proc = subprocess.Popen(frontend_cmd, cwd=frontend_dir, env=env_vars)
             processes.append(frontend_proc)
             
-            if not wait_for_port("localhost", 5173, name="Frontend"):
+            if not wait_for_port("localhost", 5174, name="Frontend"):
                 raise Exception("前端启动失败")
 
         # 3. 运行测试

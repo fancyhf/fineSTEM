@@ -14,8 +14,8 @@ except ImportError:
     app = None
 
 # 默认基础 URL，可以通过环境变量覆盖
-DEFAULT_API_URL = "http://localhost:8000"
-DEFAULT_FRONTEND_URL = "http://localhost:5173"
+DEFAULT_API_URL = "http://localhost:8001"
+DEFAULT_FRONTEND_URL = "http://localhost:5174"
 
 def pytest_addoption(parser):
     parser.addoption(
@@ -32,13 +32,13 @@ def env(request):
 @pytest.fixture(scope="session")
 def api_base_url(env):
     if env == "prod":
-        return os.getenv("PROD_API_URL", "http://localhost:8000")
+        return os.getenv("PROD_API_URL", "http://localhost:8001")
     return DEFAULT_API_URL
 
 @pytest.fixture(scope="session")
 def frontend_base_url(env):
     if env == "prod":
-        return os.getenv("PROD_FRONTEND_URL", "http://localhost:5173")
+        return os.getenv("PROD_FRONTEND_URL", "http://localhost:5174")
     return DEFAULT_FRONTEND_URL
 
 @pytest_asyncio.fixture

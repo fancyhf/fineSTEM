@@ -9,20 +9,20 @@ export default defineConfig(({ mode }) => {
     plugins: [react()],
     base: env.VITE_BASE_PATH || '/',
     server: {
-      port: 5173,
+      port: 5174,
       proxy: {
         '/api': {
-          target: 'http://localhost:8000',
+          target: 'http://localhost:8001',
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/api/, '')
         },
         '/track-a': {
-          target: 'http://localhost:8000',
+          target: 'http://localhost:8001',
           changeOrigin: true,
           secure: false
         },
         '/track-e': {
-          target: 'http://localhost:8000',
+          target: 'http://localhost:8001',
           changeOrigin: true,
           secure: false
         }
