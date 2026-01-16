@@ -5,6 +5,7 @@ yarn-error.log
 .pnpm-debug.log
 dist/
 deploysettings/敏感
+deploysettings/宝塔win/
 build/
 .env
 .env.local
