@@ -1,0 +1,6 @@
+升级下“AI编程伴学体系”为“AI PBL项目式编程伴学体系”
+- 我们开始下个版本的迭代。这一次往agent模式升级。
+- 项目的侧重点是：PBL项目式，自助、引导、结案、学习cs
+- 具体需求概要参考这个文档 `g:\mediaProjects\fineSTEM\.trae\documents\AI PBL编程研学智慧系统需求升级v2.md` 
+- 目前是需求脑爆阶段，是为了产品的下个迭代升级的需求，和勾勒下未来产品发展的蓝图
+- 早期mvp1需求文档为这个：.trae\documents\fineSTEM 产品需求文档 (PRD) -MVP1 v0.1.md

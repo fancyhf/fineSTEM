@@ -44,7 +44,7 @@ services:
     container_name: finestem-frontend
     restart: always
     ports:
-      - "8081:80"
+      - "8080:80"
     depends_on:
       - backend
     networks:

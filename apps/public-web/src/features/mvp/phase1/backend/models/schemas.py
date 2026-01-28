@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Union
 
-# --- Track A 模型定义 ---
+# --- Track A Models ---
 class PendulumArm(BaseModel):
     length: float = Field(..., ge=50, le=400)
     mass: float = Field(..., ge=1, le=50)
@@ -33,4 +33,4 @@ class VisualizationDataset(BaseModel):
     meta: Dict[str, str]
     timeline: List[str]
     categories: List[str]
-    series: Dict[str, List[Dict[str, Union[float, str, int]]]] # 为 Pydantic 简化的类型定义
+    series: Dict[str, List[Dict[str, Union[float, str, int]]]] # Simplified for Pydantic

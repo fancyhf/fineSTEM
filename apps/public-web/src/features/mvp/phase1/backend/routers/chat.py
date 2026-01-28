@@ -17,9 +17,9 @@ class ChatRequest(BaseModel):
 
 def get_provider_config(requested_provider: Optional[str] = None):
     """
-    获取指定或默认 AI 服务提供商的配置。
+    获取指定或默认 AI 提供商的配置。
     """
-    # 1. 确定提供商: 请求参数 > 环境变量 > 默认(deepseek)
+    # 1. 确定提供商：请求参数 > 环境变量 > 默认(deepseek)
     provider = requested_provider
     if not provider:
         provider = os.getenv("AI_PROVIDER", "deepseek")
@@ -45,65 +45,60 @@ def get_provider_config(requested_provider: Optional[str] = None):
         config["api_key"] = os.getenv("OPENAI_API_KEY")
         config["base_url"] = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
         config["model"] = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
-    
+        
     return config
 
 @router.post("/completions")
 async def chat_completions(request: ChatRequest):
     """
-    处理聊天补全请求，支持动态切换 AI 提供商。
+    使用配置的 AI 提供商（SiliconFlow, DeepSeek 等）处理聊天补全。
+    如果未配置 API 密钥，则返回用于演示的模拟响应。
     """
+    # 根据提供商加载配置
     config = get_provider_config(request.provider)
     
-    # 系统提示词工程
-    system_prompt = "You are a helpful STEM education assistant."
+    api_key = config.get("api_key")
+    base_url = config.get("base_url")
+    model = config.get("model")
+    
+    # 1. 检查是否有真实的密钥，或者是否应该使用模拟响应
+    if not api_key or api_key == "sk-placeholder" or api_key.startswith("sk-placeholder"):
+        # print(f"由于缺少 {config['name']} 的密钥，正在使用模拟响应")
+        return simulate_response(request.messages, request.context)
+
+    # 2. 准备包含上下文的系统提示词
+    system_prompt = "你是一位乐于助人的少儿编程 AI 导师。请用简单清晰的语言解释代码。"
     if request.context:
-        system_prompt += f"\nContext: {request.context}"
-    
-    # 构造完整的消息列表
-    full_messages = [{"role": "system", "content": system_prompt}] + [m.model_dump() for m in request.messages]
+        system_prompt += f"\n\n当前代码/上下文：\n{request.context}"
 
-    # 检查是否有 API Key，如果没有则使用模拟模式
-    if not config["api_key"]:
-        print(f"[警告] 未找到提供商 {config['name']} 的 API Key。使用模拟响应。")
-        return {
-            "role": "assistant",
-            "content": f"[模拟响应 ({config['name']})] 这是一个模拟的 AI 回复。请在 .env 文件中配置 {config['name'].upper()}_API_KEY 以获得真实回复。"
-        }
-
-    headers = {
-        "Authorization": f"Bearer {config['api_key']}",
-        "Content-Type": "application/json"
-    }
-    
-    payload = {
-        "model": config["model"],
-        "messages": full_messages,
-        "temperature": 0.7
-    }
+    full_messages = [{"role": "system", "content": system_prompt}] + [m.dict() for m in request.messages]
 
     try:
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                f"{config['base_url']}/chat/completions",
-                headers=headers,
-                json=payload,
-                timeout=60.0
+                f"{base_url}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "model": model,
+                    "messages": full_messages,
+                    "stream": False
+                },
+                timeout=30.0
             )
             
             if response.status_code != 200:
-                print(f"AI 服务提供商 ({config['name']}) 错误: {response.text}")
-                raise HTTPException(status_code=response.status_code, detail=f"AI 提供商错误: {response.text}")
+                print(f"AI 提供商 ({config['name']}) 错误: {response.text}")
+                return simulate_response(request.messages, request.context)
                 
             data = response.json()
-            # 适配 OpenAI 格式的响应
-            return data["choices"][0]["message"]
+            return {"role": "assistant", "content": data["choices"][0]["message"]["content"]}
             
     except Exception as e:
-        import traceback
-        traceback.print_exc()
-        print(f"聊天补全异常: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"聊天接口错误: {e}")
+        return simulate_response(request.messages, request.context)
 
 def simulate_response(messages: List[Message], context: Optional[str]):
     """
