@@ -56,3 +56,7 @@ logs/
 
 # Trae/AI (if needed to exclude specific temp files, but keeping docs)
 # .trae/  <-- keeping this as it has project docs
+
+# Up Video Analyzer
+projects/up-video-analyzer/venv/
+projects/up-video-analyzer/libs/
