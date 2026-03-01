@@ -1,0 +1,212 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "design.schema.json",
+  "title": "Design Schema",
+  "description": "设计文档的 JSON Schema 定义",
+  "type": "object",
+  "required": ["ui_design", "data_model", "api_endpoints", "interaction_flow", "acceptance_tests", "created_at"],
+  "properties": {
+    "ui_design": {
+      "type": "object",
+      "description": "UI设计",
+      "required": ["style", "color_palette", "layout", "screens"],
+      "properties": {
+        "style": {
+          "type": "string",
+          "description": "设计风格",
+          "enum": ["现代简约", "活泼可爱", "科技感", "自然清新", "复古怀旧"]
+        },
+        "color_palette": {
+          "type": "array",
+          "description": "配色方案",
+          "minItems": 3,
+          "maxItems": 6,
+          "items": {
+            "type": "string",
+            "pattern": "^#[0-9A-Fa-f]{6}$"
+          }
+        },
+        "layout": {
+          "type": "string",
+          "description": "布局描述",
+          "minLength": 10,
+          "maxLength": 300
+        },
+        "screens": {
+          "type": "array",
+          "description": "页面列表",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["name", "elements"],
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "页面名称",
+                "minLength": 1,
+                "maxLength": 50
+              },
+              "elements": {
+                "type": "array",
+                "description": "页面元素",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 100
+                }
+              },
+              "description": {
+                "type": "string",
+                "description": "页面描述",
+                "maxLength": 200
+              }
+            }
+          }
+        }
+      }
+    },
+    "data_model": {
+      "type": "array",
+      "description": "数据模型",
+      "items": {
+        "type": "object",
+        "required": ["entity", "fields"],
+        "properties": {
+          "entity": {
+            "type": "string",
+            "description": "实体名称",
+            "minLength": 1,
+            "maxLength": 50
+          },
+          "fields": {
+            "type": "array",
+            "description": "字段列表",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": ["name", "type"],
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "字段名",
+                  "minLength": 1,
+                  "maxLength": 50
+                },
+                "type": {
+                  "type": "string",
+                  "description": "字段类型",
+                  "minLength": 1,
+                  "maxLength": 50
+                },
+                "description": {
+                  "type": "string",
+                  "description": "字段描述",
+                  "maxLength": 100
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "api_endpoints": {
+      "type": "array",
+      "description": "API端点",
+      "items": {
+        "type": "object",
+        "required": ["path", "method", "description"],
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "API路径",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "method": {
+            "type": "string",
+            "description": "HTTP方法",
+            "enum": ["GET", "POST", "PUT", "DELETE", "PATCH"]
+          },
+          "description": {
+            "type": "string",
+            "description": "API描述",
+            "minLength": 5,
+            "maxLength": 200
+          }
+        }
+      }
+    },
+    "interaction_flow": {
+      "type": "array",
+      "description": "交互流程",
+      "items": {
+        "type": "object",
+        "required": ["step", "user_action", "system_response"],
+        "properties": {
+          "step": {
+            "type": "integer",
+            "description": "步骤序号",
+            "minimum": 1
+          },
+          "user_action": {
+            "type": "string",
+            "description": "用户操作",
+            "minLength": 5,
+            "maxLength": 200
+          },
+          "system_response": {
+            "type": "string",
+            "description": "系统响应",
+            "minLength": 5,
+            "maxLength": 200
+          }
+        }
+      }
+    },
+    "acceptance_tests": {
+      "type": "array",
+      "description": "验收测试用例",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "scenario", "given", "when", "then"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "测试ID",
+            "pattern": "^TC[0-9]{3}$"
+          },
+          "scenario": {
+            "type": "string",
+            "description": "测试场景",
+            "minLength": 5,
+            "maxLength": 200
+          },
+          "given": {
+            "type": "string",
+            "description": "前置条件",
+            "minLength": 5,
+            "maxLength": 200
+          },
+          "when": {
+            "type": "string",
+            "description": "操作步骤",
+            "minLength": 5,
+            "maxLength": 300
+          },
+          "then": {
+            "type": "string",
+            "description": "预期结果",
+            "minLength": 5,
+            "maxLength": 200
+          }
+        }
+      }
+    },
+    "created_at": {
+      "type": "string",
+      "description": "创建时间",
+      "format": "date-time"
+    }
+  }
+}

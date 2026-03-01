@@ -1,0 +1,22 @@
+{
+  "design_variant": "",
+  "ui_design": {
+    "style": "",
+    "theme": {
+      "primary_color": "",
+      "background": "",
+      "font": ""
+    },
+    "layout": "",
+    "pages": []
+  },
+  "components": [],
+  "data_flow": {
+    "input": "",
+    "process": "",
+    "output": "",
+    "storage": ""
+  },
+  "acceptance_tests": [],
+  "created_at": ""
+}

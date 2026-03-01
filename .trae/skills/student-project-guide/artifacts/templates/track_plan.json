@@ -1,0 +1,19 @@
+{
+  "track": "",
+  "track_name": "",
+  "tech_stack": {
+    "language": "Python",
+    "framework": "",
+    "libraries": [],
+    "dev_environment": "AI IDE"
+  },
+  "template_id": "",
+  "resource_check": {
+    "has_pico_board": false,
+    "can_use_internet": true,
+    "dataset_ready": false,
+    "python_installed": true
+  },
+  "learning_resources": [],
+  "created_at": ""
+}

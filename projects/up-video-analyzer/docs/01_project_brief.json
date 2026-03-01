@@ -10,7 +10,27 @@
     "AI 智能总结 - 自动提炼核心观点",
     "导出报告 - 保存和分享分析结果"
   ],
-  "success_criteria": "用户上传字幕文件后，30 秒内生成完整的可视化分析报告",
+  "success_criteria": [
+    "用户上传字幕文件后，30 秒内生成完整的可视化分析报告",
+    "支持 SRT 和 TXT 两种字幕格式",
+    "词云图清晰可读，Top10 高频词准确"
+  ],
+  "risks": [
+    {
+      "risk": "视频下载和字幕提取可能失败",
+      "fallback": "提供手动上传字幕文件的备选方案"
+    },
+    {
+      "risk": "AI 语音识别 API 调用受限或失败",
+      "fallback": "使用本地 Whisper 模型或跳过语音提取功能"
+    },
+    {
+      "risk": "中文分词准确性不足",
+      "fallback": "使用 jieba 分词 + 自定义词典优化"
+    }
+  ],
   "track_selected": "web_streamlit",
+  "time_budget": "6h",
+  "age_band": "高中",
   "created_at": "2026-02-28"
 }

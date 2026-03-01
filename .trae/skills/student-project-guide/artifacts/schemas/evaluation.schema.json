@@ -1,0 +1,140 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "evaluation.schema.json",
+  "title": "Evaluation Schema",
+  "description": "验收评估文档的 JSON Schema 定义",
+  "type": "object",
+  "required": ["overall_score", "dimensions", "test_results", "reflection", "next_steps", "completed_at"],
+  "properties": {
+    "overall_score": {
+      "type": "integer",
+      "description": "总体评分 (1-10)",
+      "minimum": 1,
+      "maximum": 10
+    },
+    "dimensions": {
+      "type": "array",
+      "description": "多维度评估",
+      "minItems": 4,
+      "maxItems": 6,
+      "items": {
+        "type": "object",
+        "required": ["name", "score", "feedback"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "评估维度",
+            "enum": ["功能完整性", "代码质量", "用户体验", "创新性", "技术实现", "文档规范"]
+          },
+          "score": {
+            "type": "integer",
+            "description": "评分 (1-10)",
+            "minimum": 1,
+            "maximum": 10
+          },
+          "feedback": {
+            "type": "string",
+            "description": "评价反馈",
+            "minLength": 10,
+            "maxLength": 300
+          }
+        }
+      }
+    },
+    "test_results": {
+      "type": "array",
+      "description": "测试结果",
+      "items": {
+        "type": "object",
+        "required": ["test_id", "scenario", "passed", "notes"],
+        "properties": {
+          "test_id": {
+            "type": "string",
+            "description": "测试ID",
+            "pattern": "^TC[0-9]{3}$"
+          },
+          "scenario": {
+            "type": "string",
+            "description": "测试场景",
+            "minLength": 5,
+            "maxLength": 200
+          },
+          "passed": {
+            "type": "boolean",
+            "description": "是否通过"
+          },
+          "notes": {
+            "type": "string",
+            "description": "测试备注",
+            "maxLength": 300
+          }
+        }
+      }
+    },
+    "reflection": {
+      "type": "object",
+      "description": "项目反思",
+      "required": ["what_went_well", "what_was_challenging", "what_i_learned"],
+      "properties": {
+        "what_went_well": {
+          "type": "array",
+          "description": "做得好的地方",
+          "minItems": 1,
+          "maxItems": 5,
+          "items": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 200
+          }
+        },
+        "what_was_challenging": {
+          "type": "array",
+          "description": "遇到的挑战",
+          "maxItems": 5,
+          "items": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 200
+          }
+        },
+        "what_i_learned": {
+          "type": "array",
+          "description": "学到的知识",
+          "minItems": 1,
+          "maxItems": 5,
+          "items": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 200
+          }
+        }
+      }
+    },
+    "next_steps": {
+      "type": "array",
+      "description": "下一步计划",
+      "items": {
+        "type": "object",
+        "required": ["action", "priority"],
+        "properties": {
+          "action": {
+            "type": "string",
+            "description": "行动计划",
+            "minLength": 10,
+            "maxLength": 200
+          },
+          "priority": {
+            "type": "string",
+            "description": "优先级",
+            "enum": ["high", "medium", "low"]
+          }
+        }
+      }
+    },
+    "completed_at": {
+      "type": "string",
+      "description": "完成时间",
+      "format": "date-time"
+    }
+  }
+}

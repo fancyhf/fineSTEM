@@ -1,0 +1,15 @@
+{
+  "title": "",
+  "one_liner": "",
+  "problem_statement": "",
+  "target_user": "",
+  "core_features": ["", "", ""],
+  "success_criteria": ["", ""],
+  "risks": [
+    {"risk": "", "fallback": ""}
+  ],
+  "track_selected": "",
+  "time_budget": "6h",
+  "age_band": "13-15",
+  "created_at": ""
+}

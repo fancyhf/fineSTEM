@@ -1,0 +1,135 @@
+{
+  "milestones": [
+    {
+      "name": "里程碑1: 基础框架搭建",
+      "time_estimate": "1h",
+      "steps": [
+        {
+          "id": "step_1_1",
+          "name": "创建项目结构",
+          "run": "创建 docs/、src/、tests/ 目录",
+          "check": "目录结构正确",
+          "rollback": "删除重建"
+        },
+        {
+          "id": "step_1_2",
+          "name": "初始化 Streamlit 应用",
+          "run": "编写 main.py 基础框架",
+          "check": "页面能正常加载",
+          "rollback": "回退到空文件"
+        },
+        {
+          "id": "step_1_3",
+          "name": "配置页面布局",
+          "run": "设置左右分栏布局",
+          "check": "布局显示正确",
+          "rollback": "简化布局"
+        }
+      ]
+    },
+    {
+      "name": "里程碑2: 字幕处理功能",
+      "time_estimate": "1.5h",
+      "steps": [
+        {
+          "id": "step_2_1",
+          "name": "实现文件上传",
+          "run": "添加 st.file_uploader 组件",
+          "check": "能上传 SRT/TXT 文件",
+          "rollback": "使用简单文本输入"
+        },
+        {
+          "id": "step_2_2",
+          "name": "字幕解析",
+          "run": "解析 SRT 时间轴和文本内容",
+          "check": "正确提取纯文本",
+          "rollback": "直接读取文本"
+        },
+        {
+          "id": "step_2_3",
+          "name": "中文分词",
+          "run": "集成 jieba 分词",
+          "check": "分词结果正确",
+          "rollback": "使用空格分词"
+        }
+      ]
+    },
+    {
+      "name": "里程碑3: 可视化展示",
+      "time_estimate": "1.5h",
+      "steps": [
+        {
+          "id": "step_3_1",
+          "name": "词频统计",
+          "run": "统计词频并排序",
+          "check": "Top10 词汇正确",
+          "rollback": "简化统计"
+        },
+        {
+          "id": "step_3_2",
+          "name": "词云生成",
+          "run": "使用 wordcloud 生成词云图",
+          "check": "词云图片正常显示",
+          "rollback": "使用柱状图替代"
+        },
+        {
+          "id": "step_3_3",
+          "name": "统计面板",
+          "run": "添加数据统计指标",
+          "check": "指标计算正确",
+          "rollback": "减少指标数量"
+        }
+      ]
+    },
+    {
+      "name": "里程碑4: 视频链接功能",
+      "time_estimate": "1.5h",
+      "steps": [
+        {
+          "id": "step_4_1",
+          "name": "视频链接输入",
+          "run": "添加 textarea 输入框和确认按钮",
+          "check": "能输入并确认链接",
+          "rollback": "简化输入方式"
+        },
+        {
+          "id": "step_4_2",
+          "name": "平台检测",
+          "run": "检测 B站/抖音/YouTube 等平台",
+          "check": "正确识别平台",
+          "rollback": "只支持单一平台"
+        },
+        {
+          "id": "step_4_3",
+          "name": "任务管理",
+          "run": "实现任务历史记录",
+          "check": "任务状态正确保存",
+          "rollback": "不保存历史"
+        }
+      ]
+    },
+    {
+      "name": "里程碑5: 测试与优化",
+      "time_estimate": "0.5h",
+      "steps": [
+        {
+          "id": "step_5_1",
+          "name": "自动化测试",
+          "run": "编写 Playwright 测试脚本",
+          "check": "所有测试通过",
+          "rollback": "手动测试"
+        },
+        {
+          "id": "step_5_2",
+          "name": "UI 优化",
+          "run": "调整样式和布局",
+          "check": "界面美观易用",
+          "rollback": "保持基础样式"
+        }
+      ]
+    }
+  ],
+  "total_time_estimate": "6h",
+  "buffer_time": "1h",
+  "created_at": "2026-02-28"
+}

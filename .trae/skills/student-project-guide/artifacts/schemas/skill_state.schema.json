@@ -1,0 +1,134 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "skill_state.schema.json",
+  "title": "Skill State Schema",
+  "description": "Skill 状态文件的 JSON Schema 定义",
+  "type": "object",
+  "required": ["project_id", "project_name", "current_stage", "stages", "artifacts", "metadata"],
+  "properties": {
+    "project_id": {
+      "type": "string",
+      "description": "项目唯一标识",
+      "pattern": "^[a-z0-9_-]+$"
+    },
+    "project_name": {
+      "type": "string",
+      "description": "项目名称",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "current_stage": {
+      "type": "string",
+      "description": "当前阶段",
+      "enum": ["stage_00", "stage_01", "stage_02", "stage_03", "stage_04", "stage_05", "stage_06", "stage_07", "stage_08"]
+    },
+    "stages": {
+      "type": "object",
+      "description": "各阶段状态",
+      "properties": {
+        "stage_00": { "$ref": "#/definitions/stage_status" },
+        "stage_01": { "$ref": "#/definitions/stage_status" },
+        "stage_02": { "$ref": "#/definitions/stage_status" },
+        "stage_03": { "$ref": "#/definitions/stage_status" },
+        "stage_04": { "$ref": "#/definitions/stage_status" },
+        "stage_05": { "$ref": "#/definitions/stage_status" },
+        "stage_06": { "$ref": "#/definitions/stage_status" },
+        "stage_07": { "$ref": "#/definitions/stage_status" },
+        "stage_08": { "$ref": "#/definitions/stage_status" }
+      }
+    },
+    "artifacts": {
+      "type": "object",
+      "description": "产物状态",
+      "properties": {
+        "00_brainstorm.md": { "$ref": "#/definitions/artifact_status" },
+        "01_project_brief.json": { "$ref": "#/definitions/artifact_status" },
+        "02_constraints.json": { "$ref": "#/definitions/artifact_status" },
+        "03_track_plan.json": { "$ref": "#/definitions/artifact_status" },
+        "04_design.json": { "$ref": "#/definitions/artifact_status" },
+        "05_step_plan.json": { "$ref": "#/definitions/artifact_status" },
+        "06_dev_log.md": { "$ref": "#/definitions/artifact_status" },
+        "07_evaluation.json": { "$ref": "#/definitions/artifact_status" }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "description": "元数据",
+      "required": ["created_at", "updated_at", "age_band", "time_budget"],
+      "properties": {
+        "created_at": {
+          "type": "string",
+          "description": "创建时间",
+          "format": "date-time"
+        },
+        "updated_at": {
+          "type": "string",
+          "description": "更新时间",
+          "format": "date-time"
+        },
+        "age_band": {
+          "type": "string",
+          "description": "年龄段",
+          "enum": ["10-12", "13-15", "16-18"]
+        },
+        "time_budget": {
+          "type": "string",
+          "description": "时间预算",
+          "pattern": "^[0-9]+h$"
+        },
+        "track_preference": {
+          "type": "string",
+          "description": "轨道偏好",
+          "enum": ["scientist", "creator", "explorer", "none"]
+        }
+      }
+    }
+  },
+  "definitions": {
+    "stage_status": {
+      "type": "object",
+      "required": ["status", "started_at"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["locked", "unlocked", "in_progress", "completed"]
+        },
+        "started_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "completed_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "artifact_status": {
+      "type": "object",
+      "required": ["status", "path"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["missing", "draft", "valid", "stale", "archived"]
+        },
+        "path": {
+          "type": "string",
+          "description": "文件路径"
+        },
+        "version": {
+          "type": "integer",
+          "description": "版本号",
+          "minimum": 1
+        },
+        "last_modified": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "checksum": {
+          "type": "string",
+          "description": "文件校验和"
+        }
+      }
+    }
+  }
+}
