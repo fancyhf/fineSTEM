@@ -70,12 +70,37 @@ projects/{project_slug}/
 
 | 命令 | 动作 |
 |------|------|
+| "现在是什么阶段" / "当前阶段" | 显示当前阶段、状态和下一步建议 |
 | "下一步" / "next" | 进入下一阶段（需通过门禁） |
 | "上一步" / "back" | 软回退（后置工件变 stale） |
 | "重做" / "redo" | 重做当前阶段 |
-| "查看状态" / "status" | 显示当前状态和 stale 工件 |
+| "查看状态" / "status" | 显示完整状态、stale 工件和历史记录 |
 | "锁定项目" / "lock" | 锁定项目（防止改方向） |
 | "解锁项目" / "unlock" | 解锁项目 |
+
+## 测试模式 (Playwright MCP)
+
+**触发**: "测试我的项目"、"运行测试"、"playwright测试"
+
+**功能**:
+- 基于 `docs/04_design.json` 中的 `acceptance_tests` 自动生成测试
+- 通过 **Playwright MCP** 进行端到端测试（学生零配置）
+- 生成测试报告（截图、MCP调用记录）
+- 记录测试结果到 `docs/06_dev_log.md`
+
+**优势**:
+- 环境由 AI IDE MCP 自动管理
+- 学生无需安装 Playwright
+- 支持多种技术栈
+
+**支持技术栈**:
+- Streamlit (localhost:8501)
+- Flask/Django (HTTP API + 页面)
+- Pygame (截图对比)
+- Tkinter (截图对比)
+- 硬件 Pico (串口通信)
+
+**降级方案**: MCP 不可用时提供手动测试清单
 
 ## 状态机规范
 

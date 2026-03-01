@@ -28,7 +28,7 @@ SILICONFLOW_BASE_URL = "https://api.siliconflow.cn/v1"
 def check_yt_dlp():
     """检查 yt-dlp 是否安装"""
     try:
-        import yt_dlp
+        import yt_dlp  # type: ignore
         return True
     except ImportError:
         pass
@@ -39,7 +39,7 @@ def check_yt_dlp():
             text=True
         )
         return result.returncode == 0
-    except:
+    except Exception:
         return False
 
 

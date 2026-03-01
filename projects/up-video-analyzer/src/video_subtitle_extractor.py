@@ -21,12 +21,12 @@ def check_dependencies():
     missing = []
     
     try:
-        import yt_dlp
+        import yt_dlp  # type: ignore
     except ImportError:
         missing.append("yt-dlp")
     
     try:
-        import whisper
+        import whisper  # type: ignore
     except ImportError:
         missing.append("openai-whisper")
     
@@ -45,7 +45,7 @@ def download_audio(url: str, output_dir: str) -> Tuple[Optional[str], str]:
         (音频文件路径, 状态消息)
     """
     try:
-        import yt_dlp
+        import yt_dlp  # type: ignore
         
         # 配置 yt-dlp 选项
         ydl_opts = {
@@ -90,7 +90,7 @@ def transcribe_audio(audio_path: str, model_size: str = "base") -> Tuple[Optiona
         (字幕文本, 状态消息)
     """
     try:
-        import whisper
+        import whisper  # type: ignore
         
         # 加载模型
         print(f"正在加载 Whisper 模型 ({model_size})...")

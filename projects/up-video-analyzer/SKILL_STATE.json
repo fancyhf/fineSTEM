@@ -1,19 +1,56 @@
 {
-  "project_name": "UP 主视频内容分析器",
+  "project_id": "up-video-analyzer",
   "project_slug": "up-video-analyzer",
-  "created_at": "2026-02-28",
-  "current_stage": "04_design_complete",
-  "age_band": "高中",
-  "time_budget": "6h",
-  "brainstorm_round": 5,
+  "project_name": "UP 主视频内容分析器",
+  "created_at": "2026-02-28T00:00:00.000Z",
+  "updated_at": "2026-03-01T21:45:00.000Z",
+  "ui_language": "zh-CN",
+  "current_stage": "stage_08_evaluate",
+  "stage_status": "passed",
+  "stage_passed": {
+    "stage_00_bootstrap": true,
+    "stage_01_brainstorm": true,
+    "stage_02_brief": true,
+    "stage_03_constraints": true,
+    "stage_04_track": true,
+    "stage_05_design": true,
+    "stage_06_step_plan": true,
+    "stage_07_execute": true,
+    "stage_08_evaluate": true
+  },
+  "artifacts": {
+    "brainstorm": {"path": "docs/00_brainstorm.md", "status": "valid", "schema_valid": true, "rubric_passed": true},
+    "project_brief": {"path": "docs/01_project_brief.json", "status": "valid", "schema_valid": true, "rubric_passed": true},
+    "constraints": {"path": "docs/02_constraints.json", "status": "valid", "schema_valid": true, "rubric_passed": true},
+    "track_plan": {"path": "docs/03_track_plan.json", "status": "valid", "schema_valid": true, "rubric_passed": true},
+    "design": {"path": "docs/04_design.json", "status": "valid", "schema_valid": true, "rubric_passed": true},
+    "step_plan": {"path": "docs/05_step_plan.json", "status": "valid", "schema_valid": true, "rubric_passed": true},
+    "dev_log": {"path": "docs/06_dev_log.md", "status": "valid", "schema_valid": true, "rubric_passed": true},
+    "evaluation": {"path": "docs/07_evaluation.json", "status": "valid", "schema_valid": true, "rubric_passed": true}
+  },
+  "test_results": {
+    "last_run": "2026-03-01T21:45:00.000Z",
+    "passed": 6,
+    "total": 6,
+    "pass_rate": 100,
+    "test_method": "playwright_python"
+  },
   "project_locked": true,
-  "design_ready": true,
-  "code_generated": true,
-  "track_selected": "web_streamlit",
-  "core_features": ["词云可视化", "数据统计面板", "AI 智能总结", "导出报告"],
-  "tech_stack": {
-    "language": "Python",
-    "framework": "Streamlit",
-    "libraries": ["pandas", "numpy", "wordcloud", "jieba", "matplotlib"]
-  }
+  "locked_at": "2026-02-28T00:00:00.000Z",
+  "defaults": {
+    "age_band": "高中",
+    "time_budget": "6h",
+    "track_preference": "web_streamlit"
+  },
+  "history": [
+    {"ts": "2026-02-28T00:00:00.000Z", "action": "next", "from_stage": null, "to_stage": "stage_00_bootstrap", "note": "项目初始化"},
+    {"ts": "2026-02-28T00:00:00.000Z", "action": "next", "from_stage": "stage_00_bootstrap", "to_stage": "stage_01_brainstorm", "note": "脑爆完成"},
+    {"ts": "2026-02-28T00:00:00.000Z", "action": "next", "from_stage": "stage_01_brainstorm", "to_stage": "stage_02_brief", "note": "立项书完成"},
+    {"ts": "2026-02-28T00:00:00.000Z", "action": "next", "from_stage": "stage_02_brief", "to_stage": "stage_03_constraints", "note": "范围裁剪完成"},
+    {"ts": "2026-02-28T00:00:00.000Z", "action": "next", "from_stage": "stage_03_constraints", "to_stage": "stage_04_track", "note": "技术选型完成"},
+    {"ts": "2026-02-28T00:00:00.000Z", "action": "next", "from_stage": "stage_04_track", "to_stage": "stage_05_design", "note": "设计完成"},
+    {"ts": "2026-02-28T00:00:00.000Z", "action": "next", "from_stage": "stage_05_design", "to_stage": "stage_06_step_plan", "note": "分步计划完成"},
+    {"ts": "2026-03-01T00:00:00.000Z", "action": "next", "from_stage": "stage_06_step_plan", "to_stage": "stage_07_execute", "note": "开发完成"},
+    {"ts": "2026-03-01T21:45:00.000Z", "action": "next", "from_stage": "stage_07_execute", "to_stage": "stage_08_evaluate", "note": "测试通过，项目验收完成"}
+  ]
 }

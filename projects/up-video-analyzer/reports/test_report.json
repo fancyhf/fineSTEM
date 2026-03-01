@@ -1,0 +1,52 @@
+{
+  "summary": {
+    "passed": 6,
+    "total": 6,
+    "pass_rate": 100.0,
+    "timestamp": "2026-03-01T21:45:01.152842"
+  },
+  "results": [
+    {
+      "test": "页面加载",
+      "passed": true,
+      "message": "页面标题: UP 主视频内容分析器",
+      "screenshot": "01_page_load.png",
+      "timestamp": "2026-03-01T21:44:43.387911"
+    },
+    {
+      "test": "UI元素检查",
+      "passed": true,
+      "message": "找到元素: 输入方式选择, 上传字幕文件选项, 粘贴视频链接选项, 任务历史标签, 执行报告标签",
+      "screenshot": "02_ui_elements.png",
+      "timestamp": "2026-03-01T21:44:43.490020"
+    },
+    {
+      "test": "视频链接输入",
+      "passed": true,
+      "message": "成功检测到B站平台",
+      "screenshot": "03_url_confirmed.png",
+      "timestamp": "2026-03-01T21:44:49.368898"
+    },
+    {
+      "test": "任务历史标签",
+      "passed": true,
+      "message": "标签已点击",
+      "screenshot": "04_task_history.png",
+      "timestamp": "2026-03-01T21:44:53.521771"
+    },
+    {
+      "test": "执行报告标签",
+      "passed": true,
+      "message": "执行报告页面可访问",
+      "screenshot": "05_report_tab.png",
+      "timestamp": "2026-03-01T21:44:57.663816"
+    },
+    {
+      "test": "文件上传功能",
+      "passed": true,
+      "message": "文件上传组件可用",
+      "screenshot": "06_upload_section.png",
+      "timestamp": "2026-03-01T21:45:00.869094"
+    }
+  ]
+}

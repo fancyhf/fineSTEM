@@ -21,13 +21,15 @@ import time
 import os
 from datetime import datetime
 
+from typing import Optional, Tuple
+
 # 导入字幕提取模块
 try:
     from bilibili_subtitle_v3 import extract_bilibili_subtitle
     BILI_SUBTITLE_AVAILABLE = True
 except ImportError:
     BILI_SUBTITLE_AVAILABLE = False
-    def extract_bilibili_subtitle(url):
+    def extract_bilibili_subtitle(url: str) -> Tuple[Optional[str], str]:
         return None, "❌ CC字幕提取模块加载失败"
 
 # 导入视频字幕提取模块（下载视频+语音识别）
@@ -36,17 +38,17 @@ try:
     VIDEO_TO_SUBTITLE_AVAILABLE = True
 except ImportError:
     VIDEO_TO_SUBTITLE_AVAILABLE = False
-    def extract_subtitle_from_video(url):
-        return None, "❌ 视频字幕提取模块加载失败"
+    def extract_subtitle_from_video(url: str, task_id: Optional[str] = None, audio_output_dir: Optional[str] = None, progress_callback=None) -> Tuple[Optional[str], str, Optional[str]]:
+        return None, "❌ 视频字幕提取模块加载失败", None
 
 # 导入任务管理模块
 try:
-    from task_manager import get_task_manager, TaskStatus
+    from task_manager import get_task_manager, TaskStatus  # type: ignore
     TASK_MANAGER_AVAILABLE = True
 except ImportError:
     TASK_MANAGER_AVAILABLE = False
-    def get_task_manager():
-        return None
+    TaskStatus = None
+    def get_task_manager(): return None  # type: ignore
 
 # 设置 matplotlib 支持中文显示
 plt.rcParams['font.sans-serif'] = ['SimHei', 'Microsoft YaHei', 'Arial Unicode MS']
@@ -310,6 +312,7 @@ if selected_tab == "📝 新建任务":
         
         file_content = None
         current_task = None
+        uploaded_file = None
         
         # 初始化视频链接相关的 session state
         if 'confirmed_video_url' not in st.session_state:
@@ -452,8 +455,8 @@ if selected_tab == "📝 新建任务":
                         st.error("❌ CC 字幕提取模块加载失败")
                     else:
                         # 更新任务状态
-                        if current_task:
-                            task_manager.update_task(
+                        if current_task and task_manager and TASK_MANAGER_AVAILABLE and TaskStatus is not None:
+                            task_manager.update_task(  # type: ignore
                                 current_task.id,
                                 status=TaskStatus.EXTRACTING.value,
                                 progress=30
@@ -464,9 +467,9 @@ if selected_tab == "📝 新建任务":
                             content, message = extract_bilibili_subtitle(video_url)
                             elapsed = time.time() - start_time
                             
-                            if current_task:
+                            if current_task and task_manager and TASK_MANAGER_AVAILABLE and TaskStatus is not None:
                                 if "✅" in message:
-                                    task_manager.update_task(
+                                    task_manager.update_task(  # type: ignore
                                         current_task.id,
                                         status=TaskStatus.COMPLETED.value,
                                         progress=100,
@@ -484,13 +487,14 @@ if selected_tab == "📝 新建任务":
                                         del st.session_state.confirmed_task_id
                                     st.rerun()
                                 else:
-                                    task_manager.update_task(
-                                        current_task.id,
-                                        status=TaskStatus.FAILED.value,
-                                        progress=0,
-                                        error_message=message,
-                                        elapsed_time=elapsed
-                                    )
+                                    if current_task and task_manager and TASK_MANAGER_AVAILABLE and TaskStatus is not None:
+                                        task_manager.update_task(  # type: ignore
+                                            current_task.id,
+                                            status=TaskStatus.FAILED.value,
+                                            progress=0,
+                                            error_message=message,
+                                            elapsed_time=elapsed
+                                        )
                                     st.info(message)
                                     st.info("💡 建议：尝试使用「下载视频提取」功能")
                 
@@ -501,8 +505,8 @@ if selected_tab == "📝 新建任务":
                             st.code("pip install yt-dlp openai-whisper", language="bash")
                         else:
                             # 更新任务状态
-                            if current_task:
-                                task_manager.update_task(
+                            if current_task and task_manager and TASK_MANAGER_AVAILABLE and TaskStatus is not None:
+                                task_manager.update_task(  # type: ignore
                                     current_task.id,
                                     status=TaskStatus.DOWNLOADING.value,
                                     progress=10
@@ -510,26 +514,26 @@ if selected_tab == "📝 新建任务":
                             
                             progress_placeholder = st.empty()
                             progress_bar = st.progress(0)
-                            status_text = st.empty()
-                            status_text.info("⬇️ 正在下载视频音频...")
+                            status_text_placeholder = st.empty()
+                            status_text_placeholder.info("⬇️ 正在下载视频音频...")
                             
                             # 进度回调函数
                             def update_progress(progress):
                                 progress_bar.progress(min(progress, 100))
                                 if progress < 30:
-                                    status_text.info("⬇️ 正在下载视频音频...")
+                                    status_text_placeholder.info("⬇️ 正在下载视频音频...")
                                 elif progress < 60:
-                                    status_text.info("🎯 正在提取音频...")
-                                    if current_task:
-                                        task_manager.update_task(
+                                    status_text_placeholder.info("🎯 正在提取音频...")
+                                    if current_task and task_manager and TASK_MANAGER_AVAILABLE and TaskStatus is not None:
+                                        task_manager.update_task(  # type: ignore
                                             current_task.id,
                                             status=TaskStatus.EXTRACTING.value,
                                             progress=progress
                                         )
                                 elif progress < 90:
-                                    status_text.info("🤖 正在进行语音识别...")
+                                    status_text_placeholder.info("🤖 正在进行语音识别...")
                                 else:
-                                    status_text.info("✅ 处理完成！")
+                                    status_text_placeholder.info("✅ 处理完成！")
                             
                             with st.spinner("正在下载视频并提取字幕，这可能需要几分钟..."):
                                 start_time = time.time()
@@ -543,16 +547,16 @@ if selected_tab == "📝 新建任务":
                                 elapsed = time.time() - start_time
                                 
                                 progress_bar.empty()
-                                status_text.empty()
+                                status_text_placeholder.empty()
                                 progress_placeholder.empty()
                                 
-                                if current_task:
+                                if current_task and task_manager and TASK_MANAGER_AVAILABLE and TaskStatus is not None:
                                     if "✅" in message:
                                         # 保存字幕到任务目录
-                                        task_manager.save_subtitle(current_task.id, content)
+                                        task_manager.save_subtitle(current_task.id, content)  # type: ignore
                                         
                                         # 更新任务状态
-                                        task_manager.update_task(
+                                        task_manager.update_task(  # type: ignore
                                             current_task.id,
                                             status=TaskStatus.COMPLETED.value,
                                             progress=100,
@@ -571,13 +575,14 @@ if selected_tab == "📝 新建任务":
                                         st.session_state.extracted_task_id = current_task.id
                                         st.rerun()
                                     else:
-                                        task_manager.update_task(
-                                            current_task.id,
-                                            status=TaskStatus.FAILED.value,
-                                            progress=0,
-                                            error_message=message,
-                                            elapsed_time=elapsed
-                                        )
+                                        if current_task and task_manager and TASK_MANAGER_AVAILABLE and TaskStatus is not None:
+                                            task_manager.update_task(  # type: ignore
+                                                current_task.id,
+                                                status=TaskStatus.FAILED.value,
+                                                progress=0,
+                                                error_message=message,
+                                                elapsed_time=elapsed
+                                            )
                                         st.warning(f"{message}\n\n⏱️ 耗时: {elapsed:.1f} 秒")
                 else:
                     st.warning("⚠️ 未知平台，目前支持：B站、抖音、西瓜视频、YouTube")
@@ -593,8 +598,8 @@ if selected_tab == "📝 新建任务":
         
         if file_content and analyze_btn:
             # 更新任务状态
-            if current_task:
-                task_manager.update_task(
+            if current_task and task_manager and TASK_MANAGER_AVAILABLE and TaskStatus is not None:
+                task_manager.update_task(  # type: ignore
                     current_task.id,
                     status=TaskStatus.ANALYZING.value,
                     progress=80
@@ -660,11 +665,13 @@ if selected_tab == "📝 新建任务":
                 
                 # 6. 生成词频柱状图
                 st.subheader("☁️ 词频可视化")
+                fig = None
                 if top_words:
                     fig, ax = plt.subplots(figsize=(10, 6))
                     words_list = [w[0] for w in top_words]
                     freqs = [w[1] for w in top_words]
-                    ax.barh(range(len(words_list)), freqs, color=plt.cm.viridis(np.linspace(0, 0.8, len(words_list))))
+                    colors = plt.cm.get_cmap('viridis')(np.linspace(0, 0.8, len(words_list)))
+                    ax.barh(range(len(words_list)), freqs, color=colors)
                     ax.set_yticks(range(len(words_list)))
                     ax.set_yticklabels(words_list)
                     ax.set_xlabel('频次')
@@ -686,7 +693,7 @@ if selected_tab == "📝 新建任务":
                 
                 # 8. 高频词表格
                 st.subheader("🔝 高频词 TOP20")
-                df_words = pd.DataFrame(top_words, columns=['词语', '频次'])
+                df_words = pd.DataFrame(top_words, columns=pd.Index(['词语', '频次']))
                 st.dataframe(df_words, use_container_width=True, hide_index=True)
                 
                 # 9. AI 总结 (模拟)
@@ -714,22 +721,33 @@ if selected_tab == "📝 新建任务":
                 st.subheader("📥 导出报告")
                 
                 # 导出柱状图
-                img_buffer = io.BytesIO()
-                fig.savefig(img_buffer, format='PNG', dpi=150, bbox_inches='tight')
-                img_buffer.seek(0)
-                
-                col_exp1, col_exp2 = st.columns(2)
-                with col_exp1:
-                    st.download_button(
-                        label="下载词频图表 (PNG)",
-                        data=img_buffer,
-                        file_name="word_frequency_chart.png",
-                        mime="image/png",
-                        use_container_width=True
-                    )
-                
-                with col_exp2:
-                    # 导出 CSV
+                if fig is not None:
+                    img_buffer = io.BytesIO()
+                    fig.savefig(img_buffer, format='PNG', dpi=150, bbox_inches='tight')
+                    img_buffer.seek(0)
+                    
+                    col_exp1, col_exp2 = st.columns(2)
+                    with col_exp1:
+                        st.download_button(
+                            label="下载词频图表 (PNG)",
+                            data=img_buffer,
+                            file_name="word_frequency_chart.png",
+                            mime="image/png",
+                            use_container_width=True
+                        )
+                    
+                    with col_exp2:
+                        # 导出 CSV
+                        csv_data = df_words.to_csv(index=False).encode('utf-8-sig')
+                        st.download_button(
+                            label="下载词频数据 (CSV)",
+                            data=csv_data,
+                            file_name="word_frequency.csv",
+                            mime="text/csv",
+                            use_container_width=True
+                        )
+                else:
+                    # 没有 fig 时只导出 CSV
                     csv_data = df_words.to_csv(index=False).encode('utf-8-sig')
                     st.download_button(
                         label="下载词频数据 (CSV)",
@@ -740,7 +758,7 @@ if selected_tab == "📝 新建任务":
                     )
                 
                 # 更新任务完成状态
-                if current_task:
+                if current_task and task_manager and TASK_MANAGER_AVAILABLE and TaskStatus is not None:
                     analysis_result = {
                         'word_freq': dict(word_freq),
                         'top_words': top_words,
@@ -748,12 +766,13 @@ if selected_tab == "📝 新建任务":
                         'unique_words': len(word_freq)
                     }
                     # 保存分析结果到任务目录
-                    task_manager.save_analysis_result(current_task.id, analysis_result)
+                    task_manager.save_analysis_result(current_task.id, analysis_result)  # type: ignore
                     # 保存词频图表
-                    chart_path = task_manager.storage.get_analysis_path(current_task.id, 'word_frequency_chart.png')
-                    fig.savefig(chart_path, format='PNG', dpi=150, bbox_inches='tight')
+                    if fig is not None:
+                        chart_path = task_manager.storage.get_analysis_path(current_task.id, 'word_frequency_chart.png')  # type: ignore
+                        fig.savefig(chart_path, format='PNG', dpi=150, bbox_inches='tight')
                     # 更新任务状态
-                    task_manager.update_task(
+                    task_manager.update_task(  # type: ignore
                         current_task.id,
                         status=TaskStatus.COMPLETED.value,
                         progress=100,
@@ -794,16 +813,18 @@ if selected_tab == "📋 任务历史":
             )
             
             # 过滤任务
-            filtered_tasks = tasks
-            if filter_status != "全部":
-                status_map = {
-                    "等待中": "pending",
-                    "下载中": "downloading",
-                    "提取中": "extracting",
-                    "已完成": "completed",
-                    "失败": "failed"
-                }
-                filtered_tasks = [t for t in tasks if t.status == status_map.get(filter_status)]
+            status_map = {
+                "等待中": "pending",
+                "下载中": "downloading",
+                "提取中": "extracting",
+                "已完成": "completed",
+                "失败": "failed"
+            }
+            target_status = status_map.get(filter_status)
+            if target_status is None or filter_status == "全部":
+                filtered_tasks = list(tasks)
+            else:
+                filtered_tasks = [t for t in tasks if t.status == target_status]
             
             # 显示任务列表
             for task in filtered_tasks:
@@ -900,7 +921,10 @@ if selected_tab == "📊 执行报告":
         st.markdown("---")
         
         # 选择要查看的任务
-        completed_tasks = task_manager.get_tasks_by_status(TaskStatus.COMPLETED)
+        if TASK_MANAGER_AVAILABLE and TaskStatus is not None:
+            completed_tasks = task_manager.get_tasks_by_status(TaskStatus.COMPLETED)
+        else:
+            completed_tasks = []
         
         if not completed_tasks:
             st.info("暂无已完成的任务报告")
@@ -965,7 +989,7 @@ if selected_tab == "📊 执行报告":
                         # 高频词表格
                         if top_words:
                             st.subheader("🔝 高频词 TOP20")
-                            df = pd.DataFrame(top_words, columns=['词语', '频次'])
+                            df = pd.DataFrame(top_words, columns=pd.Index(['词语', '频次']))
                             st.dataframe(df, use_container_width=True, hide_index=True)
                         
                         # 显示保存的图表

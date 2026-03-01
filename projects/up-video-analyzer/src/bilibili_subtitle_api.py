@@ -8,10 +8,12 @@ import re
 from typing import Optional, Tuple
 
 try:
-    from bilibili_api import video, sync
+    from bilibili_api import video, sync  # type: ignore
     BILI_API_AVAILABLE = True
 except ImportError:
     BILI_API_AVAILABLE = False
+    video = None  # type: ignore
+    sync = None  # type: ignore
     print("⚠️ bilibili-api-python 未安装，请运行：pip install bilibili-api-python")
 
 
@@ -30,6 +32,9 @@ def extract_bvid(url: str) -> Optional[str]:
 
 async def get_subtitle_async(bvid: str) -> Tuple[Optional[str], str]:
     """异步获取字幕"""
+    if not BILI_API_AVAILABLE or video is None:
+        return None, "❌ bilibili-api-python 未安装"
+    
     try:
         # 创建视频对象
         v = video.Video(bvid=bvid)
@@ -100,17 +105,19 @@ def extract_bilibili_subtitle(url: str) -> Tuple[Optional[str], str]:
         # bilibili-api-python 需要 BV 号
         # 这里需要转换
         try:
-            from bilibili_api import video
+            from bilibili_api import video as video_module  # type: ignore
             aid = int(bvid[2:])
             # 创建视频对象时使用 aid
-            v = video.Video(aid=aid)
+            v = video_module.Video(aid=aid)
             # 获取 bvid
             bvid = v.get_bvid()
-        except:
+        except Exception:
             return None, "❌ 无法转换 av 号，请使用 BV 号链接"
     
     # 使用同步方式调用异步函数
     try:
+        if sync is None:
+            return None, "❌ bilibili-api-python 未安装"
         return sync(get_subtitle_async(bvid))
     except Exception as e:
         return None, f"❌ 提取失败：{str(e)}"

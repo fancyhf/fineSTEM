@@ -1645,12 +1645,377 @@ def analyze_image(image):
 
 | 命令 | 动作 | 说明 |
 |-----|------|------|
+| "现在是什么阶段" / "当前阶段" | query_stage | 显示当前阶段、状态和下一步建议 |
 | "下一步" / "next" | next | 进入下一阶段 |
 | "上一步" / "back" | back | 软回退到上一阶段（后置工件变stale） |
 | "重做" / "redo" | redo | 重做当前阶段 |
-| "查看状态" / "status" | status | 显示当前状态和stale工件 |
+| "查看状态" / "status" | status | 显示完整状态、stale工件和历史记录 |
 | "锁定项目" / "lock" | lock | 锁定项目（执行阶段后自动锁定） |
 | "解锁项目" / "unlock" | unlock | 解锁项目（允许修改开题/范围/轨道） |
+
+### 查询当前阶段 (query_stage)
+
+**触发**: "现在是什么阶段"、"当前阶段"、"我在哪"
+
+**执行逻辑**:
+1. 读取 `SKILL_STATE.json` 的 `current_stage`
+2. 检查当前阶段状态 (`stage_status`)
+3. 检查是否有 `stale_artifacts`
+4. 生成友好回复
+
+**回复示例**:
+
+```
+📍 当前阶段: stage_05_design (设计蓝图)
+状态: passed ✅
+
+📋 阶段进度:
+✅ stage_00_bootstrap - 初始化
+✅ stage_01_brainstorm - 脑爆
+✅ stage_02_brief - 开题卡
+✅ stage_03_constraints - 范围裁剪
+✅ stage_04_track - 轨道选择
+✅ stage_05_design - 设计蓝图 (当前)
+⏳ stage_06_step_plan - 分步计划 (待开始)
+⏳ stage_07_execute - 执行开发 (待开始)
+⏳ stage_08_evaluate - 验收展示 (待开始)
+
+📁 当前阶段产出:
+- docs/04_design.json ✅ 已生成
+- src/main.py ✅ 已生成
+- src/config.py ✅ 已生成
+
+🎯 下一步建议:
+可以说 "下一步" 进入 stage_06_step_plan (分步计划)
+或者 "查看状态" 查看详细信息
+```
+
+如果当前阶段未通过:
+```
+📍 当前阶段: stage_02_brief (开题卡)
+状态: needs_redo ⚠️
+
+❌ 未通过原因:
+- success_criteria 不足 2 个 (当前: 1)
+- risks 不足 2 个 (当前: 1)
+
+🎯 建议:
+需要补充完善立项书，确保满足门禁条件。
+可以说 "重做" 重新生成立项书。
+```
+
+如果有 stale 工件:
+```
+⚠️ 注意: 有 2 个工件已过期 (stale):
+- docs/04_design.json (因为 02_constraints.json 已变更)
+- docs/05_step_plan.json (因为 02_constraints.json 已变更)
+
+需要重新执行这些阶段以更新工件。
+```
+
+---
+
+## 测试模式 (Test Mode with Playwright MCP)
+
+**触发**: "测试我的项目"、"运行测试"、"检查一下"、"playwright测试"
+
+**前置要求**: 
+- 项目已进入 `stage_07_execute` 或之后
+- AI IDE 已配置 Playwright MCP（学生无需手动安装）
+
+**优势**: 通过 MCP 调用 Playwright，学生零配置，环境由 IDE 自动管理
+
+### 测试执行流程
+
+**步骤 1: 读取测试配置**
+
+从 `docs/04_design.json` 读取:
+```json
+{
+  "acceptance_tests": [
+    {
+      "id": "test_01",
+      "given": "页面已加载",
+      "when": "用户访问首页",
+      "then": "显示标题和上传区域",
+      "url": "http://localhost:8501",
+      "selectors": {
+        "title": "text=项目名称",
+        "uploader": "[data-testid='stFileUploader']"
+      }
+    },
+    {
+      "id": "test_02", 
+      "given": "用户已选择图片",
+      "when": "点击分析按钮",
+      "then": "显示分析结果",
+      "url": "http://localhost:8501",
+      "actions": [
+        {"type": "upload", "selector": "[data-testid='stFileUploader']", "file": "tests/fixtures/test.png"},
+        {"type": "click", "selector": "button:has-text('开始分析')"}
+      ],
+      "assertions": [
+        {"type": "visible", "selector": "text=分析结果", "timeout": 10000}
+      ]
+    }
+  ]
+}
+```
+
+**步骤 2: 调用 Playwright MCP**
+
+根据技术栈和测试配置，自动调用 MCP 工具:
+
+**Streamlit 项目测试示例**:
+
+```json
+// MCP 调用序列
+[
+  {
+    "tool": "playwright_navigate",
+    "params": {"url": "http://localhost:8501"}
+  },
+  {
+    "tool": "playwright_screenshot", 
+    "params": {"path": "reports/test_01_start.png"}
+  },
+  {
+    "tool": "playwright_get_text",
+    "params": {"selector": "text=项目名称"}
+  },
+  {
+    "tool": "playwright_is_visible",
+    "params": {"selector": "[data-testid='stFileUploader']"}
+  }
+]
+```
+
+**Flask 项目测试示例**:
+
+```json
+[
+  {
+    "tool": "playwright_navigate",
+    "params": {"url": "http://localhost:5000"}
+  },
+  {
+    "tool": "playwright_fill",
+    "params": {"selector": "input[name='text']", "value": "测试文本"}
+  },
+  {
+    "tool": "playwright_click",
+    "params": {"selector": "button[type='submit']"}
+  },
+  {
+    "tool": "playwright_wait_for_selector",
+    "params": {"selector": "text=分析结果", "timeout": 5000}
+  }
+]
+```
+
+**步骤 3: 执行测试并收集结果**
+
+```python
+# 伪代码 - 通过 MCP 执行测试
+async def run_test_with_mcp(test_case):
+    results = []
+    
+    # 导航到页面
+    result = await mcp.playwright_navigate(url=test_case['url'])
+    results.append({"action": "navigate", "success": result.success})
+    
+    # 执行 When 动作
+    for action in test_case.get('actions', []):
+        if action['type'] == 'upload':
+            result = await mcp.playwright_upload_file(
+                selector=action['selector'],
+                file_path=action['file']
+            )
+        elif action['type'] == 'click':
+            result = await mcp.playwright_click(selector=action['selector'])
+        results.append({"action": action['type'], "success": result.success})
+    
+    # 验证 Then 断言
+    for assertion in test_case.get('assertions', []):
+        if assertion['type'] == 'visible':
+            result = await mcp.playwright_is_visible(
+                selector=assertion['selector']
+            )
+            results.append({"assertion": "visible", "passed": result.visible})
+    
+    # 截图记录
+    screenshot = await mcp.playwright_screenshot(
+        path=f"reports/{test_case['id']}.png"
+    )
+    
+    return {
+        "test_id": test_case['id'],
+        "passed": all(r.get('passed', r.get('success')) for r in results),
+        "results": results,
+        "screenshot": screenshot.path
+    }
+```
+
+**步骤 4: 生成测试报告**
+
+**控制台输出**:
+```
+🧪 项目测试报告 (Playwright MCP)
+
+测试用例 1: ✅ 通过 (2.3s)
+  Given: 页面已加载
+  When: 用户访问首页
+  Then: 显示标题和上传区域
+  MCP 调用: playwright_navigate ✅ → playwright_is_visible ✅
+  截图: reports/test_01.png
+
+测试用例 2: ❌ 失败 (5.1s)
+  Given: 用户已选择图片
+  When: 点击分析按钮
+  Then: 显示分析结果
+  MCP 调用: 
+    - playwright_navigate ✅
+    - playwright_upload_file ✅
+    - playwright_click ✅
+    - playwright_is_visible ❌ (Timeout 10000ms)
+  截图: reports/test_02.png
+  错误详情: 元素 "text=分析结果" 未在超时时间内出现
+
+测试用例 3: ⏭️ 跳过 (尚未实现)
+
+📊 总结: 1/2 通过 (50%)
+⏱️ 总耗时: 7.4s
+📁 截图: projects/{project_slug}/reports/
+
+💡 建议:
+- 修复用例2的超时问题
+- 检查分析按钮的点击事件是否正确触发
+- 查看截图了解页面实际状态
+
+📝 注意: Playwright 环境由 AI IDE MCP 自动管理，无需本地安装
+```
+
+**步骤 5: 记录到开发日志**
+
+追加写入 `docs/06_dev_log.md`:
+```markdown
+## 2026-02-28 - Playwright MCP 测试
+
+### 测试结果
+- 通过: 1/2 (50%)
+- 耗时: 7.4s
+- 测试方式: Playwright MCP (IDE 自动管理)
+
+### MCP 调用记录
+- test_01: navigate → is_visible (✅ 通过)
+- test_02: navigate → upload → click → is_visible (❌ 超时)
+
+### 失败的测试
+- test_02 (图片分析): 
+  - 原因: 分析结果未显示，可能功能未完成
+  - MCP 错误: Timeout 10000ms
+  - 截图: reports/test_02.png
+
+### 修复计划
+- [ ] 实现图片分析核心功能
+- [ ] 添加加载状态提示，避免超时
+- [ ] 重新运行测试验证
+```
+
+**步骤 6: 更新 SKILL_STATE.json**
+
+```json
+{
+  "artifacts": {
+    "dev_log": {
+      "test_results": {
+        "last_run": "2026-02-28T16:30:00.000Z",
+        "passed": 1,
+        "total": 2,
+        "pass_rate": 0.5,
+        "test_method": "playwright_mcp",
+        "screenshots": [
+          "reports/test_01.png",
+          "reports/test_02.png"
+        ]
+      }
+    }
+  }
+}
+```
+
+### MCP 不可用时的降级方案
+
+如果 Playwright MCP 未配置，提供手动验证清单:
+
+```
+🔍 手动测试清单 (Playwright MCP 未配置)
+
+请按以下步骤验证你的项目：
+
+□ 测试 1: 页面加载
+  1. 运行: python src/main.py
+  2. 打开浏览器访问: http://localhost:8501
+  3. 确认能看到: [根据 design.json 描述]
+  4. 截图保存到: reports/manual_01.png
+
+□ 测试 2: 功能验证
+  1. [根据 acceptance_tests 生成具体步骤]
+  2. 记录实际结果
+
+完成后告诉我测试结果，我会帮你记录！
+```
+
+### 测试配置选项
+
+学生可以选择测试范围:
+
+**调用 AskUserQuestion:**
+
+```json
+{
+  "questions": [
+    {
+      "question": "🧪 选择测试范围：",
+      "header": "测试",
+      "options": [
+        {"label": "快速测试", "description": "只运行1个核心测试 (30秒)"},
+        {"label": "完整测试", "description": "运行所有验收用例 (2-5分钟)"},
+        {"label": "截图记录", "description": "每个步骤自动截图"}
+      ],
+      "multiSelect": true
+    }
+  ]
+}
+```
+
+### 与阶段的关系
+
+```
+stage_07_execute (执行开发)
+    ↓ 学生说"测试一下"
+[测试模式 - Playwright MCP]
+    ↓ 测试通过
+stage_08_evaluate (验收)
+    ↓ 测试失败
+[返回 stage_07 继续开发]
+```
+
+**注意**: 
+- 测试模式不是独立阶段，而是开发阶段的增强
+- 学生可以多次测试，直到满意
+- 测试报告作为验收的重要参考
+- MCP 环境由 IDE 自动管理，学生零配置
+
+### 技术栈适配
+
+| 技术栈 | MCP 测试方式 |
+|--------|-------------|
+| Streamlit | playwright_navigate + 组件选择器测试 |
+| Flask/Django | playwright_navigate + API 请求测试 |
+| Pygame | playwright_screenshot 截图对比 |
+| Tkinter | playwright_screenshot 截图对比 |
+| 硬件(Pico) | 串口通信 MCP (如有) + 截图 |
 
 ---
 
