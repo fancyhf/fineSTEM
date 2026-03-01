@@ -1,0 +1,16 @@
+{
+  "project_name": "UP 主视频内容分析器",
+  "project_slug": "up-video-analyzer",
+  "one_liner": "上传视频字幕，AI 自动生成词云、统计分析和内容总结",
+  "problem_statement": "观众想快速了解视频核心内容，创作者想分析竞品特点，但手动分析耗时且主观",
+  "target_user": "视频观众、内容创作者、自媒体运营者",
+  "core_features": [
+    "词云可视化 - 直观展示高频词汇",
+    "数据统计面板 - 量化分析内容特征",
+    "AI 智能总结 - 自动提炼核心观点",
+    "导出报告 - 保存和分享分析结果"
+  ],
+  "success_criteria": "用户上传字幕文件后，30 秒内生成完整的可视化分析报告",
+  "track_selected": "web_streamlit",
+  "created_at": "2026-02-28"
+}

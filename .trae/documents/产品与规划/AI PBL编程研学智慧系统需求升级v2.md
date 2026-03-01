@@ -5,9 +5,9 @@
 * 项目的侧重点是：PBL项目式，自助、引导、结案、学习cs
 
 * 项目将分3大年龄组，低年级  中年级  高年级
-  低年级，继续用目前 app中的模式，即系统演示各种功能，讲解代码，AI chat提问。这部分需求还是跟.trae\documents\product\_requirements\_draft.md差不多。（优先级高）
-  中年级，将采用web agent 平台模式，就像主流的引导式的web AI编程 平台，只是更侧重与给中小学生使用。学生在上面可以开题、做需求、生成代码、调试代码、学习代码，web还有其他cs学习课程。（先有需求占位，优先级中）
-  高年级，做一套适合嵌入到AI 编程 IDE工具的agent 提示词体系。比如像AI spec prompt套系。
+  - 低年级，继续用目前 app中的模式，即系统演示各种功能，讲解代码，AI chat提问。这部分需求还是跟.trae\documents\product\_requirements\_draft.md差不多。（优先级高）
+  - 中年级，将采用web agent 平台模式，就像主流的引导式的web AI编程 平台，只是更侧重与给中小学生使用。学生在上面可以开题、做需求、生成代码、调试代码、学习代码，web还有其他cs学习课程。（先有需求占位，优先级中）
+  - 高年级，做一套适合嵌入到AI 编程 IDE工具的agent 提示词体系。比如像AI spec prompt套系。
   这套编程agent 提示词系列，将可以被学生复用在trae、codebuddy、vscode、cursor等等。
   可以通过这个提示词、rules体系，引导学生做开题、做需求、生成代码、调试代码、学习代码、撰写文档之类，web还有其他cs学习课程。
   未来web agent模式也将在基于这个提示词体系上，只是用户交互通过web。

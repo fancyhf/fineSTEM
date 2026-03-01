@@ -1,0 +1,33 @@
+{
+  "track_selected": "web_nextjs",
+  "milestones": [
+    {
+      "name": "M1: 最小可运行与可演示",
+      "demo": "能打开并完成一次交互",
+      "steps": [
+        {
+          "step_id": "S1",
+          "goal": "搭建最小骨架",
+          "change_budget": {
+            "max_lines": 30,
+            "max_files": 2
+          },
+          "files": [
+            {
+              "path": "",
+              "action": "create_or_edit"
+            }
+          ],
+          "run": "",
+          "check": [
+            "",
+            ""
+          ],
+          "rollback": "",
+          "teach_point": "",
+          "quiz": ""
+        }
+      ]
+    }
+  ]
+}

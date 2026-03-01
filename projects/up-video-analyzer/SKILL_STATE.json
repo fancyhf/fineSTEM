@@ -1,0 +1,19 @@
+{
+  "project_name": "UP 主视频内容分析器",
+  "project_slug": "up-video-analyzer",
+  "created_at": "2026-02-28",
+  "current_stage": "04_design_complete",
+  "age_band": "高中",
+  "time_budget": "6h",
+  "brainstorm_round": 5,
+  "project_locked": true,
+  "design_ready": true,
+  "code_generated": true,
+  "track_selected": "web_streamlit",
+  "core_features": ["词云可视化", "数据统计面板", "AI 智能总结", "导出报告"],
+  "tech_stack": {
+    "language": "Python",
+    "framework": "Streamlit",
+    "libraries": ["pandas", "numpy", "wordcloud", "jieba", "matplotlib"]
+  }
+}

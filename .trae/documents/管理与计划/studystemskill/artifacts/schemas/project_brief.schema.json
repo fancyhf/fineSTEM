@@ -1,0 +1,168 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "title",
+    "age_band",
+    "time_budget",
+    "track_candidates",
+    "inputs",
+    "outputs",
+    "success_criteria",
+    "risks",
+    "demo_plan"
+  ],
+  "properties": {
+    "title": {
+      "type": "string",
+      "minLength": 3
+    },
+    "age_band": {
+      "type": "string",
+      "enum": [
+        "10-12",
+        "13-15",
+        "16-18"
+      ]
+    },
+    "time_budget": {
+      "type": "string",
+      "enum": [
+        "2h",
+        "6h",
+        "12h"
+      ]
+    },
+    "track_candidates": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "web_nextjs",
+          "hw_pico",
+          "kaggle_modeling",
+          "course_fusion"
+        ]
+      },
+      "minItems": 1
+    },
+    "user_or_audience": {
+      "type": "string"
+    },
+    "problem_statement": {
+      "type": "string",
+      "minLength": 10
+    },
+    "inputs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "type"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "outputs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "type",
+          "success_looks_like"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "success_looks_like": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "success_criteria": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "object",
+        "required": [
+          "metric_or_test",
+          "pass_condition"
+        ],
+        "properties": {
+          "metric_or_test": {
+            "type": "string"
+          },
+          "pass_condition": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "assumptions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "risks": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "object",
+        "required": [
+          "risk",
+          "fallback_plan"
+        ],
+        "properties": {
+          "risk": {
+            "type": "string"
+          },
+          "impact": {
+            "type": "string"
+          },
+          "fallback_plan": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "demo_plan": {
+      "type": "object",
+      "required": [
+        "what_to_show",
+        "how_to_show"
+      ],
+      "properties": {
+        "what_to_show": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "string"
+          }
+        },
+        "how_to_show": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

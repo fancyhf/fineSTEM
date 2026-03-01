@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "track_selected",
+    "stack_profile",
+    "runner_type",
+    "template_id",
+    "competency_bundle"
+  ],
+  "properties": {
+    "track_selected": {
+      "type": "string",
+      "enum": [
+        "web_nextjs",
+        "hw_pico",
+        "kaggle_modeling",
+        "course_fusion"
+      ]
+    },
+    "stack_profile": {
+      "type": "string"
+    },
+    "runner_type": {
+      "type": "string",
+      "enum": [
+        "web",
+        "pico",
+        "notebook",
+        "course"
+      ]
+    },
+    "template_id": {
+      "type": "string"
+    },
+    "competency_bundle": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "string"
+      }
+    },
+    "variant_notes_for_student": {
+      "type": "string"
+    }
+  }
+}

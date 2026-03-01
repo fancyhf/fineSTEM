@@ -1,0 +1,33 @@
+{
+  "track": "web_streamlit",
+  "tech_stack": {
+    "language": "Python",
+    "framework": "Streamlit",
+    "libraries": [
+      "pandas - 数据处理",
+      "numpy - 数值计算",
+      "wordcloud - 词云生成",
+      "jieba - 中文分词",
+      "matplotlib - 图表绘制"
+    ],
+    "optional": [
+      "openai - AI 总结 (如需要)",
+      "Pillow - 图片处理"
+    ]
+  },
+  "dev_environment": "AI IDE",
+  "deployment": "local",
+  "data_flow": {
+    "input": "用户上传字幕文件 (SRT/TXT)",
+    "process": "文件解析 → 中文分词 → 词频统计 → 可视化",
+    "output": "词云图 + 统计面板 + 分析报告"
+  },
+  "milestones": [
+    {"time": "0-1h", "task": "环境搭建 + 文件上传"},
+    {"time": "1-2h", "task": "字幕解析 + 中文分词"},
+    {"time": "2-3h", "task": "词云生成 + 展示"},
+    {"time": "3-4h", "task": "统计面板"},
+    {"time": "4-5h", "task": "AI 总结 + 导出功能"},
+    {"time": "5-6h", "task": "测试 + 优化"}
+  ]
+}

@@ -1,0 +1,291 @@
+version: v2
+ui_language: zh-CN
+
+# Workspace 多项目模式配置
+workspace:
+  projects_root: "projects"
+  state_file: "SKILL_STATE.json"
+
+# 入口路由配置
+entry_routes:
+  project_bootstrap:
+    skill_id: "00_project_bootstrap"
+    description: "创建新项目，初始化工作区目录结构"
+    triggers:
+      - "创建新项目"
+      - "开始新项目"
+      - "新建项目"
+      - "创建项目"
+      - "我要做一个新项目"
+      - "帮我开个新项目"
+      - "初始化项目"
+
+triggers:
+  global_entry:
+    - "开始一个项目"
+    - "给我选题"
+    - "我不知道做什么"
+    - "来点点子"
+    - "脑爆"
+    - "我想做个东西"
+    - "帮我找个题目"
+    - "有什么好做的项目"
+    - "我想学AI"
+    - "从哪开始"
+    - "创建新项目"
+    - "开始新项目"
+    - "新建项目"
+    - "创建项目"
+  
+  skills:
+    00_project_bootstrap:
+      - "创建新项目"
+      - "开始新项目"
+      - "新建项目"
+      - "创建项目"
+      - "我要做一个新项目"
+      - "帮我开个新项目"
+      - "初始化项目"
+    
+    01_brainstorm_studio:
+      - "选题"
+      - "brainstorm"
+      - "有什么方向"
+      - "推荐项目"
+      - "我想做科学家"
+      - "我想做创造者"
+      - "AI方向"
+      - "给我灵感"
+      - "开始脑爆"
+      - "继续脑爆"
+    
+    02_idea_to_spec:
+      - "写需求"
+      - "开题"
+      - "立项"
+      - "把想法写成文档"
+      - "确定目标"
+      - "定义成功标准"
+      - "这个项目怎么做"
+      - "具体方案"
+    
+    03_scope_cutter:
+      - "裁剪范围"
+      - "做不完"
+      - "太多了"
+      - "MVP"
+      - "砍掉功能"
+      - "简化"
+      - "哪些必须做"
+      - "哪些可以不做"
+    
+    04_track_router:
+      - "选方向"
+      - "网页还是硬件"
+      - "Kaggle"
+      - "做网站"
+      - "做硬件"
+      - "数据建模"
+      - "课程设计"
+      - "用什么技术"
+    
+    05_designer:
+      - "设计"
+      - "架构"
+      - "页面设计"
+      - "组件设计"
+      - "实验方案"
+      - "接线图"
+      - "引脚规划"
+      - "教案设计"
+    
+    06_task_decomposer:
+      - "拆解步骤"
+      - "里程碑"
+      - "一步一步"
+      - "先做什么"
+      - "任务分解"
+      - "怎么开始"
+      - "开发计划"
+      - "时间规划"
+    
+    07_coder_coach:
+      - "写代码"
+      - "下一步怎么写"
+      - "报错了"
+      - "卡住了"
+      - "怎么改"
+      - "这段代码什么意思"
+      - "调试"
+      - "帮我看看代码"
+    
+    08_evaluator_showcase:
+      - "验收"
+      - "展示"
+      - "复盘"
+      - "演示脚本"
+      - "完成了"
+      - "怎么展示"
+      - "我做得怎么样"
+      - "下一步学什么"
+
+router_rules:
+  # 项目上下文检查：除 Skill 00 外，其他 skill 执行前必须已存在 SKILL_STATE.json
+  project_context_required:
+    enabled: true
+    exclude_skills: ["00_project_bootstrap"]
+    check_path: "projects/{project_slug}/SKILL_STATE.json"
+    fallback_action: "提示用户先创建项目"
+  
+  # 工件门禁：若 docs 缺失则强制回退到对应 skill
+  artifact_gating:
+    - condition: "docs/01_project_brief.json 缺失或为空"
+      allowed_skills: ["00_project_bootstrap", "01_brainstorm_studio", "02_idea_to_spec"]
+      default: "01_brainstorm_studio"
+      override_trigger: "把这个想法写成开题"
+      override_target: "02_idea_to_spec"
+    
+    - condition: "docs/02_constraints.json 缺失或为空"
+      required_for: "03_scope_cutter"
+      force_to: "03_scope_cutter"
+    
+    - condition: "docs/03_track_plan.json 缺失或为空"
+      required_for: "04_track_router"
+      force_to: "04_track_router"
+    
+    - condition: "docs/04_design.json 缺失或为空"
+      required_for: "05_designer"
+      force_to: "05_designer"
+    
+    - condition: "docs/05_step_plan.json 缺失或为空"
+      required_for: "06_task_decomposer"
+      force_to: "06_task_decomposer"
+    
+    - condition: "用户说写代码/报错/卡住"
+      target_skill: "07_coder_coach"
+      prerequisite: "docs/05_step_plan.json"
+      fallback: "06_task_decomposer"
+    
+    - condition: "用户说验收/展示/复盘"
+      target_skill: "08_evaluator_showcase"
+      prerequisites: ["docs/04_design.json", "docs/05_step_plan.json"]
+      fallback_strategy: "missing_artifact_first"
+  
+  # 默认参数配置
+  default_params:
+    age_band:
+      default: "13-15"
+      parse_rules:
+        - pattern: "小学|10|11|12"
+          value: "10-12"
+        - pattern: "初中|13|14|15"
+          value: "13-15"
+        - pattern: "高中|16|17|18"
+          value: "16-18"
+    
+    time_budget:
+      default: "6h"
+      parse_rules:
+        - pattern: "2小时|2h|两小时|2个小时"
+          value: "2h"
+        - pattern: "6小时|6h|六小时|6个小时"
+          value: "6h"
+        - pattern: "12小时|12h|十二小时|12个小时"
+          value: "12h"
+    
+    track_preference:
+      default: "unsure"
+      default_when_unsure: "web_nextjs"
+  
+  # 模板白名单：只允许 templates 列表中出现的 template_id
+  template_whitelist:
+    enabled: true
+    allowed_templates:
+      - web_nextjs_mvp_2h
+      - web_nextjs_standard_6h
+      - web_nextjs_plus_12h
+      - pico_mvp_2h
+      - pico_standard_6h
+      - pico_plus_12h
+      - kaggle_mvp_2h
+      - kaggle_standard_6h
+      - kaggle_plus_12h
+      - course_mvp_2h
+      - course_standard_6h
+      - course_plus_12h
+  
+  intent_priority:
+    - scenario: "创建新项目"
+      priority: 0
+      skill: "00_project_bootstrap"
+      note: "最高优先级，任何情况下触发"
+    
+    - scenario: "报错/卡住"
+      priority: 1
+      skill: "07_coder_coach"
+      note: "但前置工件缺失时回退到对应 skill"
+    
+    - scenario: "验收/展示"
+      priority: 2
+      skill: "08_evaluator_showcase"
+      note: "工件不全时优先补全"
+    
+    - scenario: "多 skill 触发语重叠"
+      resolution: "按工件状态判断，而非仅按触发语"
+
+tracks:
+  web_nextjs:
+    display_name: 网页应用（Next.js）
+    stack_profile: nextjs
+    runner_type: web
+    competency_bundle:
+      - web.fundamentals
+      - web.ui
+      - web.data_basic
+      - web.debugging
+    templates:
+      - web_nextjs_mvp_2h
+      - web_nextjs_standard_6h
+      - web_nextjs_plus_12h
+
+  hw_pico:
+    display_name: 硬件（Raspberry Pi Pico + MicroPython）
+    stack_profile: micropython_pico
+    runner_type: pico
+    competency_bundle:
+      - hw.device_check
+      - hw.gpio_io
+      - hw.control_logic
+      - hw.state_machine_basic
+    templates:
+      - pico_mvp_2h
+      - pico_standard_6h
+      - pico_plus_12h
+
+  kaggle_modeling:
+    display_name: Kaggle/建模（Notebook + sklearn）
+    stack_profile: notebook_sklearn
+    runner_type: notebook
+    competency_bundle:
+      - data.exploration
+      - model.baseline
+      - model.validation
+      - kaggle.submission
+    templates:
+      - kaggle_mvp_2h
+      - kaggle_standard_6h
+      - kaggle_plus_12h
+
+  course_fusion:
+    display_name: 课程融合（教案 + 作业 + Rubric）
+    stack_profile: course_design
+    runner_type: course
+    competency_bundle:
+      - pedagogy.objectives
+      - pedagogy.activities
+      - pedagogy.assessment
+      - pedagogy.reflection
+    templates:
+      - course_mvp_2h
+      - course_standard_6h
+      - course_plus_12h
