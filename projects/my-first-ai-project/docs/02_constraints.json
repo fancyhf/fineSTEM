@@ -1,0 +1,25 @@
+{
+  "time_budget": "12h+",
+  "must_have": [
+    "古诗词和文学知识库录入",
+    "卡片式学习",
+    "搜索功能"
+  ],
+  "must_have_max": 3,
+  "nice_to_have": [
+    "收藏功能",
+    "导入更多知识库",
+    "AI生成二次元漫画(卡哇伊风格)"
+  ],
+  "wont_do": [
+    "用户注册登录系统",
+    "多人协作功能"
+  ],
+  "wont_do_min": 2,
+  "max_pages": 5,
+  "max_components": 8,
+  "tech_limitations": [
+    "AI漫画生成可能需要API,优先使用简单方案",
+    "数据存储使用本地文件,不使用数据库"
+  ]
+}

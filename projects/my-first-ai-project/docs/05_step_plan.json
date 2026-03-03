@@ -1,0 +1,93 @@
+{
+  "milestones": [
+    {
+      "name": "里程碑1: 基础框架搭建",
+      "steps": [
+        {
+          "id": "step_1",
+          "name": "配置开发环境",
+          "run": "安装Flask: pip install Flask",
+          "check": "能成功导入Flask库",
+          "rollback": "卸载重装: pip uninstall Flask && pip install Flask",
+          "time_estimate": "15min"
+        },
+        {
+          "id": "step_2",
+          "name": "运行空应用",
+          "run": "cd src && python app.py",
+          "check": "能访问 http://localhost:5000 看到页面",
+          "rollback": "检查代码语法和端口占用",
+          "time_estimate": "15min"
+        },
+        {
+          "id": "step_3",
+          "name": "测试基础功能",
+          "run": "测试卡片展示、搜索、分类筛选",
+          "check": "基础功能正常工作",
+          "rollback": "检查路由和模板路径",
+          "time_estimate": "30min"
+        }
+      ]
+    },
+    {
+      "name": "里程碑2: 核心功能实现",
+      "steps": [
+        {
+          "id": "step_4",
+          "name": "完善添加功能",
+          "run": "添加表单验证和错误处理",
+          "check": "能成功添加新诗词并显示",
+          "rollback": "检查表单提交逻辑",
+          "time_estimate": "1h"
+        },
+        {
+          "id": "step_5",
+          "name": "完善收藏功能",
+          "run": "优化收藏状态显示和持久化",
+          "check": "收藏状态正确保存和显示",
+          "rollback": "检查数据读写逻辑",
+          "time_estimate": "45min"
+        },
+        {
+          "id": "step_6",
+          "name": "优化搜索功能",
+          "run": "增加模糊搜索和高亮显示",
+          "check": "搜索结果准确和易读",
+          "rollback": "回退到简单搜索",
+          "time_estimate": "45min"
+        }
+      ]
+    },
+    {
+      "name": "里程碑3: 高级功能实现",
+      "steps": [
+        {
+          "id": "step_7",
+          "name": "实现网页导入功能",
+          "run": "使用BeautifulSoup解析网页内容",
+          "check": "能从网页导入诗词",
+          "rollback": "回退到手动导入",
+          "time_estimate": "2h"
+        },
+        {
+          "id": "step_8",
+          "name": "实现自动搜集功能",
+          "run": "调用API或爬虫搜集诗词",
+          "check": "能自动添加新诗词",
+          "rollback": "使用静态数据",
+          "time_estimate": "2h"
+        },
+        {
+          "id": "step_9",
+          "name": "集成AI生成二次元漫画",
+          "run": "调用AI图像生成API生成插画",
+          "check": "能为诗词生成二次元插画",
+          "rollback": "使用占位图或跳过此功能",
+          "time_estimate": "3h"
+        }
+      ]
+    }
+  ],
+  "total_time_estimate": "10h",
+  "buffer_time": "2h"
+}

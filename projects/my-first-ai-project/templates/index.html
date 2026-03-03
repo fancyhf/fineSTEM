@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block title %}文学知识卡 - 首页{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="search-section">
+        <form method="GET" action="{{ url_for('index') }}" class="search-form">
+            <input type="text" 
+                   name="search" 
+                   class="search-input" 
+                   placeholder="🔍 搜索诗词、作者或内容..." 
+                   value="{{ search_query }}">
+            <button type="submit" class="search-button">搜索</button>
+        </form>
+    </div>
+
+    <div class="filter-section">
+        <div class="filter-buttons">
+            <a href="{{ url_for('index') }}" class="filter-btn {% if current_category == 'all' %}active{% endif %}">
+                全部
+            </a>
+            {% for category in categories %}
+            <a href="{{ url_for('index', category=category, search=search_query) }}" 
+               class="filter-btn {% if current_category == category %}active{% endif %}">
+                {{ category }}
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="poetry-grid">
+        {% for poem in poetry %}
+        <div class="poetry-card" onclick="flipCard(this)">
+            <div class="card-inner">
+                <div class="card-front">
+                    <div class="card-category">{{ poem.category }}</div>
+                    <h2 class="card-title">{{ poem.title }}</h2>
+                    <p class="card-author">{{ poem.author }} · {{ poem.dynasty }}</p>
+                    <div class="card-content">{{ poem.content }}</div>
+                    <div class="card-actions">
+                        <a href="{{ url_for('toggle_favorite', poetry_id=poem.id) }}" 
+                           class="action-btn favorite-btn"
+                           onclick="event.stopPropagation()">
+                            {% if poem.is_favorite %}⭐{% else %}☆{% endif %}
+                        </a>
+                    </div>
+                </div>
+                <div class="card-back">
+                    <h3>💕 详细信息</h3>
+                    <p><strong>题目:</strong> {{ poem.title }}</p>
+                    <p><strong>作者:</strong> {{ poem.author }}</p>
+                    <p><strong>朝代:</strong> {{ poem.dynasty }}</p>
+                    <p><strong>分类:</strong> {{ poem.category }}</p>
+                    
+                    <div class="image-section">
+                        {% if poem.image_url %}
+                        <img src="{{ poem.image_url }}" alt="诗词插画" class="card-image">
+                        {% else %}
+                        <div class="generate-image-area">
+                            <p class="coming-soon">🎨 还没有二次元插画</p>
+                            <button class="generate-btn" 
+                                    onclick="event.stopPropagation(); generateImage({{ poem.id }}, this)">
+                                ✨ 生成卡哇伊插画
+                            </button>
+                            <div class="generate-status"></div>
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    <button class="flip-back-btn" onclick="event.stopPropagation(); flipCard(this.closest('.poetry-card'))">
+                        返回
+                    </button>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <p>📭 暂无诗词卡片</p>
+        </div>
+        {% endfor %}
+    </div>
+
+    <div class="add-prompt">
+        <a href="{{ url_for('add_poetry') }}" class="add-button">
+            ➕ 添加新的诗词卡片
+        </a>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,98 @@
+{
+  "design_variant": "web_flask",
+  "ui_design": {
+    "style": "二次元卡哇伊",
+    "color_scheme": {
+      "primary": "#FFB6C1",
+      "secondary": "#FFC0CB",
+      "accent": "#FF69B4",
+      "background": "#FFF0F5",
+      "text": "#4A4A4A"
+    },
+    "elements": [
+      "表单输入",
+      "卡片展示",
+      "搜索框",
+      "分类筛选",
+      "收藏按钮",
+      "自动搜集",
+      "网页导入"
+    ],
+    "layout": "卡片式",
+    "ux_principles": [
+      "操作简单",
+      "容易看到",
+      "大按钮",
+      "清晰的文字"
+    ]
+  },
+  "components": [
+    {
+      "name": "Header",
+      "props": ["title", "navigation"],
+      "state": []
+    },
+    {
+      "name": "SearchBar",
+      "props": ["placeholder"],
+      "state": ["search_text"]
+    },
+    {
+      "name": "CategoryFilter",
+      "props": ["categories"],
+      "state": ["selected_category"]
+    },
+    {
+      "name": "PoetryCard",
+      "props": ["title", "author", "content", "category", "image_url"],
+      "state": ["is_favorite", "is_flipped"]
+    },
+    {
+      "name": "AddForm",
+      "props": ["fields"],
+      "state": ["form_data"]
+    },
+    {
+      "name": "ImportForm",
+      "props": ["url_field"],
+      "state": ["import_url"]
+    }
+  ],
+  "data_flow": {
+    "input": "用户输入/搜索/导入",
+    "process": "数据处理/自动搜集/卡片生成",
+    "output": "卡片展示/搜索结果/收藏列表"
+  },
+  "acceptance_tests": [
+    {
+      "id": "test_01",
+      "given": "用户访问首页",
+      "when": "页面加载完成",
+      "then": "显示卡片列表,可以看到所有诗词"
+    },
+    {
+      "id": "test_02",
+      "given": "用户在搜索框输入关键词",
+      "when": "点击搜索按钮",
+      "then": "显示匹配的诗词卡片"
+    },
+    {
+      "id": "test_03",
+      "given": "用户点击分类筛选",
+      "when": "选择某个分类",
+      "then": "只显示该分类的诗词卡片"
+    },
+    {
+      "id": "test_04",
+      "given": "用户点击收藏按钮",
+      "when": "收藏一张卡片",
+      "then": "卡片显示已收藏状态"
+    },
+    {
+      "id": "test_05",
+      "given": "用户填写表单",
+      "when": "点击添加按钮",
+      "then": "新卡片添加到列表中"
+    }
+  ]
+}

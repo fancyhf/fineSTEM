@@ -1,5 +1,7 @@
 # Skill 02 — Idea to Spec（开题立项）
 
+**语言约束**: 所有输出必须使用中文（zh-CN）。
+
 ## Purpose
 将脑爆阶段确定的项目想法，转化为结构化的项目立项书（Project Brief）。
 

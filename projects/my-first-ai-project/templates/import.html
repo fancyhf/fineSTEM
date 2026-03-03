@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+
+{% block title %}导入内容 - 文学天团{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="form-container">
+        <h2 class="form-title">📥 导入诗词和文学内容</h2>
+
+        <div class="import-section">
+            <h3>🔗 网页链接导入</h3>
+            <p class="help-text">输入包含诗词或文学内容的网页链接,我们将自动提取内容</p>
+            <form id="import-form" class="import-form">
+                <div class="form-group">
+                    <label for="url">🌐 网页链接</label>
+                    <input type="url" 
+                           id="url" 
+                           name="url" 
+                           class="form-input" 
+                           placeholder="https://example.com/poetry">
+                </div>
+                <button type="button" onclick="importFromWeb()" class="submit-button">🔍 导入内容</button>
+            </form>
+            <div id="import-status" class="status-message"></div>
+        </div>
+
+        <div class="import-section">
+            <h3>🤖 自动搜集</h3>
+            <p class="help-text">从互联网自动搜集古诗词和文学知识</p>
+            <button onclick="startAutoCollect()" class="submit-button auto-collect-btn">
+                🚀 开始自动搜集
+            </button>
+            <div id="auto-collect-status" class="status-message"></div>
+        </div>
+
+        <div class="info-box">
+            <h3>💡 使用说明</h3>
+            <ul>
+                <li>网页链接导入: 输入诗词网站的链接,系统会自动解析内容</li>
+                <li>自动搜集: 系统会从互联网收集经典古诗词和文学知识</li>
+                <li>导入的内容会自动添加到你的诗词库中</li>
+            </ul>
+        </div>
+
+        <div class="form-actions">
+            <a href="{{ url_for('index') }}" class="cancel-button">返回首页</a>
+        </div>
+    </div>
+</div>
+
+<script>
+async function importFromWeb() {
+    const urlInput = document.getElementById('url');
+    const statusDiv = document.getElementById('import-status');
+    const url = urlInput.value.trim();
+    
+    if (!url) {
+        statusDiv.innerHTML = '<p class="error">❌ 请输入网页链接</p>';
+        return;
+    }
+    
+    statusDiv.innerHTML = '<p class="loading">🔄 正在导入中...</p>';
+    
+    try {
+        const formData = new FormData();
+        formData.append('url', url);
+        
+        const response = await fetch('/import', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            statusDiv.innerHTML = `<p class="success">✅ ${result.message}</p>`;
+            urlInput.value = '';
+            setTimeout(() => {
+                window.location.href = '/';
+            }, 2000);
+        } else {
+            statusDiv.innerHTML = `<p class="error">❌ ${result.message}</p>`;
+        }
+    } catch (error) {
+        statusDiv.innerHTML = `<p class="error">❌ 网络错误: ${error.message}</p>`;
+    }
+}
+
+async function startAutoCollect() {
+    const statusDiv = document.getElementById('auto-collect-status');
+    statusDiv.innerHTML = '<p class="loading">🔄 正在搜集中...</p>';
+    
+    try {
+        const response = await fetch('/api/auto_collect');
+        const result = await response.json();
+        
+        if (result.success) {
+            statusDiv.innerHTML = `<p class="success">✅ ${result.message}<br>诗词库共有 ${result.total_count} 首诗词</p>`;
+            setTimeout(() => {
+                window.location.href = '/';
+            }, 2000);
+        } else {
+            statusDiv.innerHTML = `<p class="error">❌ ${result.message}</p>`;
+        }
+    } catch (error) {
+        statusDiv.innerHTML = `<p class="error">❌ 网络错误</p>`;
+    }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,74 @@
+{
+  "project_id": "my-first-ai-project",
+  "project_slug": "my-first-ai-project",
+  "created_at": "2026-03-03T00:00:00.000Z",
+  "updated_at": "2026-03-03T00:35:00.000Z",
+  "ui_language": "zh-CN",
+  "current_stage": "stage_07_execute",
+  "stage_status": "in_progress",
+  "stage_passed": {
+    "stage_00_bootstrap": true,
+    "stage_01_brainstorm": true,
+    "stage_02_brief": true,
+    "stage_03_constraints": true,
+    "stage_04_track": true,
+    "stage_05_design": true,
+    "stage_06_step_plan": true,
+    "stage_07_execute": false,
+    "stage_08_evaluate": false
+  },
+  "artifacts": {
+    "brainstorm": {"path": "docs/00_brainstorm.md", "status": "valid", "schema_valid": true, "rubric_passed": true, "last_updated_at": "2026-03-03T00:05:00.000Z"},
+    "project_brief": {"path": "docs/01_project_brief.json", "status": "valid", "schema_valid": true, "rubric_passed": true, "last_updated_at": "2026-03-03T00:10:00.000Z"},
+    "constraints": {"path": "docs/02_constraints.json", "status": "valid", "schema_valid": true, "rubric_passed": true, "last_updated_at": "2026-03-03T00:15:00.000Z"},
+    "track_plan": {"path": "docs/03_track_plan.json", "status": "valid", "schema_valid": true, "rubric_passed": true, "last_updated_at": "2026-03-03T00:20:00.000Z"},
+    "design": {"path": "docs/04_design.json", "status": "valid", "schema_valid": true, "rubric_passed": true, "last_updated_at": "2026-03-03T00:30:00.000Z"},
+    "step_plan": {"path": "docs/05_step_plan.json", "status": "valid", "schema_valid": true, "rubric_passed": true, "last_updated_at": "2026-03-03T00:35:00.000Z"},
+    "dev_log": {"path": "docs/06_dev_log.md", "status": "missing", "schema_valid": true, "rubric_passed": true, "last_updated_at": null},
+    "evaluation": {"path": "docs/07_evaluation.json", "status": "missing", "schema_valid": false, "rubric_passed": false, "last_updated_at": null},
+    "research_docs": {
+      "enabled": true,
+      "proposal": {"path": "docs/research/10_proposal.md", "status": "draft", "version": 1, "last_updated_at": null},
+      "prd_design": {"path": "docs/research/20_prd_design.md", "status": "draft", "version": 1, "last_updated_at": null},
+      "prototype_spec": {"path": "docs/research/30_prototype_spec.md", "status": "draft", "version": 1, "last_updated_at": null},
+      "tech_report": {"path": "docs/research/40_tech_report.md", "status": "draft", "version": 1, "last_updated_at": null},
+      "final_report": {"path": "docs/research/50_final_report.md", "status": "draft", "version": 1, "last_updated_at": null},
+      "paper": {"path": "docs/research/60_paper.md", "status": "draft", "version": 1, "enabled": false, "last_updated_at": null}
+    }
+  },
+  "dependency_graph": {
+    "brainstorm": [],
+    "project_brief": ["brainstorm"],
+    "constraints": ["project_brief"],
+    "track_plan": ["constraints"],
+    "design": ["track_plan"],
+    "step_plan": ["design"],
+    "dev_log": ["step_plan"],
+    "evaluation": ["dev_log"]
+  },
+  "stale_artifacts": [],
+  "stale_reason": {},
+  "defaults": {
+    "age_band": "13-15",
+    "time_budget": "12h+",
+    "track_preference": "unsure",
+    "resources": {"has_pico_board": false, "can_use_internet": true, "dataset_ready": false}
+  },
+  "modes": {
+    "research_docs": true,
+    "paper_mode": "off"
+  },
+  "project_locked": true,
+  "locked_at": "2026-03-03T00:35:00.000Z",
+  "locked_stages": ["stage_02_brief", "stage_03_constraints", "stage_04_track"],
+  "history": [
+    {"ts": "2026-03-03T00:00:00.000Z", "action": "next", "from_stage": null, "to_stage": "stage_00_bootstrap", "note": "项目初始化"},
+    {"ts": "2026-03-03T00:05:00.000Z", "action": "next", "from_stage": "stage_01_brainstorm", "to_stage": "stage_02_brief", "note": "脑爆完成,进入开题"},
+    {"ts": "2026-03-03T00:10:00.000Z", "action": "next", "from_stage": "stage_02_brief", "to_stage": "stage_03_constraints", "note": "立项书完成"},
+    {"ts": "2026-03-03T00:15:00.000Z", "action": "next", "from_stage": "stage_03_constraints", "to_stage": "stage_04_track", "note": "范围裁剪完成"},
+    {"ts": "2026-03-03T00:20:00.000Z", "action": "next", "from_stage": "stage_04_track", "to_stage": "stage_05_design", "note": "技术选型完成"},
+    {"ts": "2026-03-03T00:30:00.000Z", "action": "next", "from_stage": "stage_05_design", "to_stage": "stage_06_step_plan", "note": "设计完成,代码框架生成"},
+    {"ts": "2026-03-03T00:35:00.000Z", "action": "lock", "note": "项目锁定,进入执行阶段"},
+    {"ts": "2026-03-03T00:35:00.000Z", "action": "next", "from_stage": "stage_06_step_plan", "to_stage": "stage_07_execute", "note": "分步计划完成"}
+  ]
+}

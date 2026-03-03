@@ -1,5 +1,8 @@
 version: v2
 ui_language: zh-CN
+language: zh-CN
+
+# 语言约束：所有 Skill 输出必须使用中文，包括思考过程、对话、文档生成
 
 # Workspace 多项目模式配置
 workspace:

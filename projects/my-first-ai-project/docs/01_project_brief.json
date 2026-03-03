@@ -1,0 +1,31 @@
+{
+  "project_name": "文学知识卡 - 二次元漫画版",
+  "project_slug": "my-first-ai-project",
+  "one_liner": "我是文学天团 - 用卡哇伊二次元漫画让古诗词学习更有趣",
+  "problem_statement": "解决古诗词和文学知识的管理和复习问题,帮助学生记忆、做学习笔记和摘要",
+  "target_user": "同学/朋友",
+  "core_features": [
+    "古诗词和文学知识库录入",
+    "分类查看整理",
+    "搜索功能",
+    "卡片式学习",
+    "收藏功能",
+    "AI生成二次元漫画(卡哇伊风格)",
+    "导入更多知识库"
+  ],
+  "success_criteria": [
+    "功能完整可用",
+    "界面美观可爱",
+    "代码规范",
+    "能演示给别人看",
+    "学到新东西"
+  ],
+  "risks": [
+    {"risk": "bug太多", "fallback": "分步测试,先保证基础功能"},
+    {"risk": "AI漫画功能难实现", "fallback": "换简单方案或用mock数据"}
+  ],
+  "track_selected": "web",
+  "time_budget": "12h+",
+  "age_band": "初中",
+  "created_at": "2026-03-03"
+}

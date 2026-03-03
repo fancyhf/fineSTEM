@@ -1,0 +1,23 @@
+{
+  "track": "web_flask",
+  "tech_stack": {
+    "language": "Python",
+    "framework": "Flask",
+    "libraries": [
+      "Flask",
+      "Jinja2",
+      "requests",
+      "json"
+    ],
+    "dev_environment": "AI IDE",
+    "ai_integration": "可选 - DALL-E或其他AI图像生成API"
+  },
+  "deployment": "local",
+  "template_id": "flask_basic",
+  "resource_check": {
+    "has_pico_board": false,
+    "can_use_internet": true,
+    "dataset_ready": false,
+    "ai_api_available": false
+  }
+}
