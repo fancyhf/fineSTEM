@@ -17,6 +17,15 @@ research_docs_track:
   output_dir: "docs/research"
   assets_dir: "docs/research/assets"
 
+# 教学导向模式配置
+teaching_mode:
+  default: "guided"  # guided(引导式) / demo(演示式) / hands_on(动手式) / lecture(讲解式)
+  options:
+    - "guided": "引导式教学：提供框架，让学生填空，逐步引导"
+    - "demo": "演示式教学：先演示完整代码，再让学生模仿"
+    - "hands_on": "动手式教学：直接让学生尝试，出错后再指导"
+    - "lecture": "讲解式教学：先深入讲解原理和概念，再写代码"
+
 # 入口路由配置
 entry_routes:
   project_bootstrap:
@@ -212,3 +221,27 @@ research_docs_triggers:
       - "写学术论文"
     action: "set_paper_mode"
     paper_mode: "basic"
+
+  # 教学导向模式切换
+  set_teaching_mode:
+    skill_id: "07_coder_coach"
+    description: "切换教学导向模式"
+    triggers:
+      - "切换教学模式"
+      - "教学导向"
+      - "怎么教我"
+      - "教学模式"
+    action: "set_teaching_mode"
+    options:
+      - trigger: "引导式"
+        mode: "guided"
+        description: "提供代码框架，让学生填空，逐步引导"
+      - trigger: "演示式"
+        mode: "demo"
+        description: "先演示完整代码，再让学生模仿"
+      - trigger: "动手式"
+        mode: "hands_on"
+        description: "直接让学生尝试，出错后再指导"
+      - trigger: "讲解式"
+        mode: "lecture"
+        description: "先深入讲解原理和概念，再写代码"

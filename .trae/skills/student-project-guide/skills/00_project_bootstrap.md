@@ -110,6 +110,11 @@
        "track_preference": "{track_preference}",
        "resources": {resources}
      },
+     "modes": {
+       "research_docs": true,
+       "paper_mode": "off",
+       "teaching_mode": "guided"
+     },
      "history": [
        {"ts": "{timestamp}", "action": "init", "from_stage": null, "to_stage": "stage_00_bootstrap", "note": "项目初始化"}
      ]

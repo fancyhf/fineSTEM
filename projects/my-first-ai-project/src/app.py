@@ -430,6 +430,46 @@ def generate_poetry_image(poetry_id):
             'message': f'生成失败: {str(e)}'
         })
 
+@app.route('/stats')
+def stats():
+    """数据统计页面 - 展示诗词库的统计信息"""
+    data = load_data()
+    poetry_list = data['poetry']
+    
+    # 统计1: 总数量
+    total_count = len(poetry_list)
+    
+    # 统计2: 收藏数量
+    favorite_count = len([p for p in poetry_list if p.get('is_favorite', False)])
+    
+    # 统计3: 各朝代数量 (使用字典)
+    dynasty_count = {}
+    for poem in poetry_list:
+        dynasty = poem.get('dynasty', '未知')
+        if dynasty in dynasty_count:
+            dynasty_count[dynasty] += 1
+        else:
+            dynasty_count[dynasty] = 1
+    
+    # 统计4: 各分类数量
+    category_count = {}
+    for poem in poetry_list:
+        category = poem.get('category', '未分类')
+        if category in category_count:
+            category_count[category] += 1
+        else:
+            category_count[category] = 1
+    
+    # 统计5: 有插画的数量
+    image_count = len([p for p in poetry_list if p.get('image_url')])
+    
+    return render_template('stats.html',
+                         total_count=total_count,
+                         favorite_count=favorite_count,
+                         dynasty_count=dynasty_count,
+                         category_count=category_count,
+                         image_count=image_count)
+
 if __name__ == '__main__':
     data_dir = os.path.join(PROJECT_DIR, 'data')
     os.makedirs(data_dir, exist_ok=True)

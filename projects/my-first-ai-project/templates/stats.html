@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block title %}数据统计 - 文学天团{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="stats-container">
+        <h2 class="stats-title">📊 诗词库数据统计</h2>
+        
+        <!-- 总览卡片 -->
+        <div class="stats-overview">
+            <div class="stat-card total">
+                <div class="stat-icon">📚</div>
+                <div class="stat-number">{{ total_count }}</div>
+                <div class="stat-label">诗词总数</div>
+            </div>
+            
+            <div class="stat-card favorite">
+                <div class="stat-icon">⭐</div>
+                <div class="stat-number">{{ favorite_count }}</div>
+                <div class="stat-label">已收藏</div>
+            </div>
+            
+            <div class="stat-card image">
+                <div class="stat-icon">🎨</div>
+                <div class="stat-number">{{ image_count }}</div>
+                <div class="stat-label">有插画</div>
+            </div>
+        </div>
+        
+        <!-- 朝代统计 -->
+        <div class="stats-section">
+            <h3>🏛️ 朝代分布</h3>
+            <div class="stats-chart">
+                {% for dynasty, count in dynasty_count.items() %}
+                <div class="chart-item">
+                    <div class="chart-label">{{ dynasty }}朝</div>
+                    <div class="chart-bar-container">
+                        <div class="chart-bar" style="width: {{ (count / total_count * 100) }}%">
+                            <span class="bar-count">{{ count }}首</span>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        
+        <!-- 分类统计 -->
+        <div class="stats-section">
+            <h3>📂 分类分布</h3>
+            <div class="category-tags">
+                {% for category, count in category_count.items() %}
+                <div class="category-tag">
+                    <span class="tag-name">{{ category }}</span>
+                    <span class="tag-count">{{ count }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        
+        <div class="form-actions">
+            <a href="{{ url_for('index') }}" class="cancel-button">返回首页</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

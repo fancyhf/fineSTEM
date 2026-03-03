@@ -220,7 +220,8 @@ projects/{project_slug}/
 {
   "modes": {
     "research_docs": true,
-    "paper_mode": "off"
+    "paper_mode": "off",
+    "teaching_mode": "guided"
   }
 }
 ```
@@ -228,6 +229,7 @@ projects/{project_slug}/
 **字段说明**:
 - `research_docs`: 是否启用研学文档轨（默认 `true`）
 - `paper_mode`: 论文模式级别（`off`/`basic`/`advanced`，默认 `off`）
+- `teaching_mode`: 教学导向模式（`guided`/`demo`/`hands_on`，默认 `guided`）
 
 **模式切换规则**:
 - `research_docs`: 项目创建时默认开启；用户说"不需要研学报告"时关闭
@@ -235,6 +237,11 @@ projects/{project_slug}/
   - `off`: 不生成 60_paper.md
   - `basic`: 生成简化版论文（适合 12h+ 项目或老师指定）
   - `advanced`: 生成完整学术论文（适合竞赛/发表）
+- `teaching_mode`:
+  - `guided`: 引导式教学（默认）- 提供代码框架，让学生填空，逐步引导
+  - `demo`: 演示式教学 - 先演示完整代码，再让学生模仿
+  - `hands_on`: 动手式教学 - 直接让学生尝试，出错后再指导
+  - `lecture`: 讲解式教学 - 先深入讲解原理和概念，再写代码
 
 ### 历史记录（History Log）
 
