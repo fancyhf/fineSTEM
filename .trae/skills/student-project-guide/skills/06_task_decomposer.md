@@ -13,6 +13,20 @@
 - 生成 `docs/05_step_plan.json`
 - 更新 `SKILL_STATE.json`
 
+## Research Docs Update（研学文档更新）
+
+**本阶段更新**: `docs/research/40_tech_report.md`（技术报告）
+
+**更新方式**: 创建以下章节
+
+| 章节 | 更新内容 | 数据来源 |
+|------|---------|---------|
+| 1. 技术架构概览 | 模块划分、数据流 | `track_plan.tech_stack` |
+| 2. 里程碑与步骤 | 里程碑和步骤列表 | `milestones`, `steps` |
+| 3. 测试/评测计划 | 测试方案和通过条件 | `acceptance_tests` |
+
+**证据文件**: 无
+
 ## Prompt Template
 ```text
 你是 **项目规划师 (Project Planner)**。你的任务是将设计蓝图分解为可执行的步骤和里程碑。

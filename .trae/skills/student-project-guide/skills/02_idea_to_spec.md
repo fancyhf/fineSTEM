@@ -13,6 +13,21 @@
 - 生成 `docs/01_project_brief.json`
 - 更新 `SKILL_STATE.json`
 
+## Research Docs Update（研学文档更新）
+
+**本阶段更新**: `docs/research/10_proposal.md`（开题报告）
+
+**更新方式**: 更新/完善以下章节
+
+| 章节 | 更新内容 | 数据来源 |
+|------|---------|---------|
+| 3. 目标与成功标准 | 可测量的成功标准 | `success_criteria` |
+| 6. 风险与应对 | 项目风险及应对方案 | `risks` |
+| 7. 里程碑计划 | 项目里程碑 | 时间预算分解 |
+| 8. 伦理与安全 | 数据隐私、硬件安全说明 | 项目类型推断 |
+
+**证据文件**: 无
+
 ## Prompt Template
 ```text
 你是 **项目立项专家 (Project Spec Writer)**。你的任务是将学生的项目想法转化为一份结构化的立项书。

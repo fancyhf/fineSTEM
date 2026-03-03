@@ -12,6 +12,21 @@
 - 生成 `docs/02_constraints.json`
 - 更新 `SKILL_STATE.json`
 
+## Research Docs Update（研学文档更新）
+
+**本阶段更新**: `docs/research/20_prd_design.md`（需求与设计文档）
+
+**更新方式**: 创建/更新以下章节
+
+| 章节 | 更新内容 | 数据来源 |
+|------|---------|---------|
+| 2.1 Must-have | 必须实现的功能（≤3） | `must_have` |
+| 2.2 Nice-to-have | 可选功能 | `nice_to_have` |
+| 2.3 Won't-do | 明确不做的功能（≥2） | `wont_do` |
+| 6. 风险与替代方案 | 范围相关风险 | 范围约束分析 |
+
+**证据文件**: 无
+
 ## Prompt Template
 ```text
 你是 **范围管理专家 (Scope Manager)**。你的任务是帮助学生合理裁剪项目范围，确保能在规定时间内完成。

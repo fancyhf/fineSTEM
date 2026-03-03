@@ -14,7 +14,9 @@ description: "专为10-18岁学生设计的AI编程项目导师。通过AskUserQ
 **本地资源路径**:
 - Schema: `.trae/skills/student-project-guide/artifacts/schemas/`
 - Templates: `.trae/skills/student-project-guide/artifacts/templates/`
-- Topic Libraries: `.trae/skills/student-project-guide/libraries/`
+- Topic Libraries: `.trae/skills/student-project-guide/artifacts/libraries/`
+- Research Templates: `.trae/skills/student-project-guide/artifacts/templates/research/`
+- Research Docs 规范: `.trae/skills/student-project-guide/RESEARCH_DOCS.md`
 
 ---
 
@@ -33,7 +35,15 @@ projects/{project_slug}/
 │   ├── 04_design.json            # 设计方案
 │   ├── 05_step_plan.json         # 分步执行计划
 │   ├── 06_dev_log.md             # 开发日志（可选）
-│   └── 07_evaluation.json        # 验收评估
+│   ├── 07_evaluation.json        # 验收评估
+│   └── research/                 # 研学文档轨（Research Docs Track）
+│       ├── 10_proposal.md        # 开题报告
+│       ├── 20_prd_design.md      # 需求与设计文档
+│       ├── 30_prototype_spec.md  # 原型设计说明书
+│       ├── 40_tech_report.md     # 技术报告
+│       ├── 50_final_report.md    # 结题报告
+│       ├── 60_paper.md           # 论文（可选，受 paper_mode 控制）
+│       └── assets/               # 证据文件（截图/图表/日志）
 ├── src/                          # 源代码目录
 └── assets/                       # 素材/数据
 ```
@@ -201,6 +211,28 @@ projects/{project_slug}/
 }
 ```
 
+### 研学文档轨模式（Research Docs Track Modes）
+
+```json
+{
+  "modes": {
+    "research_docs": true,
+    "paper_mode": "off"
+  }
+}
+```
+
+**字段说明**:
+- `research_docs`: 是否启用研学文档轨（默认 `true`）
+- `paper_mode`: 论文模式级别（`off`/`basic`/`advanced`，默认 `off`）
+
+**模式切换规则**:
+- `research_docs`: 项目创建时默认开启；用户说"不需要研学报告"时关闭
+- `paper_mode`:
+  - `off`: 不生成 60_paper.md
+  - `basic`: 生成简化版论文（适合 12h+ 项目或老师指定）
+  - `advanced`: 生成完整学术论文（适合竞赛/发表）
+
 ### 历史记录（History Log）
 
 ```json
@@ -246,6 +278,25 @@ projects/{project_slug}/
 | stage_06_step_plan | 分步计划 | docs/05_step_plan.json | schema_valid=true；steps/里程碑不超预算；每步都有run/check/rollback |
 | stage_07_execute | 执行开发 | docs/06_dev_log.md + src变更 | 至少完成1个milestone的steps；有证据（日志/截图） |
 | stage_08_evaluate | 验收展示 | docs/07_evaluation.json | schema_valid=true；验收项≥2；反思learned≥2；next_steps≤3 |
+
+---
+
+## 研学文档轨阶段映射（Research Docs Track Stage Mapping）
+
+当 `modes.research_docs=true` 时，各阶段需同步更新以下研学文档：
+
+| Stage | 阶段名称 | 更新研学文档 | 更新方式 | 关键内容 |
+|-------|---------|-------------|---------|---------|
+| stage_01_brainstorm | 脑爆 | docs/research/10_proposal.md | 追加 | 动机、RQ、候选对比 |
+| stage_02_brief | 开题 | docs/research/10_proposal.md | 更新 | 目标、成功标准、风险、里程碑 |
+| stage_03_constraints | 范围裁剪 | docs/research/20_prd_design.md | 创建/更新 | must/wont-do、范围约束 |
+| stage_04_track | 轨道选择 | docs/research/20_prd_design.md | 更新 | 选型理由、替代方案 |
+| stage_05_design | 设计蓝图 | docs/research/30_prototype_spec.md + 20_prd_design.md | 创建/更新 | 原型设计 + 架构补充 |
+| stage_06_step_plan | 分步计划 | docs/research/40_tech_report.md | 创建 | 计划、测试方案 |
+| stage_07_execute | 执行开发 | docs/research/40_tech_report.md | 追加 | 日志、问题修复、证据路径 |
+| stage_08_evaluate | 验收展示 | docs/research/50_final_report.md (+ 60_paper.md) | 创建 | 结果、反思、下一步 |
+
+**证据文件落点**: `docs/research/assets/{screenshots|charts|logs|results}/`
 
 ---
 
@@ -538,6 +589,11 @@ projects/{project_slug}/
 1. 根据项目名称生成 `project_slug`（小写+连字符）
 2. 创建目录结构
 3. 初始化 `SKILL_STATE.json`
+4. **研学文档轨初始化**（如果 `modes.research_docs=true`）:
+   - 创建 `docs/research/` 目录
+   - 创建 `docs/research/assets/` 子目录（screenshots, charts, logs, results）
+   - 从模板复制 6 个研学文档模板到 `docs/research/`
+   - 初始化研学文档状态到 `artifacts.research_docs`
 
 **生成 SKILL_STATE.json:**
 
@@ -569,7 +625,16 @@ projects/{project_slug}/
     "design": {"path": "docs/04_design.json", "status": "missing", "schema_valid": false, "rubric_passed": false},
     "step_plan": {"path": "docs/05_step_plan.json", "status": "missing", "schema_valid": false, "rubric_passed": false},
     "dev_log": {"path": "docs/06_dev_log.md", "status": "missing", "schema_valid": true, "rubric_passed": true},
-    "evaluation": {"path": "docs/07_evaluation.json", "status": "missing", "schema_valid": false, "rubric_passed": false}
+    "evaluation": {"path": "docs/07_evaluation.json", "status": "missing", "schema_valid": false, "rubric_passed": false},
+    "research_docs": {
+      "enabled": true,
+      "proposal": {"path": "docs/research/10_proposal.md", "status": "draft", "version": 1},
+      "prd_design": {"path": "docs/research/20_prd_design.md", "status": "draft", "version": 1},
+      "prototype_spec": {"path": "docs/research/30_prototype_spec.md", "status": "draft", "version": 1},
+      "tech_report": {"path": "docs/research/40_tech_report.md", "status": "draft", "version": 1},
+      "final_report": {"path": "docs/research/50_final_report.md", "status": "draft", "version": 1},
+      "paper": {"path": "docs/research/60_paper.md", "status": "draft", "version": 1, "enabled": false}
+    }
   },
   "dependency_graph": {
     "brainstorm": [],

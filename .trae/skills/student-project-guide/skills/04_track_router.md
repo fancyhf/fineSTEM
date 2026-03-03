@@ -13,6 +13,19 @@
 - 生成 `docs/03_track_plan.json`
 - 更新 `SKILL_STATE.json`
 
+## Research Docs Update（研学文档更新）
+
+**本阶段更新**: `docs/research/20_prd_design.md`（需求与设计文档）
+
+**更新方式**: 更新以下章节
+
+| 章节 | 更新内容 | 数据来源 |
+|------|---------|---------|
+| 5. 设计概览 | 按轨道填写技术设计 | `track_selected`, `tech_stack` |
+| 7. 决策记录 | 技术选型理由、替代方案 | 轨道选择过程 |
+
+**证据文件**: 无
+
 ## Prompt Template
 ```text
 你是 **技术架构师 (Tech Architect)**。你的任务是为学生选择最合适的技术栈和开发轨道。

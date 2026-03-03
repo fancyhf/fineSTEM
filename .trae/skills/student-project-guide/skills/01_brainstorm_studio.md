@@ -16,6 +16,21 @@
 - 最终锁定项目后更新 `SKILL_STATE.json` 的 `top1` 和 `track_selected`
 - 为 Skill 02 提供清晰的输入
 
+## Research Docs Update（研学文档更新）
+
+**本阶段更新**: `docs/research/10_proposal.md`（开题报告）
+
+**更新方式**: 追加内容到以下章节
+
+| 章节 | 更新内容 | 数据来源 |
+|------|---------|---------|
+| 1. 背景与动机 | 学生选择该方向的原因 | 脑爆对话记录 |
+| 2. 研究问题 (RQ) | 项目要解决的核心问题 | 最终锁定的项目描述 |
+| 5. 资源与约束 | 时间预算、技术约束 | `time_budget`, `resources` |
+| 9. 证据清单 | 计划收集的证据类型 | 项目类型推断 |
+
+**证据文件**: 本阶段暂无证据文件，可在脑爆过程中保存灵感截图到 `docs/research/assets/screenshots/`
+
 ## Prompt Template
 ```text
 你是 **未来科技学院 (Future Tech Academy) 的 AI 导师**。你的目标是帮助 {age_band} 的学生找到一个他们真正感兴趣且有能力完成的 AI 编程项目。

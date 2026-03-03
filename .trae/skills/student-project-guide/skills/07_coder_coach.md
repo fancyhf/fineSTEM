@@ -14,6 +14,36 @@
 - 生成/更新 `docs/06_dev_log.md`
 - 更新 `SKILL_STATE.json`
 
+## Research Docs Update（研学文档更新）
+
+**本阶段更新**: `docs/research/40_tech_report.md`（技术报告）
+
+**更新方式**: 持续追加内容到以下章节
+
+| 章节 | 更新内容 | 数据来源 |
+|------|---------|---------|
+| 4. 开发/实验日志 | 每次开发的日志条目 | 实际开发过程 |
+| 5. 问题与修复清单 | 遇到的问题及修复方案 | 调试过程 |
+| 6. 关键决策与取舍 | 实现过程中的重要决策 | 代码审查 |
+| 7. 产物索引 | 关键代码文件路径 | `src/` 目录 |
+
+**日志条目格式**:
+```markdown
+### Log {YYYY-MM-DD} {HH:MM}
+- 对应 step_id: {step_id}
+- 做了什么: {description}
+- 结果: {success/failure}
+- 证据: {assets/...}
+- 遇到的问题: {issue}
+- 修复/下一步: {fix/next}
+```
+
+**证据文件**:
+- 运行截图: `docs/research/assets/screenshots/`
+- 测试结果: `docs/research/assets/logs/`
+- 数据图表: `docs/research/assets/charts/`
+- 输出结果: `docs/research/assets/results/`
+
 ## Prompt Template
 ```text
 你是 **编码教练 (Coder Coach)**。你的任务是指导学生按照计划逐步实现代码。

@@ -14,6 +14,44 @@
 - 更新 `SKILL_STATE.json`
 - 项目最终展示建议
 
+## Research Docs Update（研学文档更新）
+
+**本阶段更新**:
+- `docs/research/50_final_report.md`（结题报告）- 创建
+- `docs/research/60_paper.md`（论文）- 创建（如果 `paper_mode != off`）
+
+**更新方式**: 创建以下章节
+
+### 50_final_report.md（结题报告）
+
+| 章节 | 更新内容 | 数据来源 |
+|------|---------|---------|
+| 1. 项目摘要 | 项目概述和最终成果 | `project_brief` + 实际成果 |
+| 2. 目标完成情况 | 对照 success_criteria 的完成度 | `evaluation` |
+| 3. 成果证据 | 截图、图表、日志等证据列表 | `assets/` 目录 |
+| 4. 亮点 | 项目亮点和创新点 | `dev_log` + 代码审查 |
+| 5. 局限与反思 | 项目局限和改进反思 | `evaluation.reflection` |
+| 6. 下一步计划 | 后续改进方向 | `next_steps` |
+| 7. 分工与贡献 | 团队成员分工（如小组项目） | 项目记录 |
+
+### 60_paper.md（论文）- 仅当 `paper_mode != off`
+
+| 章节 | 更新内容 | 数据来源 |
+|------|---------|---------|
+| Title | 论文标题 | `project_brief.title` |
+| Abstract | 摘要（问题、方法、结果、结论） | 全文概括 |
+| Introduction | 背景、动机、研究问题 | `10_proposal.md` |
+| Method | 方法概述和设计选择 | `20_prd_design.md`, `30_prototype_spec.md` |
+| Experiments | 实验设置、指标、结果 | `40_tech_report.md` |
+| Discussion | 结果讨论、伦理安全 | `evaluation` |
+| Conclusion | 总结和未来工作 | `50_final_report.md` |
+| References | 参考文献 | 项目过程中引用的资源 |
+
+**证据文件**:
+- 最终演示截图: `docs/research/assets/screenshots/`
+- 性能图表: `docs/research/assets/charts/`
+- 测试结果: `docs/research/assets/results/`
+
 ## Prompt Template
 ```text
 你是 **项目评估师 (Project Evaluator)**。你的任务是评估项目完成度，指导学生进行展示和复盘。

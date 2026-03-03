@@ -1,172 +1,249 @@
-# Student Project Guide (学生项目导师)
+# Student Project Guide (学生项目导师) v6.1
 
-专为 10-18 岁学生设计的 AI 编程项目导师 Skill。
+> 专为 10-18 岁学生设计的 AI 编程项目导师 Skill
+> 从选题到结题，全程陪伴式项目开发指导
 
-## 版本
+---
 
-**v6.0 - 状态机规范版**
+## 这是什么？
 
-## 核心理念
+**Student Project Guide** 是一个 AI 编程项目导师 Skill，帮助中小学生：
 
-对话引导 → 生成文档 → 落盘保存 → 基于文档生成代码
+- **选题脑爆** - 从兴趣出发，找到合适的项目方向
+- **立项规划** - 明确目标、范围、技术路线
+- **设计开发** - 一步步实现代码，生成可运行作品
+- **验收展示** - 生成完整的研学文档和项目报告
 
-## 目录结构
+### 核心特色
+
+- **对话式引导** - 像导师一样聊天，不是冷冰冰的问答
+- **文档驱动** - 每个阶段生成结构化文档，落盘保存
+- **研学支持** - 自动生成开题报告、技术报告、结题报告、论文（可选）
+- **状态管理** - 9 阶段状态机，清楚知道项目进展
+- **多项目支持** - 每个项目独立工作区，互不干扰
+
+---
+
+## 快速开始
+
+### 1. 创建新项目
+
+对 AI 说：
+```
+"我想做一个项目"
+"创建新项目"
+"开始新项目"
+```
+
+AI 会问你：
+- 初中还是高中？
+- 计划花多长时间？（2小时/6小时/12小时+）
+- 有初步想法吗？
+
+然后自动创建项目工作区。
+
+### 2. 选题脑爆
+
+对 AI 说：
+```
+"给我选题"
+"brainstorm"
+"有什么方向"
+```
+
+AI 会带你进行 3 轮对话：
+1. **兴趣探索** - 了解你喜欢什么
+2. **能力评估** - 了解你的技术基础
+3. **具体选题** - 从题库推荐或共创题目
+
+### 3. 其他常用指令
+
+| 你想做什么 | 对 AI 说 |
+|-----------|---------|
+| 写开题报告 | "生成研学报告" / "我要写开题" |
+| 确定需求 | "写需求文档" / "设计文档" |
+| 设计界面 | "原型设计" / "画界面" |
+| 选择技术 | "选方向" / "用什么技术" |
+| 开始编码 | "写代码" / "开始写" |
+| 记录开发 | "写技术报告" / "记录日志" |
+| 项目总结 | "写结题报告" / "项目总结" |
+| 生成论文 | "写论文" / "生成论文" |
+
+---
+
+## 项目工作区结构
+
+每个项目在 `projects/{项目名}/` 目录下：
+
+```
+projects/my-project/
+├── SKILL_STATE.json              # 项目状态（自动维护）
+├── docs/                         # 项目文档
+│   ├── 00_brainstorm.md          # 脑爆记录
+│   ├── 01_project_brief.json     # 项目立项书
+│   ├── 02_constraints.json       # 范围约束
+│   ├── 03_track_plan.json        # 技术轨道规划
+│   ├── 04_design.json            # 设计方案
+│   ├── 05_step_plan.json         # 分步计划
+│   ├── 06_dev_log.md             # 开发日志
+│   ├── 07_evaluation.json        # 验收评估
+│   └── research/                 # 研学文档（自动生成）
+│       ├── 10_proposal.md        # 开题报告
+│       ├── 20_prd_design.md      # 需求与设计文档
+│       ├── 30_prototype_spec.md  # 原型设计说明书
+│       ├── 40_tech_report.md     # 技术报告
+│       ├── 50_final_report.md    # 结题报告
+│       ├── 60_paper.md           # 论文（可选）
+│       └── assets/               # 证据文件
+│           ├── screenshots/      # 截图
+│           ├── charts/           # 图表
+│           ├── logs/             # 日志
+│           └── results/          # 结果
+├── src/                          # 源代码（自动生成的代码在这里）
+└── assets/                       # 项目素材
+```
+
+---
+
+## 9 阶段开发流程
+
+```
+stage_00 初始化 ──→ stage_01 脑爆选题 ──→ stage_02 开题立项
+    │                                              │
+    ↓                                              ↓
+stage_08 验收展示 ←── stage_07 执行开发 ←── stage_06 分步计划
+    ↑                                              ↑
+    └──────── stage_05 设计蓝图 ←── stage_04 轨道选择 ←── stage_03 范围裁剪
+```
+
+| 阶段 | 名称 | 主要产出 | 研学文档更新 |
+|------|------|---------|-------------|
+| 00 | 项目初始化 | 项目目录 + 状态文件 | - |
+| 01 | 脑爆选题 | 脑爆记录 + 选题方向 | 开题报告（动机、RQ） |
+| 02 | 开题立项 | 项目立项书 | 开题报告（目标、风险、里程碑） |
+| 03 | 范围裁剪 | 范围约束文档 | 需求文档（Must/Wont-do） |
+| 04 | 轨道选择 | 技术轨道规划 | 需求文档（技术选型） |
+| 05 | 设计蓝图 | 设计方案 + 代码框架 | 原型设计 + 需求补充 |
+| 06 | 分步计划 | 分步执行计划 | 技术报告（计划、测试方案） |
+| 07 | 执行开发 | 源代码 + 开发日志 | 技术报告（开发日志、问题修复） |
+| 08 | 验收展示 | 验收评估 | 结题报告 + 论文（可选） |
+
+---
+
+## 研学文档轨
+
+### 什么是研学文档？
+
+除了项目本身的代码和文档，Skill 还会自动生成一套**研学文档**，适合：
+- 学校研学项目提交
+- 科创比赛材料
+- 个人学习档案
+
+### 包含哪些文档？
+
+| 文档 | 用途 | 生成时机 |
+|------|------|---------|
+| 10_proposal.md | 开题报告 | 脑爆 + 开题阶段 |
+| 20_prd_design.md | 需求与设计文档 | 范围裁剪 + 轨道选择 + 设计阶段 |
+| 30_prototype_spec.md | 原型设计说明书 | 设计阶段 |
+| 40_tech_report.md | 技术报告 | 分步计划 + 执行开发阶段 |
+| 50_final_report.md | 结题报告 | 验收展示阶段 |
+| 60_paper.md | 论文（可选） | 验收展示阶段（需开启论文模式） |
+
+### 如何开启论文模式？
+
+对 AI 说：
+```
+"要论文"
+"开启论文模式"
+"写学术论文"
+```
+
+论文模式级别：
+- `off`（默认）- 不生成论文
+- `basic` - 简化版论文（适合 12小时+ 项目）
+- `advanced` - 完整学术论文（适合竞赛/发表）
+
+---
+
+## 技术轨道选择
+
+根据项目类型，Skill 会推荐合适的技术栈：
+
+| 轨道 | 适合项目 | 技术栈 |
+|------|---------|--------|
+| Web应用 | 网站、工具、展示 | HTML/CSS/JavaScript |
+| 游戏开发 | 互动游戏、模拟 | Canvas/Phaser.js |
+| AI/ML | 智能应用、数据分析 | Python/AI API |
+| 数据可视化 | 图表、仪表板、报告 | D3.js/Chart.js |
+| 创意编程 | 艺术、音乐、生成 | p5.js/Processing |
+
+---
+
+## 文件说明
 
 ```
 .trae/skills/student-project-guide/
-├── SKILL.md                    # 主 Skill 文件（完整规范）
-├── README.md                   # 本文件
+├── SKILL.md                    # 完整技术规范（状态机、门禁规则）
+├── RESEARCH_DOCS.md            # 研学文档轨规范
+├── README.md                   # 本文件（使用指南）
+├── routing.yml                 # 触发语路由配置
 ├── artifacts/
-│   ├── schemas/                # JSON Schema 定义（预留）
-│   └── templates/              # 文档模板（预留）
-├── libraries/                  # 题库资源（预留）
-└── skills/                     # 子 Skill（预留）
+│   ├── schemas/                # JSON Schema（文档验证）
+│   ├── templates/              # 文档模板
+│   │   ├── research/           # 研学文档模板（6个）
+│   │   └── *.json              # 项目工件模板
+│   └── libraries/              # 题库资源
+│       ├── topic_library_*.md  # 项目题库（科学家/创造者/探索者）
+│       └── track_library.md    # 技术轨道指南
+└── skills/
+    ├── 00_project_bootstrap.md # 项目初始化
+    ├── 01_brainstorm_studio.md # 脑爆选题
+    ├── 02_idea_to_spec.md      # 开题立项
+    ├── 03_scope_cutter.md      # 范围裁剪
+    ├── 04_track_router.md      # 轨道选择
+    ├── 05_designer.md          # 设计蓝图
+    ├── 06_task_decomposer.md   # 分步计划
+    ├── 07_coder_coach.md       # 编码教练
+    └── 08_evaluator_showcase.md # 验收展示
 ```
 
-## 项目工作区
+---
 
-每个项目在 `projects/{project_slug}/` 下创建：
+## 常见问题
 
-```
-projects/{project_slug}/
-├── SKILL_STATE.json            # 状态机与历史记录
-├── docs/                       # 阶段工件
-│   ├── 00_brainstorm.md        # 脑爆记录
-│   ├── 01_project_brief.json   # 项目立项书
-│   ├── 02_constraints.json     # 范围约束
-│   ├── 03_track_plan.json      # 技术轨道规划
-│   ├── 04_design.json          # 设计方案
-│   ├── 05_step_plan.json       # 分步执行计划
-│   ├── 06_dev_log.md           # 开发日志
-│   └── 07_evaluation.json      # 验收评估
-├── src/                        # 源代码
-└── assets/                     # 素材/数据
-```
+### Q: 项目存在哪里？
+A: 所有项目在 `projects/` 目录下，每个项目一个文件夹，方便管理和分享。
 
-## 9 阶段工作流
+### Q: 可以同时做多个项目吗？
+A: 可以！每个项目有独立的 `SKILL_STATE.json` 记录状态，互不干扰。
 
-| 阶段 | 名称 | 产出 | 通过条件 |
-|------|------|------|---------|
-| stage_00 | 初始化 | 目录 + SKILL_STATE.json | 工件存在 |
-| stage_01 | 脑爆 | 00_brainstorm.md | 1轮+候选≥6+Top3 |
-| stage_02 | 开题卡 | 01_project_brief.json | schema+success≥2+risks≥2 |
-| stage_03 | 范围裁剪 | 02_constraints.json | schema+must≤3+wont≥2 |
-| stage_04 | 轨道选择 | 03_track_plan.json | schema+template白名单 |
-| stage_05 | 设计蓝图 | 04_design.json + src/ | schema+用例≥3 |
-| stage_06 | 分步计划 | 05_step_plan.json | schema+不超预算 |
-| stage_07 | 执行开发 | 06_dev_log.md + src/ | 完成1个milestone |
-| stage_08 | 验收展示 | 07_evaluation.json | schema+验收≥2+反思≥2 |
+### Q: 研学文档是自动生成的吗？
+A: 是的！Skill 会在每个阶段自动更新对应的研学文档，你只需要专注于开发。
 
-## 启动方式
+### Q: 证据文件（截图/图表）放哪里？
+A: 放在 `docs/research/assets/` 下的对应子目录，Skill 会自动引用。
 
-在 AI IDE 中说出以下任意话语：
+### Q: 如果我想修改之前的决定怎么办？
+A: 可以说"回退到上一步"或"重做某某阶段"，Skill 支持软回退和硬回退。
 
-- "我想做一个项目"
-- "创建新项目"
-- "开始脑爆"
-- "不知道做什么"
+### Q: 这个项目适合什么年龄段？
+A: 主要面向 10-18 岁学生（小学高年级到高中），根据年龄段调整引导方式。
 
-## 导航命令
+---
 
-| 命令 | 动作 |
-|------|------|
-| "现在是什么阶段" / "当前阶段" | 显示当前阶段、状态和下一步建议 |
-| "下一步" / "next" | 进入下一阶段（需通过门禁） |
-| "上一步" / "back" | 软回退（后置工件变 stale） |
-| "重做" / "redo" | 重做当前阶段 |
-| "查看状态" / "status" | 显示完整状态、stale 工件和历史记录 |
-| "锁定项目" / "lock" | 锁定项目（防止改方向） |
-| "解锁项目" / "unlock" | 解锁项目 |
+## 版本信息
 
-## 测试模式 (Playwright MCP)
+- **当前版本**: v6.1
+- **更新日期**: 2026-03-03
+- **主要更新**: 新增研学文档轨（Research Docs Track），支持自动生成开题报告、技术报告、结题报告、论文
 
-**触发**: "测试我的项目"、"运行测试"、"playwright测试"
+---
 
-**功能**:
-- 基于 `docs/04_design.json` 中的 `acceptance_tests` 自动生成测试
-- 通过 **Playwright MCP** 进行端到端测试（学生零配置）
-- 生成测试报告（截图、MCP调用记录）
-- 记录测试结果到 `docs/06_dev_log.md`
+## 反馈与建议
 
-**优势**:
-- 环境由 AI IDE MCP 自动管理
-- 学生无需安装 Playwright
-- 支持多种技术栈
+如果你在使用过程中遇到问题或有改进建议，欢迎反馈！
 
-**支持技术栈**:
-- Streamlit (localhost:8501)
-- Flask/Django (HTTP API + 页面)
-- Pygame (截图对比)
-- Tkinter (截图对比)
-- 硬件 Pico (串口通信)
+---
 
-**降级方案**: MCP 不可用时提供手动测试清单
-
-## 状态机规范
-
-### SKILL_STATE.json 核心字段
-
-```json
-{
-  "project_id": "string",
-  "project_slug": "string",
-  "current_stage": "stage_00_bootstrap",
-  "stage_status": "draft|passed|needs_redo",
-  "stage_passed": {
-    "stage_00_bootstrap": true,
-    "stage_01_brainstorm": false,
-    "...": false
-  },
-  "artifacts": {
-    "brainstorm": {
-      "path": "docs/00_brainstorm.md",
-      "status": "draft|valid|stale|archived",
-      "schema_valid": false,
-      "rubric_passed": false
-    }
-  },
-  "dependency_graph": {
-    "brainstorm": [],
-    "project_brief": ["brainstorm"],
-    "...": ["..."]
-  },
-  "stale_artifacts": [],
-  "project_locked": false,
-  "history": []
-}
-```
-
-### 依赖链
-
-```
-brainstorm → project_brief → constraints → track_plan → design → step_plan → dev_log → evaluation
-```
-
-**Stale 规则**: 前置工件变更 → 所有后置工件变 `stale` → 必须重做
-
-## 资源库
-
-### Web 项目题库（20题）
-
-待办清单、小测验、记账本、单词卡、心情打卡、图片画廊、天气展示、番茄钟、投票、课程资料站、书单收藏、聊天室、任务看板、学习进度条、词典查询、博客编辑器、电影推荐器、习惯打卡、猜数字、反应速度测试
-
-### Kaggle/建模题库（10题）
-
-泰坦尼克号、房价预测、手写数字、鸢尾花分类、客户流失、信用卡欺诈、电影评分、情感分析、猫狗识别、时间序列
-
-### 硬件创客题库（10题）
-
-智能植物浇水、温湿度监测、感应小夜灯、简易电子琴、倒计时器、智能门禁、环境监测站、音乐律动灯、遥控小车、智能鱼缸
-
-## 风格指南
-
-- 🌟 鼓励、启发、有趣
-- Emoji 友好
-- 适合 10-18 岁学生理解
-- 每步都有明确产出
-
-## 维护
-
-- 创建时间: 2026-02-28
-- 版本: v6.0
-- 状态机规范: 完整 9 阶段
+*让每个学生都能完成一个属于自己的 AI 项目* 🚀

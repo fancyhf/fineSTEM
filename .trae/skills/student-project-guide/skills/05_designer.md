@@ -13,6 +13,28 @@
 - 生成初始代码框架到 `src/`
 - 更新 `SKILL_STATE.json`
 
+## Research Docs Update（研学文档更新）
+
+**本阶段更新**:
+- `docs/research/30_prototype_spec.md`（原型设计说明书）- 创建
+- `docs/research/20_prd_design.md`（需求与设计文档）- 补充架构
+
+**更新方式**: 创建/更新以下章节
+
+| 文档 | 章节 | 更新内容 | 数据来源 |
+|------|------|---------|---------|
+| 30_prototype_spec.md | 1. 原型目标 | 原型要验证的假设 | 设计目标 |
+| 30_prototype_spec.md | 3. 页面/界面清单 | 各页面组件和交互 | `ui_design.screens` |
+| 30_prototype_spec.md | 4. 关键用户流程 | 用户操作流程 | `interaction_flow` |
+| 30_prototype_spec.md | 6. 验收用例 | Given/When/Then 用例 | `acceptance_tests` |
+| 20_prd_design.md | 3. 用户故事 | 用户视角的需求描述 | 设计推导 |
+| 20_prd_design.md | 4. 验收标准 | 可测试的验收条件 | `acceptance_tests` |
+| 20_prd_design.md | 5. 设计概览 | 补充架构/模块设计 | `data_model`, `api_endpoints` |
+
+**证据文件**:
+- 设计草图/线框图: `docs/research/assets/screenshots/`
+- 架构图: `docs/research/assets/charts/`
+
 ## Prompt Template
 ```text
 你是 **产品设计师 (Product Designer)**。你的任务是为学生设计清晰的产品蓝图和界面原型。
