@@ -3,20 +3,29 @@
 [![License: CC BY-NC-SA 4.0](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc-sa/4.0/)
 
 fineSTEM 面向小学到高中的孩子，为孩子们提供自助式、PBL式、伴学式的STEM和AI编程的体验，这是一个 AI + 创意学习体系的教育项目。
-项目给不同学段少年儿童不同的**体验入口**：
-- **中学生**：可以直接通过 SKILLs 开始 STEM 项目，或者查看 projects 目录中的 demo 案例项目。
-- **小学生**：可以通过 app 的网页来体验。
+
+项目为不同学段的孩子提供差异化的**学习路径**：
+- **中学生**：使用 AI 编程导师 SKILLs，在 AI IDE 中自主完成 STEM 项目；也可参考 projects 目录中的完整案例。
+- **小学生**：通过 apps 互动网页，在可视化界面中体验编程乐趣，无需配置开发环境。
 
 ---
 
-## 应用项目 (Apps)
+## 项目体验中心 (Apps)
 
-fineSTEM 提供面向小学生的网页应用，通过直观、互动的界面让 younger learners 轻松体验 STEM 和 AI 编程的乐趣。
+fineSTEM Apps 是**互动式项目展示平台**，让孩子直接体验 STEM 项目，无需配置开发环境。
 
-### 核心应用
-- **公众网站 (public-web)**：面向小学生的互动学习平台，提供可视化编程、趣味实验和项目展示功能。
+### 当前阶段：MVP 1
 
-详细信息请参考 [apps/public-web/README.md](apps/public-web/README.md)
+[public-web](apps/public-web/) 提供三个互动模块：
+- **物理模拟** - Matter.js 物理沙盒，理解物理原理
+- **数据分析** - ECharts 数据可视化，学习数据思维
+- **AI 助手** - LLM 智能对话，获得实时指导
+
+### 未来规划
+
+Apps 将逐步集成 `projects/` 下的案例项目，形成完整的项目体验库。
+
+详细信息请参考 [apps/README.md](apps/README.md)
 
 ## AI 编程导师 Skills
 
@@ -58,9 +67,9 @@ fineSTEM 提供开源的 AI 编程导师 Skill 集合，帮助学生在任何 AI
 
 ---
 
-## Demo 案例项目
+## sample 案例项目
 
-`projects/` 目录存放由 **STEM PBL Guide** 生成的 Demo 案例项目，展示了 STEM 项目式学习(PBL)的完整流程。这些项目可作为学生学习和参考的范例。
+`projects/` 目录存放由 **STEM PBL Guide** 生成的 sample 案例项目，展示了 STEM 项目式学习(PBL)的完整流程。这些项目可作为学生学习和参考的范例。
 
 目前包含以下案例：
 - **文学知识卡** - 二次元漫画风格的古诗词学习应用
@@ -95,7 +104,7 @@ fineSTEM/
 ├── deploysettings/              # 部署配置文件
 ├── server/                      # 服务器运维脚本 (Nginx 等)
 ├── maintain/                    # 维护文档
-├── projects/                    # STEM PBL Guide 生成的 Demo 案例项目
+├── projects/                    # STEM PBL Guide 生成的 sample 案例项目
 ├── references/                  # 参考资料
 └── README.md                    # 项目说明文档
 ```
