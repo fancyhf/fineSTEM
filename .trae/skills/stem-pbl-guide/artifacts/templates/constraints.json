@@ -1,0 +1,20 @@
+{
+  "time_budget": "6h",
+  "must_have": [
+    {"feature": "", "reason": ""}
+  ],
+  "must_have_max": 3,
+  "nice_to_have": [
+    {"feature": "", "reason": ""}
+  ],
+  "wont_do": [
+    {"feature": "", "reason": "", "future_plan": ""}
+  ],
+  "wont_do_min": 2,
+  "constraints": {
+    "max_pages": 3,
+    "max_components": 5,
+    "tech_limitations": []
+  },
+  "created_at": ""
+}

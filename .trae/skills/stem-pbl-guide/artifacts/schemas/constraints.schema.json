@@ -1,0 +1,81 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "constraints.schema.json",
+  "title": "Constraints Schema",
+  "description": "范围约束文档的 JSON Schema 定义",
+  "type": "object",
+  "required": ["must_have", "nice_to_have", "explicitly_out", "constraints", "updated_at"],
+  "properties": {
+    "must_have": {
+      "type": "array",
+      "description": "必须有的功能 (MVP)",
+      "minItems": 1,
+      "maxItems": 5,
+      "items": {
+        "type": "string",
+        "minLength": 5,
+        "maxLength": 150
+      }
+    },
+    "nice_to_have": {
+      "type": "array",
+      "description": "可以有的功能 (如果有时间)",
+      "maxItems": 5,
+      "items": {
+        "type": "string",
+        "minLength": 5,
+        "maxLength": 150
+      }
+    },
+    "explicitly_out": {
+      "type": "array",
+      "description": "明确不做 (防止范围蔓延)",
+      "items": {
+        "type": "string",
+        "minLength": 5,
+        "maxLength": 150
+      }
+    },
+    "constraints": {
+      "type": "object",
+      "description": "约束条件",
+      "required": ["time_budget_hours", "complexity_level"],
+      "properties": {
+        "time_budget_hours": {
+          "type": "integer",
+          "description": "时间预算(小时)",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "complexity_level": {
+          "type": "string",
+          "description": "复杂度等级",
+          "enum": ["简单", "中等", "复杂"]
+        },
+        "tech_limitations": {
+          "type": "array",
+          "description": "技术限制",
+          "items": {
+            "type": "string",
+            "minLength": 5,
+            "maxLength": 200
+          }
+        },
+        "external_dependencies": {
+          "type": "array",
+          "description": "外部依赖",
+          "items": {
+            "type": "string",
+            "minLength": 5,
+            "maxLength": 200
+          }
+        }
+      }
+    },
+    "updated_at": {
+      "type": "string",
+      "description": "更新时间",
+      "format": "date-time"
+    }
+  }
+}

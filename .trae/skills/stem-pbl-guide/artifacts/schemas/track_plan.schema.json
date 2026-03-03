@@ -1,0 +1,111 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "track_plan.schema.json",
+  "title": "Track Plan Schema",
+  "description": "技术轨道规划文档的 JSON Schema 定义",
+  "type": "object",
+  "required": ["track", "tech_stack", "rationale", "learning_goals", "resources", "created_at"],
+  "properties": {
+    "track": {
+      "type": "string",
+      "description": "选定的技术轨道",
+      "enum": ["web_app", "game_dev", "ai_ml", "data_viz", "creative_coding"]
+    },
+    "tech_stack": {
+      "type": "object",
+      "description": "技术栈详情",
+      "required": ["frontend", "backend", "tools"],
+      "properties": {
+        "frontend": {
+          "type": "array",
+          "description": "前端技术",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 50
+          }
+        },
+        "backend": {
+          "type": "array",
+          "description": "后端技术",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 50
+          }
+        },
+        "ai_tools": {
+          "type": "array",
+          "description": "AI工具",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 50
+          }
+        },
+        "tools": {
+          "type": "array",
+          "description": "开发工具",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 50
+          }
+        }
+      }
+    },
+    "rationale": {
+      "type": "string",
+      "description": "选择理由",
+      "minLength": 20,
+      "maxLength": 500
+    },
+    "learning_goals": {
+      "type": "array",
+      "description": "学习目标",
+      "minItems": 1,
+      "maxItems": 5,
+      "items": {
+        "type": "string",
+        "minLength": 10,
+        "maxLength": 200
+      }
+    },
+    "resources": {
+      "type": "array",
+      "description": "推荐资源",
+      "items": {
+        "type": "object",
+        "required": ["type", "title", "url"],
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "资源类型",
+            "enum": ["tutorial", "documentation", "video", "example", "library"]
+          },
+          "title": {
+            "type": "string",
+            "description": "资源标题",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "url": {
+            "type": "string",
+            "description": "资源链接",
+            "format": "uri"
+          },
+          "description": {
+            "type": "string",
+            "description": "资源描述",
+            "maxLength": 200
+          }
+        }
+      }
+    },
+    "created_at": {
+      "type": "string",
+      "description": "创建时间",
+      "format": "date-time"
+    }
+  }
+}

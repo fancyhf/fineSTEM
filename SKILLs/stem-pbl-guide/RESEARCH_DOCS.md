@@ -222,7 +222,7 @@ assets/
 研学文档模板存放在 skill 包内：
 
 ```
-.trae/skills/student-project-guide/artifacts/templates/research/
+.trae/skills/stem-pbl-guide/artifacts/templates/research/
 ├── 10_proposal.md
 ├── 20_prd_design.md
 ├── 30_prototype_spec.md

@@ -1,0 +1,98 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "project_brief.schema.json",
+  "title": "Project Brief Schema",
+  "description": "项目开题文档的 JSON Schema 定义",
+  "type": "object",
+  "required": ["title", "one_liner", "problem_statement", "target_user", "core_features", "success_criteria", "track_selected", "time_budget", "age_band", "created_at"],
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "项目名称",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "one_liner": {
+      "type": "string",
+      "description": "一句话描述",
+      "minLength": 10,
+      "maxLength": 200
+    },
+    "problem_statement": {
+      "type": "string",
+      "description": "问题陈述 - 要解决的痛点",
+      "minLength": 20,
+      "maxLength": 500
+    },
+    "target_user": {
+      "type": "string",
+      "description": "目标用户是谁",
+      "minLength": 5,
+      "maxLength": 200
+    },
+    "core_features": {
+      "type": "array",
+      "description": "核心功能列表",
+      "minItems": 1,
+      "maxItems": 5,
+      "items": {
+        "type": "string",
+        "minLength": 5,
+        "maxLength": 100
+      }
+    },
+    "success_criteria": {
+      "type": "array",
+      "description": "成功标准",
+      "minItems": 1,
+      "maxItems": 5,
+      "items": {
+        "type": "string",
+        "minLength": 5,
+        "maxLength": 200
+      }
+    },
+    "risks": {
+      "type": "array",
+      "description": "风险与应对",
+      "items": {
+        "type": "object",
+        "required": ["risk", "fallback"],
+        "properties": {
+          "risk": {
+            "type": "string",
+            "description": "风险描述",
+            "minLength": 5,
+            "maxLength": 200
+          },
+          "fallback": {
+            "type": "string",
+            "description": "应对方案",
+            "minLength": 5,
+            "maxLength": 200
+          }
+        }
+      }
+    },
+    "track_selected": {
+      "type": "string",
+      "description": "选定的技术轨道",
+      "enum": ["web_app", "game_dev", "ai_ml", "data_viz", "creative_coding"]
+    },
+    "time_budget": {
+      "type": "string",
+      "description": "时间预算",
+      "pattern": "^[0-9]+h$"
+    },
+    "age_band": {
+      "type": "string",
+      "description": "年龄段",
+      "enum": ["10-12", "13-15", "16-18"]
+    },
+    "created_at": {
+      "type": "string",
+      "description": "创建时间",
+      "format": "date-time"
+    }
+  }
+}

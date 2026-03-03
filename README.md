@@ -17,11 +17,12 @@ fineSTEM/
 │   ├── documents/               # 项目文档统一归档
 │   ├── rules/                   # 自动化规则
 │   └── skills/                  # AI 编程导师 Skill
-│       └── student-project-guide/  # 学生项目导师（详见下方介绍）
+│       └── stem-pbl-guide/       # STEM项目式学习导师（详见下方介绍）
 ├── deploy/                      # 部署脚本与指南
 ├── deploysettings/              # 部署配置文件
 ├── server/                      # 服务器运维脚本 (Nginx 等)
 ├── maintain/                    # 维护文档
+├── projects/                    # STEM PBL Guide 生成的 Demo 案例项目
 ├── references/                  # 参考资料
 └── README.md                    # 项目说明文档
 ```
@@ -90,9 +91,20 @@ npm run dev
 
 详细部署指南请参考 [deploy/README.md](deploy/README.md) 及 [deploysettings/](deploysettings/) 下的相关文档。
 
+## Demo 案例项目
+
+`projects/` 目录存放由 **STEM PBL Guide** 生成的 Demo 案例项目，展示了 STEM 项目式学习(PBL)的完整流程。这些项目可作为学生学习和参考的范例。
+
+目前包含以下案例：
+- **文学知识卡** - 二次元漫画风格的古诗词学习应用
+- **UP主视频内容分析器** - AI自动生成词云和统计分析
+- **智能待办清单** - 自动排序优先级的待办App
+
+详细信息请参考 [projects/README.md](projects/README.md)
+
 ## AI 编程导师 Skill
 
-fineSTEM 包含一套专为 10-18 岁学生设计的 AI 编程项目导师 Skill，位于 `.trae/skills/student-project-guide/`。
+fineSTEM 包含一套专为 10-18 岁学生设计的 STEM 项目式学习 (PBL) 导师 Skill，位于 `.trae/skills/stem-pbl-guide/`。
 
 ### 功能特点
 
@@ -114,7 +126,7 @@ fineSTEM 包含一套专为 10-18 岁学生设计的 AI 编程项目导师 Skill
 "写开题报告"          # 生成研学文档
 ```
 
-详细使用指南请参考：[.trae/skills/student-project-guide/README.md](.trae/skills/student-project-guide/README.md)
+详细使用指南请参考：[.trae/skills/stem-pbl-guide/README.md](.trae/skills/stem-pbl-guide/README.md)
 
 ---
 

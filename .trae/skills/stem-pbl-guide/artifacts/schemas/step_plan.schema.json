@@ -1,0 +1,113 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "step_plan.schema.json",
+  "title": "Step Plan Schema",
+  "description": "分步计划文档的 JSON Schema 定义",
+  "type": "object",
+  "required": ["steps", "total_estimated_hours", "milestones", "created_at"],
+  "properties": {
+    "steps": {
+      "type": "array",
+      "description": "开发步骤列表",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["step_number", "title", "description", "estimated_hours", "deliverable", "status"],
+        "properties": {
+          "step_number": {
+            "type": "integer",
+            "description": "步骤序号",
+            "minimum": 1
+          },
+          "title": {
+            "type": "string",
+            "description": "步骤标题",
+            "minLength": 5,
+            "maxLength": 100
+          },
+          "description": {
+            "type": "string",
+            "description": "步骤描述",
+            "minLength": 10,
+            "maxLength": 300
+          },
+          "estimated_hours": {
+            "type": "number",
+            "description": "预估时间(小时)",
+            "minimum": 0.5,
+            "maximum": 20
+          },
+          "deliverable": {
+            "type": "string",
+            "description": "交付物",
+            "minLength": 5,
+            "maxLength": 200
+          },
+          "status": {
+            "type": "string",
+            "description": "状态",
+            "enum": ["pending", "in_progress", "completed", "blocked"]
+          },
+          "dependencies": {
+            "type": "array",
+            "description": "依赖的步骤序号",
+            "items": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "tips": {
+            "type": "array",
+            "description": "实现提示",
+            "items": {
+              "type": "string",
+              "minLength": 5,
+              "maxLength": 200
+            }
+          }
+        }
+      }
+    },
+    "total_estimated_hours": {
+      "type": "number",
+      "description": "总预估时间(小时)",
+      "minimum": 1
+    },
+    "milestones": {
+      "type": "array",
+      "description": "里程碑",
+      "items": {
+        "type": "object",
+        "required": ["name", "step_number", "criteria"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "里程碑名称",
+            "minLength": 5,
+            "maxLength": 100
+          },
+          "step_number": {
+            "type": "integer",
+            "description": "完成步骤序号",
+            "minimum": 1
+          },
+          "criteria": {
+            "type": "array",
+            "description": "完成标准",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "minLength": 5,
+              "maxLength": 200
+            }
+          }
+        }
+      }
+    },
+    "created_at": {
+      "type": "string",
+      "description": "创建时间",
+      "format": "date-time"
+    }
+  }
+}

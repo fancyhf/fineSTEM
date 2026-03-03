@@ -1,0 +1,18 @@
+{
+  "completion_rate": 0,
+  "features_completed": [],
+  "features_pending": [],
+  "code_quality": "",
+  "demo_ready": false,
+  "acceptance_items": [],
+  "test_results": {
+    "passed": 0,
+    "total": 0,
+    "pass_rate": 0
+  },
+  "learned": [],
+  "challenges": [],
+  "next_steps": [],
+  "next_steps_max": 3,
+  "created_at": ""
+}
