@@ -4,20 +4,67 @@
 
 fineSTEM 是一个致力于为 7-10 年级学生提供 AI + 创意学习体系的教育项目。
 
+---
+
+## AI 编程导师 Skills
+
+fineSTEM 提供开源的 AI 编程导师 Skill 集合，帮助学生在任何 AI IDE 中获得个性化的项目指导。
+
+### 兼容性
+
+| AI IDE | 兼容性 | 说明 |
+|--------|--------|------|
+| **Trae IDE** | 完全兼容 | 原生支持 |
+| **Cursor** | 兼容 | 作为系统提示 |
+| **Windsurf** | 兼容 | 作为系统提示 |
+| **VS Code + Copilot** | 兼容 | 作为上下文 |
+| **其他 AI IDE** | 基本兼容 | 复制粘贴即可 |
+
+### 快速使用
+
+**最简单方式** - 复制粘贴：
+1. 打开 [SKILLs/stem-pbl-guide/SKILL.md](./SKILLs/stem-pbl-guide/SKILL.md)
+2. 复制全部内容
+3. 粘贴到你的 AI IDE 对话框
+4. 开始对话
+
+**触发语**：
+```
+"我想做一个项目"      # 创建新项目
+"给我选题"            # 开始脑爆选题
+"写代码"              # 进入编码阶段
+```
+
+### 功能特点
+
+- **9 阶段项目流程** - 从选题脑爆到验收展示
+- **4 种代码教学模式** - 引导式、演示式、动手式、讲解式
+- **研学文档自动生成** - 开题报告、技术报告、结题报告
+- **对话式交互** - 像导师一样聊天
+
+详细使用指南：[SKILLs/README.md](./SKILLs/README.md)
+
+---
+
 ## 项目结构
 
 ```
 fineSTEM/
+├── SKILLs/                      # AI 编程导师 Skill 集合（对外发布）
+│   ├── stem-pbl-guide/          # STEM 项目式学习导师
+│   ├── install.ps1              # Windows 安装脚本
+│   ├── install.sh               # macOS/Linux 安装脚本
+│   └── README.md                # Skill 使用指南
+├── .trae/                       # Trae IDE 配置
+│   ├── documents/               # 项目文档统一归档
+│   ├── rules/                   # 自动化规则
+│   └── skills/                  # AI 编程导师 Skill（开发版）
+│       └── stem-pbl-guide/      # STEM项目式学习导师
 ├── apps/                        # 独立应用
 │   └── public-web/              # 对外公众网站 (MVP 核心)
 │       └── src/features/mvp/phase1/  # 第一阶段 MVP 代码
 │           ├── backend/         # FastAPI 后端服务
 │           └── web/             # React 前端应用
-├── .trae/                       # 规则、文档与配置
-│   ├── documents/               # 项目文档统一归档
-│   ├── rules/                   # 自动化规则
-│   └── skills/                  # AI 编程导师 Skill
-│       └── stem-pbl-guide/       # STEM项目式学习导师（详见下方介绍）
 ├── deploy/                      # 部署脚本与指南
 ├── deploysettings/              # 部署配置文件
 ├── server/                      # 服务器运维脚本 (Nginx 等)
@@ -26,6 +73,8 @@ fineSTEM/
 ├── references/                  # 参考资料
 └── README.md                    # 项目说明文档
 ```
+
+---
 
 ## 技术栈
 
@@ -46,6 +95,8 @@ fineSTEM/
 ### 部署
 - Docker + Docker Compose
 - Nginx
+
+---
 
 ## 快速开始
 
@@ -87,9 +138,13 @@ npm install
 npm run dev
 ```
 
+---
+
 ## 部署说明
 
 详细部署指南请参考 [deploy/README.md](deploy/README.md) 及 [deploysettings/](deploysettings/) 下的相关文档。
+
+---
 
 ## Demo 案例项目
 
@@ -101,32 +156,6 @@ npm run dev
 - **智能待办清单** - 自动排序优先级的待办App
 
 详细信息请参考 [projects/README.md](projects/README.md)
-
-## AI 编程导师 Skill
-
-fineSTEM 包含一套专为 10-18 岁学生设计的 STEM 项目式学习 (PBL) 导师 Skill，位于 `.trae/skills/stem-pbl-guide/`。
-
-### 功能特点
-
-- **9 阶段项目流程** - 从选题脑爆到验收展示的完整项目开发指导
-- **4 种代码教学模式** - 引导式（填空）、演示式（模仿）、动手式（试错）、讲解式（先讲原理）
-- **研学文档自动生成** - 开题报告、需求文档、技术报告、结题报告、论文（可选）
-- **对话式交互** - 像导师一样聊天，不是冷冰冰的问答
-- **多项目支持** - 每个项目独立工作区，互不干扰
-
-### 快速使用
-
-在 AI 对话中说出以下触发语即可启动：
-
-```
-"我想做一个项目"      # 创建新项目
-"给我选题"            # 开始脑爆选题
-"写代码"              # 进入编码阶段
-"讲解一下原理"        # 切换到讲解式教学模式
-"写开题报告"          # 生成研学文档
-```
-
-详细使用指南请参考：[.trae/skills/stem-pbl-guide/README.md](.trae/skills/stem-pbl-guide/README.md)
 
 ---
 
