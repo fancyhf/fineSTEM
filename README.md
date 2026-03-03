@@ -3,8 +3,20 @@
 [![License: CC BY-NC-SA 4.0](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc-sa/4.0/)
 
 fineSTEM 面向小学到高中的孩子，为孩子们提供自助式、PBL式、伴学式的STEM和AI编程的体验，这是一个 AI + 创意学习体系的教育项目。
+项目给不同学段少年儿童不同的**体验入口**：
+- **中学生**：可以直接通过 SKILLs 开始 STEM 项目，或者查看 projects 目录中的 demo 案例项目。
+- **小学生**：可以通过 app 的网页来体验。
 
 ---
+
+## 应用项目 (Apps)
+
+fineSTEM 提供面向小学生的网页应用，通过直观、互动的界面让 younger learners 轻松体验 STEM 和 AI 编程的乐趣。
+
+### 核心应用
+- **公众网站 (public-web)**：面向小学生的互动学习平台，提供可视化编程、趣味实验和项目展示功能。
+
+详细信息请参考 [apps/public-web/README.md](apps/public-web/README.md)
 
 ## AI 编程导师 Skills
 
@@ -45,6 +57,20 @@ fineSTEM 提供开源的 AI 编程导师 Skill 集合，帮助学生在任何 AI
 详细使用指南：[SKILLs/README.md](./SKILLs/README.md)
 
 ---
+
+## Demo 案例项目
+
+`projects/` 目录存放由 **STEM PBL Guide** 生成的 Demo 案例项目，展示了 STEM 项目式学习(PBL)的完整流程。这些项目可作为学生学习和参考的范例。
+
+目前包含以下案例：
+- **文学知识卡** - 二次元漫画风格的古诗词学习应用
+- **UP主视频内容分析器** - AI自动生成词云和统计分析
+- **智能待办清单** - 自动排序优先级的待办App
+
+详细信息请参考 [projects/README.md](projects/README.md)
+
+---
+
 
 ## 项目结构
 
@@ -143,19 +169,6 @@ npm run dev
 ## 部署说明
 
 详细部署指南请参考 [deploy/README.md](deploy/README.md) 及 [deploysettings/](deploysettings/) 下的相关文档。
-
----
-
-## Demo 案例项目
-
-`projects/` 目录存放由 **STEM PBL Guide** 生成的 Demo 案例项目，展示了 STEM 项目式学习(PBL)的完整流程。这些项目可作为学生学习和参考的范例。
-
-目前包含以下案例：
-- **文学知识卡** - 二次元漫画风格的古诗词学习应用
-- **UP主视频内容分析器** - AI自动生成词云和统计分析
-- **智能待办清单** - 自动排序优先级的待办App
-
-详细信息请参考 [projects/README.md](projects/README.md)
 
 ---
 
