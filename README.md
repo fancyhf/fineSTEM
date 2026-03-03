@@ -15,7 +15,9 @@ fineSTEM/
 │           └── web/             # React 前端应用
 ├── .trae/                       # 规则、文档与配置
 │   ├── documents/               # 项目文档统一归档
-│   └── rules/                   # 自动化规则
+│   ├── rules/                   # 自动化规则
+│   └── skills/                  # AI 编程导师 Skill
+│       └── student-project-guide/  # 学生项目导师（详见下方介绍）
 ├── deploy/                      # 部署脚本与指南
 ├── deploysettings/              # 部署配置文件
 ├── server/                      # 服务器运维脚本 (Nginx 等)
@@ -87,6 +89,34 @@ npm run dev
 ## 部署说明
 
 详细部署指南请参考 [deploy/README.md](deploy/README.md) 及 [deploysettings/](deploysettings/) 下的相关文档。
+
+## AI 编程导师 Skill
+
+fineSTEM 包含一套专为 10-18 岁学生设计的 AI 编程项目导师 Skill，位于 `.trae/skills/student-project-guide/`。
+
+### 功能特点
+
+- **9 阶段项目流程** - 从选题脑爆到验收展示的完整项目开发指导
+- **4 种代码教学模式** - 引导式（填空）、演示式（模仿）、动手式（试错）、讲解式（先讲原理）
+- **研学文档自动生成** - 开题报告、需求文档、技术报告、结题报告、论文（可选）
+- **对话式交互** - 像导师一样聊天，不是冷冰冰的问答
+- **多项目支持** - 每个项目独立工作区，互不干扰
+
+### 快速使用
+
+在 AI 对话中说出以下触发语即可启动：
+
+```
+"我想做一个项目"      # 创建新项目
+"给我选题"            # 开始脑爆选题
+"写代码"              # 进入编码阶段
+"讲解一下原理"        # 切换到讲解式教学模式
+"写开题报告"          # 生成研学文档
+```
+
+详细使用指南请参考：[.trae/skills/student-project-guide/README.md](.trae/skills/student-project-guide/README.md)
+
+---
 
 ## 许可证 (License)
 
