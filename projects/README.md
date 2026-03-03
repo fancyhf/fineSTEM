@@ -1,6 +1,6 @@
 # Projects 项目目录
 
-本目录存放由 **STEM PBL Guide** 生成的 Demo 案例项目。
+本目录存放由 **STEM PBL Guide** 生成的 sample 案例项目。
 
 这些项目展示了 STEM 项目式学习(PBL)的完整流程，从需求分析、设计规划到代码实现，可作为学生学习和参考的范例。
 

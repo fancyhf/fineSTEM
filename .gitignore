@@ -60,3 +60,4 @@ logs/
 # Up Video Analyzer
 projects/up-video-analyzer/venv/
 projects/up-video-analyzer/libs/
+projects/up-video-analyzer/models/
