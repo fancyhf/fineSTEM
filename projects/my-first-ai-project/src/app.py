@@ -331,17 +331,25 @@ def auto_collect():
         })
 
 # AI生成二次元漫画功能 - 使用SiliconFlow API
-# SiliconFlow Configuration
-SILICONFLOW_API_KEY = "sk-mqyhprbiobyydcqxtvbipknsfkdeqtndoucaqjkduvcdespg"
-SILICONFLOW_BASE_URL = "https://api.siliconflow.cn/v1"
-# 使用图像生成模型
-SILICONFLOW_IMAGE_MODEL = "stabilityai/stable-diffusion-xl-base-1.0"
+# SiliconFlow Configuration - 从环境变量或配置文件读取
+import os
+
+# 尝试从环境变量读取，如果没有则使用硬编码的key（仅用于开发测试）
+SILICONFLOW_API_KEY = os.environ.get('SILICONFLOW_API_KEY', 'sk-mqyhprbiobyydcqxtvbipknsfkdeqtndoucaqjkduvcdespg')
+SILICONFLOW_BASE_URL = os.environ.get('SILICONFLOW_BASE_URL', 'https://api.siliconflow.cn/v1')
+# 使用图像生成模型 - FLUX.1-dev 是SiliconFlow上可用的模型
+SILICONFLOW_IMAGE_MODEL = "black-forest-labs/FLUX.1-dev"
+
+# 用于存储错误信息，方便调试
+last_error_message = ""
 
 def generate_anime_image(poetry_title, poetry_content):
     """
     为诗词生成二次元卡哇伊风格插画
     使用SiliconFlow API的图像生成模型
     """
+    global last_error_message
+    
     try:
         # 构建提示词 - 中文提示词更适合中国古诗词
         prompt = f"一幅可爱的二次元卡哇伊风格插画，描绘中国古诗《{poetry_title}》的意境。"
@@ -352,6 +360,10 @@ def generate_anime_image(poetry_title, poetry_content):
         # 负面提示词 - 避免生成不希望的内容
         negative_prompt = "丑陋，变形，低质量，模糊，黑暗，恐怖，血腥，暴力，"
         negative_prompt += "写实风格，西方风格，过于复杂"
+        
+        print(f"正在调用SiliconFlow API生成图片...")
+        print(f"API Key: {SILICONFLOW_API_KEY[:10]}...")
+        print(f"模型: {SILICONFLOW_IMAGE_MODEL}")
         
         # 调用SiliconFlow图像生成API
         response = requests.post(
@@ -373,28 +385,65 @@ def generate_anime_image(poetry_title, poetry_content):
             timeout=120
         )
         
+        print(f"API响应状态码: {response.status_code}")
+        
         if response.status_code == 200:
             result = response.json()
+            print(f"API响应内容: {result}")
+            
             # SiliconFlow返回的是base64编码的图片或URL
             if 'images' in result and len(result['images']) > 0:
                 image_data = result['images'][0]
                 # 如果是URL直接返回
                 if isinstance(image_data, str) and image_data.startswith('http'):
+                    last_error_message = ""
                     return image_data
                 # 如果是base64,保存为文件并返回路径
                 elif isinstance(image_data, dict) and 'url' in image_data:
+                    last_error_message = ""
                     return image_data['url']
-        
-        print(f"API响应: {response.status_code}, {response.text}")
-        return ''
+                elif isinstance(image_data, dict) and 'b64_json' in image_data:
+                    # 处理base64编码的图片
+                    import base64
+                    from datetime import datetime
+                    
+                    # 创建images目录
+                    images_dir = os.path.join(PROJECT_DIR, 'static', 'images')
+                    os.makedirs(images_dir, exist_ok=True)
+                    
+                    # 生成文件名
+                    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                    filename = f"poetry_{timestamp}.png"
+                    filepath = os.path.join(images_dir, filename)
+                    
+                    # 保存图片
+                    with open(filepath, 'wb') as f:
+                        f.write(base64.b64decode(image_data['b64_json']))
+                    
+                    # 返回相对路径
+                    last_error_message = ""
+                    return f"/static/images/{filename}"
+            
+            last_error_message = f"API返回数据格式不正确: {result}"
+            print(last_error_message)
+            return ''
+        else:
+            last_error_message = f"API调用失败，状态码: {response.status_code}, 响应: {response.text}"
+            print(last_error_message)
+            return ''
         
     except Exception as e:
-        print(f"生成图片失败: {e}")
+        last_error_message = f"生成图片异常: {str(e)}"
+        print(last_error_message)
+        import traceback
+        traceback.print_exc()
         return ''
 
 @app.route('/api/generate_image/<int:poetry_id>')
 def generate_poetry_image(poetry_id):
     """为指定诗词生成二次元插画"""
+    global last_error_message
+    
     try:
         data = load_data()
         poetry = None
@@ -419,12 +468,16 @@ def generate_poetry_image(poetry_id):
                 'image_url': image_url
             })
         else:
+            # 返回详细的错误信息
+            error_msg = last_error_message if last_error_message else '生成图片失败，请检查API配置或网络连接'
             return jsonify({
                 'success': False, 
-                'message': 'AI插画生成功能需要配置API密钥。请联系管理员开启此功能。'
+                'message': f'生成失败: {error_msg}'
             })
             
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({
             'success': False, 
             'message': f'生成失败: {str(e)}'

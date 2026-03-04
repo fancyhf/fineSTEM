@@ -98,84 +98,77 @@ fineSTEM/
 ├── apps/                        # 独立应用
 │   └── public-web/              # 对外公众网站 (MVP 核心)
 │       └── src/features/mvp/phase1/  # 第一阶段 MVP 代码
-│           ├── backend/         # FastAPI 后端服务
-│           └── web/             # React 前端应用
-├── deploy/                      # 部署脚本与指南
-├── deploysettings/              # 部署配置文件
-├── server/                      # 服务器运维脚本 (Nginx 等)
-├── maintain/                    # 维护文档
-├── projects/                    # STEM PBL Guide 生成的 sample 案例项目
-├── references/                  # 参考资料
-└── README.md                    # 项目说明文档
+├── projects/                     # 学生案例项目
+│   ├── my-first-ai-project/    # 文学知识卡
+│   ├── up-video-analyzer/       # UP主视频分析器
+│   └── smart-todo-list/        # 智能待办清单
+└── deploysettings/               # 部署配置
+    ├── PORT_REGISTRY.json        # 端口分配登记表
+    └── README.md               # 部署配置说明
 ```
 
 ---
 
-## 技术栈
+## 快速启动
 
-### 前端 (MVP Phase 1)
-- React 18
-- TypeScript
-- Vite
-- Tailwind CSS
-- Matter.js (物理引擎)
-- ECharts (数据可视化)
-
-### 后端 (MVP Phase 1)
-- FastAPI
-- Python 3.12+
-- Pandas / NumPy
-- Uvicorn / Gunicorn
-
-### 部署
-- Docker + Docker Compose
-- Nginx
-
----
-
-## 快速开始
-
-### 本地开发
-
-#### 快速启动（推荐）
-
-使用提供的启动脚本快速启动本地开发环境：
+### Apps 启动
 
 ```bash
-# Windows
-start_system.bat
-
-# 脚本将自动：
-# 1. 启动后端服务器（端口 8000）
-# 2. 启动前端开发服务器（端口 5173）
-# 3. 在浏览器中打开 http://localhost:5173
-```
-
-#### 手动启动
-
-**后端**
-
-```bash
+# 启动 public-web 后端 (端口 8001)
 cd apps/public-web/src/features/mvp/phase1/backend
-# 安装依赖
-pip install -r requirements.txt
-# 启动
-uvicorn main:app --reload --port 8000
+./start.sh    # Linux/macOS
+# 或
+start.ps1    # Windows
+
+# 启动 public-web 前端 (端口 5174/8081)
+cd apps/public-web/src/features/mvp/phase1/web
+./start.sh    # Linux/macOS
+# 或
+start.ps1    # Windows
 ```
 
-**前端**
+### Projects 启动
 
 ```bash
-cd apps/public-web/src/features/mvp/phase1/web
-# 安装依赖
-npm install
-# 启动
-npm run dev
+# 启动文学知识卡 (端口 4001)
+cd projects/my-first-ai-project
+./start.sh    # Linux/macOS
+# 或
+start.ps1    # Windows
+
+# 启动 UP主视频分析器 (端口 4002)
+cd projects/up-video-analyzer
+./start.sh
+
+# 启动智能待办清单 (端口 4003)
+cd projects/smart-todo-list
+./start.sh
 ```
 
 ---
 
-## 部署说明
+## 端口分配
+
+为了端口管理的清晰和避免冲突，fineSTEM 使用以下端口范围：
+
+| 应用类型 | 端口范围 | 说明 |
+|---------|---------|------|
+| Apps (生产/演示) | 8000-8999 | public-web 等正式应用 |
+| Projects (开发/测试) | 4000-4999 | 学生案例项目 |
+
+### 当前端口分配
+
+| 端口 | 服务 | 说明 | 健康检查 |
+|-------|------|------|----------|
+| 8001 | public-web-backend | 后端 API | http://localhost:8001/api/health |
+| 8081 | public-web-frontend | 前端 Web | http://localhost:8081/health |
+| 4001 | my-first-ai-project | 文学知识卡 | http://localhost:4001 |
+| 4002 | up-video-analyzer | 视频分析器 | http://localhost:4002 |
+| 4003 | smart-todo-list | 智能待办清单 | http://localhost:4003 |
+
+**注意**：分配新端口前，请先检查端口是否被占用，并更新 `deploysettings/PORT_REGISTRY.json`。
+
+详细信息请参考 [deploysettings/README.md](deploysettings/README.md)
 
 详细部署指南请参考 [deploy/README.md](deploy/README.md) 及 [deploysettings/](deploysettings/) 下的相关文档。
 

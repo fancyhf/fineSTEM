@@ -1,0 +1,62 @@
+{
+  "registry_version": "1.0.0",
+  "last_updated": "2026-03-04T00:00:00.000Z",
+  "port_ranges": {
+    "apps": {
+      "range": "8000-8999",
+      "description": "生产/演示应用端口范围",
+      "reserved": {
+        "8001": {
+          "service": "public-web-backend",
+          "description": "public-web 后端 API",
+          "path": "apps/public-web/src/features/mvp/phase1/backend",
+          "health_check": "http://localhost:8001/api/health",
+          "owner": "fineSTEM"
+        },
+        "8081": {
+          "service": "public-web-frontend",
+          "description": "public-web 前端 Web",
+          "path": "apps/public-web/src/features/mvp/phase1/web",
+          "health_check": "http://localhost:8081/health",
+          "owner": "fineSTEM"
+        }
+      },
+      "available": [8000, 8002-8080, 8082-8999]
+    },
+    "dev": {
+      "range": "4000-4999",
+      "description": "开发/测试项目端口范围 (projects/ 目录)",
+      "reserved": {
+        "4001": {
+          "service": "my-first-ai-project",
+          "description": "文学知识卡 - Flask 应用",
+          "path": "projects/my-first-ai-project/src",
+          "health_check": "http://localhost:4001",
+          "owner": "student"
+        },
+        "4002": {
+          "service": "up-video-analyzer",
+          "description": "UP主视频内容分析器 - Streamlit 应用",
+          "path": "projects/up-video-analyzer",
+          "health_check": "http://localhost:4002",
+          "owner": "student"
+        },
+        "4003": {
+          "service": "smart-todo-list",
+          "description": "智能待办清单 - Next.js 应用",
+          "path": "projects/smart-todo-list",
+          "health_check": "http://localhost:4003",
+          "owner": "student"
+        }
+      },
+      "available": [4000, 4004-4999]
+    }
+  },
+  "notes": [
+    "Apps 端口范围: 8000-8999 (生产/演示应用)",
+    "Projects 端口范围: 4000-4999 (开发/测试项目)",
+    "分配端口前请先检查端口是否被占用",
+    "更新端口分配后请更新此文件",
+    "健康检查地址可用于验证服务是否正常运行"
+  ]
+}
