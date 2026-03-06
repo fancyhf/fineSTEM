@@ -4,11 +4,11 @@
 
 | 属性 | 值 |
 |------|-----|
-| 当前阶段 | stage_07_execute (执行开发) |
-| 阶段状态 | in_progress |
+| 当前阶段 | stage_08_evaluate (验收展示) |
+| 阶段状态 | completed |
 | 年龄组 | 13-15岁 |
 | 时间预算 | 12h+ |
-| 项目锁定 | 是 (开题卡、范围、轨道不可修改) |
+| 项目锁定 | 是 |
 
 ### 阶段进度
 
@@ -21,8 +21,8 @@
 | stage_04_track 轨道选择 | 已通过 |
 | stage_05_design 设计蓝图 | 已通过 |
 | stage_06_step_plan 分步计划 | 已通过 |
-| stage_07_execute 执行开发 | 进行中 |
-| stage_08_evaluate 验收展示 | 待开始 |
+| stage_07_execute 执行开发 | 已通过 |
+| stage_08_evaluate 验收展示 | 已通过 |
 
 ---
 
@@ -37,8 +37,8 @@
 - 分类筛选: 按唐诗、宋词、元曲等分类查看
 - 收藏功能: 收藏喜欢的诗词卡片
 - 添加诗词: 手动添加新的诗词和文学知识
-- 导入功能: 从网页链接导入诗词内容(开发中)
-- 自动搜集: 自动从互联网搜集古诗词(开发中)
+- 导入功能: 从网页链接导入诗词内容
+- 自动搜集: 自动从互联网搜集古诗词
 
 ## 技术栈
 
@@ -49,22 +49,32 @@
 
 ## 快速开始
 
-### 1. 安装依赖
+### 方式一：使用启动脚本（推荐）
 
+**Windows:**
 ```bash
-pip install Flask
+start.bat
 ```
 
-### 2. 运行应用
+**Linux/macOS:**
+```bash
+./start.sh
+```
+
+### 方式二：手动运行
 
 ```bash
+# 安装依赖
+pip install Flask
+
+# 运行应用
 cd src
 python app.py
 ```
 
-### 3. 访问应用
+### 访问应用
 
-在浏览器中打开: http://localhost:5000
+在浏览器中打开: http://localhost:4001
 
 ## 项目结构
 
@@ -84,8 +94,10 @@ my-first-ai-project/
 │       └── main.js         # JavaScript交互
 ├── data/
 │   └── poetry_data.json    # 数据存储文件
-├── docs/                   # 项目文档 (详见 docs/README.md)
+├── docs/                   # 项目文档
 │   └── research/           # 研学文档
+├── start.bat               # Windows启动脚本
+├── start.sh                # Linux/macOS启动脚本
 ├── SKILL_STATE.json        # 项目状态管理
 └── README.md               # 本文件
 ```
@@ -124,4 +136,4 @@ my-first-ai-project/
 ---
 
 *创建时间: 2026-03-03*
-*最后更新: 2026-03-03*
+*最后更新: 2026-03-06*

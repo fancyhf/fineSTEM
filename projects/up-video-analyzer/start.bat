@@ -1,35 +1,39 @@
 @echo off
-REM UP主视频内容分析器启动脚本 (Windows)
-REM 端口: 4002
+REM UP Video Content Analyzer Startup Script (Windows)
+REM Port: 4002
 
 cd /d "%~dp0"
 set PORT=4002
 
-echo === 启动 UP主视频内容分析器 ===
-echo 端口: %PORT%
-echo 路径: %CD%
+echo === Starting UP Video Content Analyzer ===
+echo Port: %PORT%
+echo Path: %CD%
 echo.
 
-REM 检查端口是否被占用
+REM Check if port is in use
 netstat -ano | findstr ":%PORT%" >nul
 if %errorlevel% equ 0 (
-    echo 错误: 端口 %PORT% 已被占用
-    echo 请检查是否有其他服务正在运行
+    echo Error: Port %PORT% is already in use
+    echo Please check if another service is running
     pause
     exit /b 1
 )
 
-REM 检查 Streamlit
-streamlit --version >nul 2>&1
+REM Check Python
+python --version >nul 2>&1
 if %errorlevel% neq 0 (
-    echo 错误: 未找到 Streamlit
-    echo 正在安装依赖...
-    pip install -r requirements.txt
+    echo Error: Python not found
+    pause
+    exit /b 1
 )
 
-REM 启动应用
-echo 启动应用...
-streamlit run src/main.py --server.port=%PORT% --server.headless=true
+REM Install dependencies
+echo Checking dependencies...
+pip install -r requirements.txt
 
-echo 应用已停止
+REM Start application
+echo Starting application...
+python -m streamlit run src/main.py --server.port=%PORT% --server.headless=true
+
+echo Application stopped
 pause

@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Todo List</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 2rem 1rem;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        header {
+            text-align: center;
+            color: white;
+            margin-bottom: 2rem;
+        }
+        header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+        }
+        header p {
+            opacity: 0.9;
+            margin-bottom: 1rem;
+        }
+        .stats {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            font-size: 0.9rem;
+        }
+        .stats span {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+        }
+        .add-btn {
+            width: 100%;
+            padding: 1rem;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            cursor: pointer;
+            margin-bottom: 1rem;
+            transition: background 0.3s;
+        }
+        .add-btn:hover {
+            background: #45a049;
+        }
+        .form {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 12px;
+            margin-bottom: 1rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            display: none;
+        }
+        .form.active {
+            display: block;
+        }
+        input, textarea, select {
+            width: 100%;
+            padding: 0.75rem;
+            margin-bottom: 0.75rem;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 1rem;
+            font-family: inherit;
+        }
+        textarea {
+            min-height: 80px;
+            resize: vertical;
+        }
+        .selects {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+        }
+        .submit-btn {
+            width: 100%;
+            padding: 0.75rem;
+            background: #2196F3;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 1rem;
+            cursor: pointer;
+            margin-top: 0.5rem;
+        }
+        .submit-btn:hover {
+            background: #1976D2;
+        }
+        .task-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+        .task {
+            background: white;
+            padding: 1rem;
+            border-radius: 12px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            border-left: 4px solid #ccc;
+        }
+        .task.priority-high { border-left-color: #f44336; }
+        .task.priority-medium { border-left-color: #ff9800; }
+        .task.priority-low { border-left-color: #4CAF50; }
+        .task.completed { opacity: 0.6; }
+        .task.completed .task-title { text-decoration: line-through; }
+        .task-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+        .checkbox {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+        .priority-badge {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            background: #e0e0e0;
+            font-weight: bold;
+        }
+        .task.priority-high .priority-badge { background: #ffebee; color: #c62828; }
+        .task.priority-medium .priority-badge { background: #fff3e0; color: #ef6c00; }
+        .task.priority-low .priority-badge { background: #e8f5e9; color: #2e7d32; }
+        .delete-btn {
+            margin-left: auto;
+            padding: 0.25rem 0.5rem;
+            background: #f44336;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            cursor: pointer;
+        }
+        .delete-btn:hover { background: #d32f2f; }
+        .task-title {
+            font-size: 1.1rem;
+            margin-bottom: 0.5rem;
+            color: #333;
+        }
+        .task-desc {
+            color: #666;
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+        }
+        .task-meta {
+            display: flex;
+            gap: 1rem;
+            font-size: 0.8rem;
+            color: #999;
+        }
+        .empty {
+            text-align: center;
+            color: white;
+            padding: 2rem;
+            opacity: 0.8;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Smart Todo List</h1>
+            <p>AI-powered priority sorting</p>
+            <div class="stats">
+                <span id="pending-count">0 pending</span>
+                <span id="completed-count">0 completed</span>
+            </div>
+        </header>
+
+        <button class="add-btn" onclick="toggleForm()">+ Add New Task</button>
+
+        <div class="form" id="task-form">
+            <input type="text" id="title" placeholder="Task title...">
+            <textarea id="description" placeholder="Description (optional)..."></textarea>
+            <input type="date" id="deadline">
+            <div class="selects">
+                <select id="importance">
+                    <option value="low">Low Importance</option>
+                    <option value="medium" selected>Medium Importance</option>
+                    <option value="high">High Importance</option>
+                </select>
+                <select id="urgency">
+                    <option value="low">Low Urgency</option>
+                    <option value="medium" selected>Medium Urgency</option>
+                    <option value="high">High Urgency</option>
+                </select>
+            </div>
+            <button class="submit-btn" onclick="addTask()">Add Task</button>
+        </div>
+
+        <div class="task-list" id="task-list">
+            <p class="empty">No tasks yet. Add your first task!</p>
+        </div>
+    </div>
+
+    <script>
+        let tasks = JSON.parse(localStorage.getItem('smart-todo-tasks') || '[]');
+
+        function getPriorityScore(task) {
+            const importanceScore = { high: 3, medium: 2, low: 1 };
+            const urgencyScore = { high: 3, medium: 2, low: 1 };
+            let score = importanceScore[task.importance] * 10 + urgencyScore[task.urgency] * 10;
+            if (task.deadline) {
+                const daysUntil = Math.ceil((new Date(task.deadline) - Date.now()) / (1000 * 60 * 60 * 24));
+                if (daysUntil <= 1) score += 50;
+                else if (daysUntil <= 3) score += 30;
+                else if (daysUntil <= 7) score += 10;
+            }
+            return score;
+        }
+
+        function getPriorityLabel(task) {
+            const score = getPriorityScore(task);
+            if (score >= 70) return 'High';
+            if (score >= 40) return 'Medium';
+            return 'Low';
+        }
+
+        function getPriorityClass(task) {
+            const score = getPriorityScore(task);
+            if (score >= 70) return 'priority-high';
+            if (score >= 40) return 'priority-medium';
+            return 'priority-low';
+        }
+
+        function renderTasks() {
+            const sortedTasks = [...tasks].sort((a, b) => {
+                if (a.completed !== b.completed) return a.completed ? 1 : -1;
+                return getPriorityScore(b) - getPriorityScore(a);
+            });
+
+            const taskList = document.getElementById('task-list');
+            const pendingCount = tasks.filter(t => !t.completed).length;
+            const completedCount = tasks.filter(t => t.completed).length;
+
+            document.getElementById('pending-count').textContent = `${pendingCount} pending`;
+            document.getElementById('completed-count').textContent = `${completedCount} completed`;
+
+            if (sortedTasks.length === 0) {
+                taskList.innerHTML = '<p class="empty">No tasks yet. Add your first task!</p>';
+                return;
+            }
+
+            taskList.innerHTML = sortedTasks.map(task => `
+                <div class="task ${task.completed ? 'completed' : ''} ${getPriorityClass(task)}">
+                    <div class="task-header">
+                        <input type="checkbox" class="checkbox" ${task.completed ? 'checked' : ''} onchange="toggleTask('${task.id}')">
+                        <span class="priority-badge">${getPriorityLabel(task)}</span>
+                        <button class="delete-btn" onclick="deleteTask('${task.id}')">Delete</button>
+                    </div>
+                    <h3 class="task-title">${escapeHtml(task.title)}</h3>
+                    ${task.description ? `<p class="task-desc">${escapeHtml(task.description)}</p>` : ''}
+                    <div class="task-meta">
+                        ${task.deadline ? `<span>Due: ${new Date(task.deadline).toLocaleDateString()}</span>` : ''}
+                        <span>Importance: ${task.importance}</span>
+                        <span>Urgency: ${task.urgency}</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function toggleForm() {
+            const form = document.getElementById('task-form');
+            form.classList.toggle('active');
+        }
+
+        function addTask() {
+            const title = document.getElementById('title').value.trim();
+            if (!title) return;
+
+            const task = {
+                id: Date.now().toString(),
+                title: title,
+                description: document.getElementById('description').value,
+                deadline: document.getElementById('deadline').value,
+                importance: document.getElementById('importance').value,
+                urgency: document.getElementById('urgency').value,
+                completed: false,
+                createdAt: Date.now()
+            };
+
+            tasks.push(task);
+            localStorage.setItem('smart-todo-tasks', JSON.stringify(tasks));
+
+            document.getElementById('title').value = '';
+            document.getElementById('description').value = '';
+            document.getElementById('deadline').value = '';
+            document.getElementById('importance').value = 'medium';
+            document.getElementById('urgency').value = 'medium';
+
+            toggleForm();
+            renderTasks();
+        }
+
+        function toggleTask(id) {
+            const task = tasks.find(t => t.id === id);
+            if (task) {
+                task.completed = !task.completed;
+                localStorage.setItem('smart-todo-tasks', JSON.stringify(tasks));
+                renderTasks();
+            }
+        }
+
+        function deleteTask(id) {
+            tasks = tasks.filter(t => t.id !== id);
+            localStorage.setItem('smart-todo-tasks', JSON.stringify(tasks));
+            renderTasks();
+        }
+
+        renderTasks();
+    </script>
+</body>
+</html>

@@ -1,6 +1,6 @@
 # Projects 项目目录
 
-本目录存放由 **STEM PBL Guide** 生成的学生项目。
+本目录存放由 **STEM PBL Guide** 生成的学生项目案例。
 
 这些项目展示了 STEM 项目式学习(PBL)的完整流程，从需求分析、设计规划到代码实现。
 
@@ -8,11 +8,47 @@
 
 ## 项目列表
 
-| 项目 | 当前阶段 | 状态 | 技术栈 |
-|------|---------|------|--------|
-| [my-first-ai-project](./my-first-ai-project/) | stage_07_execute | 执行开发中 | Python Flask |
-| [up-video-analyzer](./up-video-analyzer/) | stage_08_evaluate | 已完成 | Python Streamlit |
-| [smart-todo-list](./smart-todo-list/) | stage_01_brainstorm | 脑爆阶段 | Next.js |
+| 项目 | 当前阶段 | 状态 | 技术栈 | 端口 |
+|------|---------|------|--------|------|
+| [my-first-ai-project](./my-first-ai-project/) | stage_08_evaluate | 已完成 | Python Flask | 4001 |
+| [up-video-analyzer](./up-video-analyzer/) | stage_08_evaluate | 已完成 | Python Streamlit | 4002 |
+| [smart-todo-list](./smart-todo-list/) | stage_08_evaluate | 已完成 | HTML/JS | 4003 |
+
+---
+
+## 快速启动
+
+### Windows
+
+```bash
+# 启动文学知识卡 (端口 4001)
+cd my-first-ai-project
+start.bat
+
+# 启动 UP主视频分析器 (端口 4002)
+cd up-video-analyzer
+start.bat
+
+# 启动智能待办清单 (端口 4003)
+cd smart-todo-list
+start.bat
+```
+
+### Linux/macOS
+
+```bash
+# 启动文学知识卡 (端口 4001)
+cd my-first-ai-project
+./start.sh
+
+# 启动 UP主视频分析器 (端口 4002)
+cd up-video-analyzer
+./start.sh
+
+# 启动智能待办清单 (端口 4003)
+cd smart-todo-list
+./start.sh
+```
 
 ---
 
@@ -22,10 +58,12 @@
 
 **二次元漫画风格的古诗词学习应用**
 
-- **当前阶段**: 执行开发 (stage_07_execute)
+- **当前阶段**: 验收展示 (stage_08_evaluate) - 已完成
 - **年龄组**: 13-15岁
 - **时间预算**: 12h+
 - **技术栈**: Python Flask + HTML/CSS/JS
+- **端口**: 4001
+- **访问地址**: http://localhost:4001
 - **功能**: 卡片式学习、搜索筛选、收藏、添加诗词
 - **项目入口**: [my-first-ai-project](./my-first-ai-project/)
 
@@ -35,10 +73,12 @@
 
 **上传视频字幕，AI自动生成词云和统计分析**
 
-- **当前阶段**: 验收展示 (stage_08_evaluate) - 已通过
+- **当前阶段**: 验收展示 (stage_08_evaluate) - 已完成
 - **年龄组**: 高中
 - **时间预算**: 6h
 - **技术栈**: Python + Streamlit + jieba + wordcloud
+- **端口**: 4002
+- **访问地址**: http://localhost:4002
 - **功能**: 词云可视化、数据统计、AI智能总结、导出报告
 - **项目入口**: [up-video-analyzer](./up-video-analyzer/)
 
@@ -48,11 +88,13 @@
 
 **自动排序优先级的待办App，AI帮你决定先做什么**
 
-- **当前阶段**: 脑爆 (stage_01_brainstorm)
+- **当前阶段**: 验收展示 (stage_08_evaluate) - 已完成
 - **年龄组**: 13-15岁
 - **时间预算**: 6h
-- **技术栈**: Next.js + React + TypeScript
-- **功能**: 任务管理、智能排序、优先级可视化
+- **技术栈**: HTML/JS + LocalStorage
+- **端口**: 4003
+- **访问地址**: http://localhost:4003
+- **功能**: 任务管理、智能排序、优先级可视化、本地存储
 - **项目入口**: [smart-todo-list](./smart-todo-list/)
 
 ---
@@ -84,29 +126,34 @@ projects/
 │   ├── static/                  # 静态资源
 │   ├── data/                    # 数据文件
 │   ├── docs/                    # 项目文档
-│   │   ├── README.md            # 文档索引
-│   │   └── research/            # 研学文档
-│   ├── SKILL_STATE.json         # 项目状态
+│   ├── start.bat                # Windows启动脚本
+│   ├── start.sh                 # Linux/macOS启动脚本
 │   └── README.md                # 项目说明
 ├── up-video-analyzer/           # 视频分析器项目
+│   ├── src/                     # 源代码
+│   ├── data/                    # 数据文件
 │   ├── docs/                    # 项目文档
-│   │   ├── README.md            # 文档索引
-│   │   └── research/            # 研学文档
-│   ├── SKILL_STATE.json         # 项目状态
+│   ├── start.bat                # Windows启动脚本
+│   ├── start.sh                 # Linux/macOS启动脚本
 │   └── README.md                # 项目说明
 └── smart-todo-list/             # 智能待办清单项目
+    ├── src/                     # 源代码
     ├── docs/                    # 项目文档
-    │   └── README.md            # 文档索引
-    ├── SKILL_STATE.json         # 项目状态
+    ├── start.bat                # Windows启动脚本
+    ├── start.sh                 # Linux/macOS启动脚本
     └── README.md                # 项目说明
 ```
 
 ---
 
-## 快速开始
+## 端口分配
 
-每个项目都有独立的 README 文件，请参考各项目目录下的 README 获取详细的安装和运行指南。
+| 端口 | 项目 | 说明 |
+|------|------|------|
+| 4001 | my-first-ai-project | 文学知识卡 - Flask |
+| 4002 | up-video-analyzer | 视频分析器 - Streamlit |
+| 4003 | smart-todo-list | 智能待办清单 - HTTP Server |
 
 ---
 
-*最后更新: 2026-03-03*
+*最后更新: 2026-03-06*

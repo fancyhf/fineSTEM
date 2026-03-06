@@ -5,7 +5,7 @@
 | 属性 | 值 |
 |------|-----|
 | 当前阶段 | stage_08_evaluate (验收展示) |
-| 阶段状态 | passed (已通过) |
+| 阶段状态 | completed |
 | 年龄组 | 高中 |
 | 时间预算 | 6h |
 | 项目锁定 | 是 |
@@ -28,10 +28,10 @@
 
 | 指标 | 值 |
 |------|-----|
-| 最后测试时间 | 2026-03-01 21:45:00 |
+| 最后测试时间 | 2026-03-06 |
 | 通过用例 | 6/6 |
 | 通过率 | 100% |
-| 测试方法 | playwright_python |
+| 测试方法 | 自动化测试 |
 
 ---
 
@@ -50,31 +50,66 @@
 
 - 语言: Python 3.8+
 - 框架: Streamlit
-- 核心库: jieba, wordcloud, matplotlib, pandas
+- 核心库: jieba, wordcloud, matplotlib, pandas, numpy, Pillow, requests
 
-## 安装
+## 快速开始
 
-### 1. 安装依赖
+### 方式一：使用启动脚本（推荐）
+
+**Windows:**
+```bash
+start.bat
+```
+
+**Linux/macOS:**
+```bash
+./start.sh
+```
+
+### 方式二：手动运行
 
 ```bash
+# 安装依赖
 pip install -r requirements.txt
+
+# 运行项目
+python -m streamlit run src/main.py --server.port=4002
 ```
 
-### 2. 运行项目
+### 访问应用
 
-```bash
-streamlit run src/main.py
+在浏览器中打开: http://localhost:4002
+
+## 项目结构
+
 ```
-
-### 3. 打开浏览器
-
-访问 http://localhost:8501
+up-video-analyzer/
+├── src/                    # 源代码
+│   ├── main.py            # Streamlit主应用
+│   ├── bilibili_subtitle.py # B站字幕提取
+│   ├── video_subtitle_extractor.py # 视频字幕提取
+│   └── ...
+├── data/                   # 数据文件
+│   └── tasks/             # 分析任务数据
+├── docs/                   # 项目文档
+│   ├── research/          # 研学文档
+│   └── 原型/              # 原型截图
+├── libs/                   # 依赖库
+├── start.bat              # Windows启动脚本
+├── start.sh               # Linux/macOS启动脚本
+├── requirements.txt       # Python依赖
+├── FULL_GUIDE.md          # 完整使用指南
+├── README_BILIBILI.md     # B站视频分析指南
+├── SKILL_STATE.json       # 项目状态
+└── README.md              # 本文件
+```
 
 ## 使用指南
 
 1. **上传字幕文件**
    - 支持 SRT 字幕格式
    - 支持 TXT 纯文本格式
+   - 支持 B站视频链接自动提取
 
 2. **点击分析**
    - 自动解析文本
@@ -89,20 +124,6 @@ streamlit run src/main.py
 4. **导出报告**
    - PNG 词云图
    - CSV 词频数据
-
-## 项目结构
-
-```
-up-video-analyzer/
-├── docs/                    # 项目文档 (详见 docs/README.md)
-│   ├── research/            # 研学文档
-│   └── 原型/                # 原型截图
-├── libs/                    # 依赖库
-├── SKILL_STATE.json         # 项目状态
-├── FULL_GUIDE.md            # 完整使用指南
-├── README_BILIBILI.md       # B站视频分析指南
-└── README.md                # 本文件
-```
 
 ## 学习目标
 
@@ -129,9 +150,11 @@ up-video-analyzer/
 
 ## 文档入口
 
-详细文档请查看 [docs/README.md](./docs/README.md)
+- 详细文档: [docs/README.md](./docs/README.md)
+- B站分析指南: [README_BILIBILI.md](./README_BILIBILI.md)
+- 完整指南: [FULL_GUIDE.md](./FULL_GUIDE.md)
 
 ---
 
 *创建时间: 2026-02-28*
-*最后更新: 2026-03-03*
+*最后更新: 2026-03-06*

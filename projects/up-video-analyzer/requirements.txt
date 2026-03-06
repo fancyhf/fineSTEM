@@ -1,23 +1,9 @@
 # 项目依赖
-
-## 核心依赖
-- streamlit>=1.28.0
-- jieba>=0.42.1
-- wordcloud>=1.9.2
-- matplotlib>=3.8.0
-- pandas>=2.1.0
-- numpy>=1.26.0
-- Pillow>=10.0.0
-
-## 可选依赖
-- openai>=1.3.0 (如需 AI 总结功能)
-
-## 安装命令
-```bash
-pip install streamlit jieba wordcloud matplotlib pandas numpy Pillow
-```
-
-## 运行命令
-```bash
-streamlit run src/main.py
-```
+streamlit>=1.28.0
+jieba>=0.42.1
+wordcloud>=1.9.2
+matplotlib>=3.8.0
+pandas>=2.1.0
+numpy>=1.26.0
+Pillow>=10.0.0
+requests>=2.31.0

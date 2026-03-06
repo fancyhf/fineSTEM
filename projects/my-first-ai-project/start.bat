@@ -1,42 +1,42 @@
 @echo off
-REM 文学知识卡启动脚本 (Windows)
-REM 端口: 4001
+REM Literary Knowledge Card Startup Script (Windows)
+REM Port: 4001
 
 cd /d "%~dp0"
 set PORT=4001
 
-echo === 启动文学知识卡应用 ===
-echo 端口: %PORT%
-echo 路径: %CD%
+echo === Starting Literary Knowledge Card App ===
+echo Port: %PORT%
+echo Path: %CD%
 echo.
 
-REM 检查端口是否被占用
+REM Check if port is in use
 netstat -ano | findstr ":%PORT%" >nul
 if %errorlevel% equ 0 (
-    echo 错误: 端口 %PORT% 已被占用
-    echo 请检查是否有其他服务正在运行
+    echo Error: Port %PORT% is already in use
+    echo Please check if another service is running
     pause
     exit /b 1
 )
 
-REM 检查 Python
+REM Check Python
 python --version >nul 2>&1
 if %errorlevel% neq 0 (
-    echo 错误: 未找到 Python
+    echo Error: Python not found
     pause
     exit /b 1
 )
 
-REM 安装依赖
-echo 检查依赖...
+REM Install dependencies
+echo Checking dependencies...
 pip install Flask
 
-REM 启动应用
-echo 启动应用...
+REM Start application
+echo Starting application...
 cd src
 set FLASK_APP=app.py
 set FLASK_PORT=%PORT%
 python app.py
 
-echo 应用已停止
+echo Application stopped
 pause

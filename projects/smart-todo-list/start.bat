@@ -1,41 +1,36 @@
 @echo off
-REM 智能待办清单启动脚本 (Windows)
-REM 端口: 4003
+REM Smart Todo List Startup Script (Windows)
+REM Port: 4003
 
 cd /d "%~dp0"
 set PORT=4003
 
-echo === 启动智能待办清单 ===
-echo 端口: %PORT%
-echo 路径: %CD%
+echo === Starting Smart Todo List ===
+echo Port: %PORT%
+echo Path: %CD%
 echo.
 
-REM 检查端口是否被占用
+REM Check if port is in use
 netstat -ano | findstr ":%PORT%" >nul
 if %errorlevel% equ 0 (
-    echo 错误: 端口 %PORT% 已被占用
-    echo 请检查是否有其他服务正在运行
+    echo Error: Port %PORT% is already in use
+    echo Please check if another service is running
     pause
     exit /b 1
 )
 
-REM 检查 Node.js
-node --version >nul 2>&1
+REM Check Python
+python --version >nul 2>&1
 if %errorlevel% neq 0 (
-    echo 错误: 未找到 Node.js
+    echo Error: Python not found
     pause
     exit /b 1
 )
 
-REM 安装依赖
-if not exist "node_modules" (
-    echo 安装依赖...
-    call npm install
-)
+REM Start simple HTTP server
+echo Starting application...
+cd src
+python -m http.server %PORT%
 
-REM 启动应用
-echo 启动应用...
-call npm run dev
-
-echo 应用已停止
+echo Application stopped
 pause
