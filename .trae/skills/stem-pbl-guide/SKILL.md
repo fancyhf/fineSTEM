@@ -243,6 +243,325 @@ projects/{project_slug}/
   - `hands_on`: 动手式教学 - 直接让学生尝试，出错后再指导
   - `lecture`: 讲解式教学 - 先深入讲解原理和概念，再写代码
 
+### 教学模式使用规则
+
+#### 模式切换触发点
+
+**用户主动切换**：
+- 用户说："切换到演示模式" → `teaching_mode = "demo"`
+- 用户说："我要自己试试" → `teaching_mode = "hands_on"`
+- 用户说："详细讲解一下" → `teaching_mode = "lecture"`
+- 用户说："回到引导模式" → `teaching_mode = "guided"`
+- 用户说："生成可视化讲解" → `teaching_mode = "html_visual"`
+- 用户说："HTML讲解" → `teaching_mode = "html_visual"`
+
+**阶段自动切换**：
+- 阶段 0-2（脑爆、开题、范围）：默认 `guided`
+- 阶段 5（设计）：根据用户选择
+- 阶段 6（分步计划）：根据用户选择
+- 阶段 7（执行开发）：根据用户选择
+
+#### 讲解模式选择 AskUserQuestion
+
+**当用户说"讲解代码"或"详细讲解"时调用**：
+
+```json
+{
+  "questions": [
+    {
+      "question": "📚 你希望我如何讲解代码？",
+      "header": "讲解方式",
+      "options": [
+        {"label": "📝 文字讲解", "description": "在对话中逐行解释代码"},
+        {"label": "🌐 HTML可视化讲解", "description": "生成带流程图、代码高亮的交互网页"},
+        {"label": "🎯 两者都要", "description": "先生成HTML，再在对话中补充说明"}
+      ],
+      "multiSelect": false
+    }
+  ]
+}
+```
+
+#### HTML 交互讲解模式规范
+
+**触发条件**：
+- 用户选择 "HTML可视化讲解" 或 "两者都要"
+- `teaching_mode = "html_visual"`
+
+**输出位置**：
+- `{project_slug}/docs/explain/{topic}_explain.html`
+
+**HTML 文件必须包含**：
+
+1. **视觉化架构图**（使用 Mermaid 或 SVG）
+   - 系统架构图
+   - 数据流程图
+   - 模块关系图
+
+2. **代码高亮展示**
+   - 使用 Prism.js 或 Highlight.js
+   - 支持行号显示
+   - 支持代码折叠
+
+3. **交互式注释**
+   - 点击代码行显示详细注释
+   - 鼠标悬停显示提示
+   - 可折叠的代码块
+
+4. **流程图与时序图**
+   - 使用 Mermaid.js 渲染
+   - 可点击查看详情
+
+5. **萌新友好设计**
+   - 使用比喻和类比
+   - 用表情符号标注重点
+   - 颜色编码（绿色=核心、蓝色=辅助、黄色=注意）
+
+**HTML 模板结构**：
+
+```html
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>{project_name} - 代码讲解</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet">
+    <style>
+        /* 科技感主题 */
+        :root {
+            --primary: #4CAF50;
+            --secondary: #2196F3;
+            --background: #0e1117;
+            --surface: #1e2330;
+            --text: #ffffff;
+        }
+        body { background: var(--background); color: var(--text); font-family: 'Microsoft YaHei', sans-serif; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .section { background: var(--surface); border-radius: 10px; padding: 20px; margin: 20px 0; }
+        .code-block { position: relative; background: #282c34; border-radius: 8px; padding: 15px; overflow-x: auto; }
+        .code-comment { background: rgba(76, 175, 80, 0.1); border-left: 3px solid var(--primary); padding: 10px; margin: 10px 0; }
+        .mermaid { background: var(--surface); border-radius: 8px; padding: 20px; }
+        .tooltip { position: relative; cursor: help; border-bottom: 1px dotted var(--primary); }
+        .tooltip:hover::after { content: attr(data-tip); position: absolute; background: var(--primary); color: white; padding: 5px 10px; border-radius: 4px; font-size: 14px; white-space: nowrap; z-index: 100; }
+        .collapsible { cursor: pointer; padding: 10px; background: var(--surface); border: 1px solid var(--primary); border-radius: 5px; }
+        .collapsible-content { display: none; padding: 15px; background: rgba(76, 175, 80, 0.05); border-radius: 0 0 5px 5px; }
+        .collapsible.active + .collapsible-content { display: block; }
+        .tag { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 12px; margin: 2px; }
+        .tag-core { background: var(--primary); }
+        .tag-helper { background: var(--secondary); }
+        .tag-warning { background: #ff9800; }
+        .progress-bar { height: 4px; background: var(--surface); border-radius: 2px; margin: 10px 0; }
+        .progress-fill { height: 100%; background: var(--primary); border-radius: 2px; transition: width 0.3s; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎬 {project_name} - 代码讲解</h1>
+        <p>专为萌新设计的可视化代码讲解</p>
+        
+        <!-- 目录导航 -->
+        <div class="section">
+            <h2>📋 目录</h2>
+            <nav id="toc"></nav>
+        </div>
+        
+        <!-- 架构图 -->
+        <div class="section">
+            <h2>🏗️ 系统架构</h2>
+            <div class="mermaid">
+                graph TD
+                    A[用户输入] --> B[处理模块]
+                    B --> C[输出结果]
+            </div>
+        </div>
+        
+        <!-- 数据流程图 -->
+        <div class="section">
+            <h2>📊 数据流程</h2>
+            <div class="mermaid">
+                sequenceDiagram
+                    participant U as 用户
+                    participant S as 系统
+                    U->>S: 上传文件
+                    S->>S: 处理数据
+                    S->>U: 返回结果
+            </div>
+        </div>
+        
+        <!-- 代码讲解 -->
+        <div class="section">
+            <h2>💻 核心代码讲解</h2>
+            
+            <!-- 可折叠代码块 -->
+            <div class="collapsible" onclick="this.classList.toggle('active')">
+                📦 点击展开：主程序入口
+            </div>
+            <div class="collapsible-content">
+                <div class="code-comment">
+                    💡 <strong>萌新理解</strong>：这是程序的"大门"，所有功能都从这里开始。
+                </div>
+                <pre class="code-block"><code class="language-python">
+# 主程序入口
+def main():
+    """程序的主函数"""
+    # TODO: 实现主逻辑
+    pass
+                </code></pre>
+            </div>
+        </div>
+        
+        <!-- 萌新问答 -->
+        <div class="section">
+            <h2>❓ 萌新常见问题</h2>
+            <div class="code-comment">
+                <strong>Q: 为什么要用 try-except？</strong><br>
+                A: 防止程序出错就崩溃。就像开车系安全带，平时用不上，出事时能救命。
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        mermaid.initialize({ startOnLoad: true, theme: 'dark' });
+        Prism.highlightAll();
+    </script>
+</body>
+</html>
+```
+
+**讲解内容生成规则**：
+
+1. **架构图生成**：
+   - 分析代码结构，提取模块关系
+   - 使用 Mermaid graph TD 语法
+   - 每个节点添加简短描述
+
+2. **数据流程图生成**：
+   - 追踪数据从输入到输出的流转
+   - 使用 Mermaid sequenceDiagram 或 flowchart
+   - 标注关键处理步骤
+
+3. **代码注释生成**：
+   - 每个代码块前添加"萌新理解"注释框
+   - 使用比喻和类比（如"工厂"、"车间"、"记事本"）
+   - 标注代码行的作用
+
+4. **交互元素**：
+   - 核心代码使用可折叠块
+   - 重要概念使用 tooltip 悬停提示
+   - 复杂逻辑使用流程图
+
+**生成后操作**：
+
+1. 写入 HTML 文件到 `{project_slug}/docs/explain/`
+2. 更新 `SKILL_STATE.json`：
+```json
+{
+  "modes": {
+    "teaching_mode": "html_visual"
+  },
+  "artifacts": {
+    "explain_html": {
+      "path": "docs/explain/{topic}_explain.html",
+      "status": "valid",
+      "created_at": "2026-03-20T00:00:00.000Z"
+    }
+  }
+}
+```
+3. 在对话中告知用户：
+   > "🌐 HTML 可视化讲解已生成！文件位置：`docs/explain/{topic}_explain.html`\n> 💡 你可以用浏览器打开查看，包含架构图、流程图和交互式代码讲解。"
+
+#### 不同模式的代码生成示例
+
+**guided 模式代码示例**：
+```python
+# 提供框架，让学生填空
+def process_video(video_url):
+    """处理视频并分析内容"""
+    # TODO: 学生需要实现这个函数
+    pass
+```
+
+**demo 模式代码示例**：
+```python
+# 提供完整代码，让学生模仿
+def process_video(video_url):
+    """处理视频并分析内容"""
+    # 完整实现
+    subtitles = download_subtitles(video_url)
+    keywords = extract_keywords(subtitles)
+    return keywords
+```
+
+**hands_on 模式代码示例**：
+```python
+# 只提供函数签名和注释
+def process_video(video_url):
+    """
+    TODO: 实现视频处理逻辑
+    提示：可以使用 requests 库下载字幕
+    """
+    pass
+```
+
+**lecture 模式代码示例**：
+```python
+# 先讲解原理，再提供代码
+# 原理：视频字幕提取使用 HTTP 请求
+# 步骤：
+# 1. 发送 GET 请求获取视频信息
+# 2. 解析响应获取字幕文件 URL
+# 3. 下载字幕文件
+# 4. 解析字幕内容
+
+def process_video(video_url):
+    """处理视频并分析内容"""
+    # 实现代码
+    pass
+```
+
+**html_visual 模式代码示例**：
+```html
+<!-- 生成可视化 HTML 讲解页面 -->
+<!-- 包含：架构图、流程图、代码高亮、交互注释 -->
+```
+
+#### 模式选择 AskUserQuestion 示例
+
+**在阶段 6（分步计划）后调用**：
+
+```json
+{
+  "questions": [
+    {
+      "question": "💡 你希望我如何指导你开发？",
+      "header": "教学模式",
+      "options": [
+        {"label": "🎯 引导式", "description": "提供代码框架，我帮你填空"},
+        {"label": "📺 演示式", "description": "先演示完整代码，再让我模仿"},
+        {"label": "🛠️ 动手式", "description": "让我自己尝试，出错后再指导"},
+        {"label": "📚 讲解式", "description": "先讲解原理，再写代码"},
+        {"label": "🌐 HTML可视化", "description": "生成带流程图的交互网页讲解"}
+      ],
+      "multiSelect": false
+    }
+  ]
+}
+```
+
+**更新 SKILL_STATE.json**：
+
+```json
+{
+  "modes": {
+    "teaching_mode": "html_visual"  // 根据用户选择更新
+  }
+}
+```
+
+---
+
 ### 历史记录（History Log）
 
 ```json
@@ -308,6 +627,55 @@ projects/{project_slug}/
 
 **证据文件落点**: `docs/research/assets/{screenshots|charts|logs|results}/`
 
+### 研学文档强制落盘规则（必须执行）
+
+当 `modes.research_docs=true` 时，每次阶段完成都必须执行以下动作，缺一不可：
+
+1. 按阶段映射把对应研学文档写入“实质内容”，禁止只保留模板标题或占位符。
+2. 更新 `SKILL_STATE.json` 中 `artifacts.research_docs.*.status` 为 `valid`（或真实状态），并写入 `last_updated_at`。
+3. 执行占位符检查：研学文档中不得保留 `{project_title}`、`{date}`、`RQ1：`空值、`Given … When … Then …` 模板句。
+4. 若检查失败，当前阶段强制标记 `needs_redo`，不得进入下一阶段。
+
+### 历史项目回填（Backfill）
+
+当发现已有项目的研学文档仍为模板稿时，必须立即执行“回填”：
+
+1. 读取 `docs/00~07` 与 `SKILL_STATE.json`。
+2. 将信息映射写入 `docs/research/10~50`（以及可选 `60_paper`）。
+3. 回填后统一更新 `artifacts.research_docs.*.status/version/last_updated_at`。
+4. 在回复中明确说明“本次为回填修复”。
+
+### 正式报告输出规范（中文文件名 + 主题风格）
+
+当项目进入 `stage_08_evaluate` 后，若用户要求“正式报告”，必须输出以下文件到 `docs/reports/`：
+
+1. `项目报告-正式版.doc`
+2. `项目报告-正式版.docx`
+3. `项目报告-正式版.pdf`
+4. `项目报告-正式版.pptx`
+5. `研学报告-正式版.doc`
+6. `研学报告-正式版.docx`
+7. `研学报告-正式版.pdf`
+8. `研学报告-正式版.pptx`
+
+补充要求：
+- 必须先调用 `theme-factory` 选择主题，再调用 `pptx` 生成演示稿。
+- 主题选择结果必须写入 `docs/reports/report_theme.json`，至少包含 `themeName`。
+- 报告生成脚本必须读取 `docs/reports/report_theme.json` 与 `report_theme_catalog.json` 并应用字体、配色。
+- 报告内容来源于 `docs/00~07` 与 `docs/research/10~60`，禁止仅生成空壳标题页。
+- 正文标题、子标题、要点必须为中文，不得出现英文标题词。
+
+### 证据素材门禁（stage_07/stage_08 强制）
+
+在 `modes.research_docs=true` 下，进入 `stage_08_evaluate` 前必须满足：
+
+1. `docs/research/assets/screenshots/` 至少 4 张界面截图（首页 + 关键功能页）。
+2. `docs/research/assets/logs/` 至少 1 个日志文件。
+3. `docs/research/assets/charts/` 或 `docs/research/assets/results/` 至少 1 个证据文件。
+4. `40_tech_report.md` 与 `50_final_report.md` 中必须出现上述证据路径引用。
+
+若任一条件不满足：`stage_status=needs_redo`，并返回“缺失证据项清单”。
+
 ---
 
 ## 导航规则（Next / Back / Redo / Goto）
@@ -317,7 +685,11 @@ projects/{project_slug}/
 1. 读取 `SKILL_STATE.json`，确定 `current_stage`
 2. 检查当前 stage 对应工件的 `schema_valid && rubric_passed`
    - 不通过：`stage_status=needs_redo`，返回缺失/失败原因清单，**不推进**
-3. 通过：设置
+3. 若 `modes.research_docs=true`，先完成本阶段对应研学文档的写入与占位符检查
+   - 未通过：`stage_status=needs_redo`，返回缺失项并停止推进
+4. 若目标推进到 `stage_08_evaluate`，先执行证据素材门禁检查
+   - 未通过：`stage_status=needs_redo`，返回缺失证据项并停止推进
+5. 通过：设置
    - `stage_passed[current_stage]=true`
    - `stage_status=passed`
    - `current_stage=下一个stage`
@@ -1280,7 +1652,26 @@ projects/{project_slug}/
 }
 ```
 
-### 步骤 5.4: 生成设计文档 + 代码框架
+### 步骤 5.4: 报告风格套件选择
+
+在设计阶段必须同步确定正式报告风格，流程如下：
+
+1. 调用 `theme-factory` 展示主题方案。
+2. 通过 AskUserQuestion 让用户选择单一主题。
+3. 在 `docs/04_design.json` 的 `report_theme_plan` 写入：
+   - `use_theme_factory=true`
+   - `use_pptx_skill=true`
+   - `theme_name`
+   - `theme_reason`
+4. 写入 `docs/reports/report_theme.json`，最少包含：
+
+```json
+{
+  "themeName": "Tech Innovation"
+}
+```
+
+### 步骤 5.5: 生成设计文档 + 代码框架
 
 **生成 04_design.json:**
 

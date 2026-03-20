@@ -1,0 +1,222 @@
+/*!*******************************************************************************************************************************************************************************************************************************************************************!*\
+  !*** css ./node_modules/next/dist/build/webpack/loaders/css-loader/src/index.js??ruleSet[1].rules[12].oneOf[7].use[2]!./node_modules/next/dist/build/webpack/loaders/postcss-loader/src/index.js??ruleSet[1].rules[12].oneOf[7].use[3]!./src/app/page.module.css ***!
+  \*******************************************************************************************************************************************************************************************************************************************************************/
+.page_main__GlU4n {
+  min-height: 100vh;
+  background: #FAFAFA;
+  padding: 2rem 1rem;
+}
+
+.page_container__aoG4z {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.page_header__kVzhN {
+  text-align: center;
+  color: white;
+  margin-bottom: 2rem;
+}
+
+.page_header__kVzhN h1 {
+  font-size: 2.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.page_header__kVzhN p {
+  opacity: 0.9;
+  margin-bottom: 1rem;
+}
+
+.page_stats__L5b4y {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  font-size: 0.9rem;
+}
+
+.page_stats__L5b4y span {
+  background: rgba(255, 255, 255, 0.2);
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+}
+
+.page_addButton__3U9dP {
+  width: 100%;
+  padding: 1rem;
+  background: #4CAF50;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1.1rem;
+  cursor: pointer;
+  margin-bottom: 1rem;
+  transition: background 0.3s;
+}
+
+.page_addButton__3U9dP:hover {
+  background: #45a049;
+}
+
+.page_form__Ou5d6 {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 12px;
+  margin-bottom: 1rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.page_input___cVLA, .page_textarea__8C2wx, .page_select__MPBgi {
+  width: 100%;
+  padding: 0.75rem;
+  margin-bottom: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 1rem;
+}
+
+.page_textarea__8C2wx {
+  min-height: 80px;
+  resize: vertical;
+}
+
+.page_selects__hp6bu {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-gap: 0.75rem;
+  gap: 0.75rem;
+}
+
+.page_submitButton__6O8qB {
+  width: 100%;
+  padding: 0.75rem;
+  background: #2196F3;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 1rem;
+  cursor: pointer;
+  margin-top: 0.5rem;
+}
+
+.page_submitButton__6O8qB:hover {
+  background: #1976D2;
+}
+
+.page_taskList__BQqXq {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.page_task__XJDAK {
+  background: white;
+  padding: 1rem;
+  border-radius: 12px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  border-left: 4px solid #ccc;
+}
+
+.page_priorityHigh__D34iJ {
+  border-left-color: #f44336;
+  background: #ffebee;
+  color: #c62828;
+}
+
+.page_priorityMedium__Fsibx {
+  border-left-color: #FFC107;
+  background: #fff3e0;
+  color: #ef6c00;
+}
+
+.page_priorityLow__aqVUh {
+  border-left-color: #4CAF50;
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.page_completed__2On9G {
+  opacity: 0.6;
+}
+
+.page_completed__2On9G .page_taskTitle__iZ4SH {
+  text-decoration: line-through;
+}
+
+.page_taskHeader__WGCjS {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.page_checkbox__dY2AP {
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+}
+
+.page_priorityBadge__baV5T {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  background: #e0e0e0;
+  font-weight: bold;
+}
+
+.page_priorityHigh__D34iJ .page_priorityBadge__baV5T {
+  background: #ffebee;
+  color: #c62828;
+}
+
+.page_priorityMedium__Fsibx .page_priorityBadge__baV5T {
+  background: #fff3e0;
+  color: #ef6c00;
+}
+
+.page_priorityLow__aqVUh .page_priorityBadge__baV5T {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.page_deleteButton__Vg31V {
+  margin-left: auto;
+  padding: 0.25rem 0.5rem;
+  background: #f44336;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.page_deleteButton__Vg31V:hover {
+  background: #d32f2f;
+}
+
+.page_taskTitle__iZ4SH {
+  font-size: 1.1rem;
+  margin-bottom: 0.5rem;
+  color: #333;
+}
+
+.page_taskDesc__27mpG {
+  color: #666;
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
+}
+
+.page_taskMeta__2LBiT {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.8rem;
+  color: #999;
+}
+
+.page_empty__94dW_ {
+  text-align: center;
+  color: white;
+  padding: 2rem;
+  opacity: 0.8;
+}
+

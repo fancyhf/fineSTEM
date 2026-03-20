@@ -1,0 +1,176 @@
+{
+  "$schema": "../../../.trae/skills/stem-pbl-guide/artifacts/schemas/step_plan.schema.json",
+  "version": "1.0.0",
+  "created_at": "2026-03-18 00:00:00.000",
+  "updated_at": "2026-03-18 00:00:00.000",
+  "project_slug": "smart-todo-list",
+  "milestones": [
+    {
+      "id": "M1",
+      "name": "里程碑1: 基础框架",
+      "description": "搭建项目结构，运行空界面",
+      "steps": [
+        {
+          "id": "step_1",
+          "name": "初始化Next.js项目",
+          "run": "在项目目录运行: npx create-next-app@latest smart-todo-list --typescript --tailwind --eslint",
+          "check": "检查src/app目录结构是否生成",
+          "rollback": "删除生成的目录，重新运行初始化命令",
+          "time_estimate": "15min"
+        },
+        {
+          "id": "step_2",
+          "name": "创建基础页面组件",
+          "run": "创建src/app/page.tsx，添加左右分栏布局",
+          "check": "运行npm run dev，访问http://localhost:4003查看页面",
+          "rollback": "恢复page.tsx到初始状态",
+          "time_estimate": "20min"
+        },
+        {
+          "id": "step_3",
+          "name": "配置样式和主题",
+          "run": "应用Botanical Garden主题配色到全局样式",
+          "check": "页面背景色变为#FAFAFA，主色为#4CAF50",
+          "rollback": "移除样式配置，恢复默认样式",
+          "time_estimate": "15min"
+        }
+      ],
+      "total_time": "50min"
+    },
+    {
+      "id": "M2",
+      "name": "里程碑2: 核心功能",
+      "description": "实现任务增删改查和智能排序",
+      "steps": [
+        {
+          "id": "step_4",
+          "name": "定义Task数据类型",
+          "run": "创建types/task.ts，定义Task接口",
+          "check": "TypeScript编译无错误",
+          "rollback": "删除types/task.ts文件",
+          "time_estimate": "10min"
+        },
+        {
+          "id": "step_5",
+          "name": "实现LocalStorage工具函数",
+          "run": "创建lib/storage.ts，实现saveTasks/loadTasks函数",
+          "check": "在浏览器控制台测试保存和读取功能",
+          "rollback": "删除lib/storage.ts文件",
+          "time_estimate": "20min"
+        },
+        {
+          "id": "step_6",
+          "name": "实现优先级计算算法",
+          "run": "创建lib/priority.ts，实现calculatePriorityScore函数",
+          "check": "测试不同importance/urgency/deadline组合的评分",
+          "rollback": "删除lib/priority.ts文件",
+          "time_estimate": "15min"
+        },
+        {
+          "id": "step_7",
+          "name": "创建TaskForm组件",
+          "run": "实现表单输入和提交逻辑",
+          "check": "输入任务信息后能正确提交",
+          "rollback": "恢复TaskForm到初始状态",
+          "time_estimate": "30min"
+        },
+        {
+          "id": "step_8",
+          "name": "创建TaskList和TaskCard组件",
+          "run": "实现任务列表渲染和卡片展示",
+          "check": "任务按优先级正确排序显示",
+          "rollback": "恢复组件到初始状态",
+          "time_estimate": "30min"
+        },
+        {
+          "id": "step_9",
+          "name": "实现任务完成和删除功能",
+          "run": "添加完成和删除按钮的事件处理",
+          "check": "点击按钮后任务状态正确更新",
+          "rollback": "恢复事件处理函数",
+          "time_estimate": "20min"
+        }
+      ],
+      "total_time": "125min"
+    },
+    {
+      "id": "M3",
+      "name": "里程碑3: 完善优化",
+      "description": "美化界面，添加锦上添花功能",
+      "steps": [
+        {
+          "id": "step_10",
+          "name": "实现优先级颜色可视化",
+          "run": "创建PriorityBadge组件，高/中/低用不同颜色",
+          "check": "高优先级显示红色，中显示黄色，低显示绿色",
+          "rollback": "恢复PriorityBadge到初始状态",
+          "time_estimate": "20min"
+        },
+        {
+          "id": "step_11",
+          "name": "实现今日任务高亮",
+          "run": "添加日期判断逻辑，今日任务特殊样式",
+          "check": "截止日期为今天的任务有高亮效果",
+          "rollback": "移除高亮样式逻辑",
+          "time_estimate": "15min"
+        },
+        {
+          "id": "step_12",
+          "name": "实现任务完成统计",
+          "run": "创建StatusBar组件，显示已完成/总数",
+          "check": "任务状态变化时统计数字正确更新",
+          "rollback": "恢复StatusBar到初始状态",
+          "time_estimate": "20min"
+        },
+        {
+          "id": "step_13",
+          "name": "响应式布局优化",
+          "run": "添加媒体查询，移动端调整为上下布局",
+          "check": "屏幕宽度<768px时布局变为上下结构",
+          "rollback": "移除媒体查询样式",
+          "time_estimate": "20min"
+        },
+        {
+          "id": "step_14",
+          "name": "代码质量检查",
+          "run": "运行npm run lint，修复所有警告和错误",
+          "check": "ESLint通过，无警告",
+          "rollback": "恢复到lint之前的代码",
+          "time_estimate": "15min"
+        },
+        {
+          "id": "step_15",
+          "name": "性能优化和测试",
+          "run": "测试页面加载速度，优化代码分割",
+          "check": "页面加载时间<3秒",
+          "rollback": "恢复优化前的代码",
+          "time_estimate": "15min"
+        }
+      ],
+      "total_time": "105min"
+    }
+  ],
+  "total_time_estimate": "280min",
+  "buffer_time": "80min",
+  "time_allocation": {
+    "milestone_1": "50min",
+    "milestone_2": "125min",
+    "milestone_3": "105min",
+    "buffer": "80min",
+    "total": "360min"
+  },
+  "risk_management": [
+    {
+      "risk": "优先级算法复杂度超出预期",
+      "mitigation": "先实现简单加权公式，后续可优化"
+    },
+    {
+      "risk": "LocalStorage容量限制",
+      "mitigation": "设置任务数量上限50，提供清理功能"
+    },
+    {
+      "risk": "响应式布局适配困难",
+      "mitigation": "使用Tailwind CSS的响应式工具类"
+    }
+  ]
+}

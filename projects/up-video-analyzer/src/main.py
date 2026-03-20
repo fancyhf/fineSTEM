@@ -277,6 +277,21 @@ with st.sidebar:
 # 主界面 - 使用标签页
 st.title("📹 UP 主视频内容分析器")
 st.markdown("### 上传视频字幕，AI 自动生成词云、统计分析和内容总结")
+
+# 添加代码讲解按钮
+col1, col2 = st.columns([5, 1])
+with col2:
+    if st.button("📚 查看代码讲解"):
+        import webbrowser
+        import os
+        # 获取 HTML 文件的绝对路径
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        html_path = os.path.join(current_dir, "..", "docs", "explain", "code_explain.html")
+        html_path = os.path.abspath(html_path)
+        # 用浏览器打开
+        webbrowser.open(f"file:///{html_path}")
+        st.success("已在浏览器中打开代码讲解！")
+
 st.markdown("---")
 
 # 使用 radio 按钮模拟标签页，以便程序控制切换

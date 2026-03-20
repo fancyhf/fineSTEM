@@ -1,0 +1,20 @@
+{
+  "themeName": "Botanical Garden",
+  "themeId": "botanical_garden",
+  "description": "清新有机的花园色彩，符合活泼的界面风格",
+  "colorPalette": {
+    "primary": "#4CAF50",
+    "secondary": "#FF9800",
+    "accent": "#2196F3",
+    "background": "#FAFAFA",
+    "text": "#333333",
+    "success": "#4CAF50",
+    "warning": "#FFC107",
+    "error": "#F44336"
+  },
+  "fonts": {
+    "heading": "Arial, sans-serif",
+    "body": "Georgia, serif"
+  },
+  "createdAt": "2026-03-18 00:00:00.000"
+}

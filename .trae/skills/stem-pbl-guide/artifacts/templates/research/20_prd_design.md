@@ -39,6 +39,21 @@
 - 数据流（mock→可选API）：{data_flow_one_liner}
 - 状态清单（最小）：{state_list}
 
+## 5.1 关键流程说明（必填）
+- 业务流程：用户操作 → 路由处理 → 数据读写/接口调用 → 页面更新
+- 系统流程：输入 → 处理 → 输出（按你的技术轨道写清楚）
+
+## 5.2 数据模型（ER 图/数据字典，必填）
+- ER 图（可用 Mermaid 或文本图）：
+```text
+实体A (1) ─── (N) 实体B
+实体B (1) ─── (N) 实体C
+```
+- 核心实体字段（至少1个实体，≥5个字段）：
+  - 实体名：
+  - 字段1（类型/说明）：
+  - 字段2（类型/说明）：
+
 ### B) Kaggle/建模
 - 数据集：{dataset_source}
 - 预测目标：{target}
@@ -68,3 +83,8 @@
 
 ## 7. 决策记录（Decision Log）
 - {date}：选择了{decision}，原因：{reason}
+
+## 8. UI 截图证据（必填，至少3张）
+- 首页截图：`docs/research/assets/screenshots/{YYYY-MM-DD}_homepage_ui.png`
+- 关键功能页截图：`docs/research/assets/screenshots/{YYYY-MM-DD}_feature_ui.png`
+- 结果页截图：`docs/research/assets/screenshots/{YYYY-MM-DD}_result_ui.png`

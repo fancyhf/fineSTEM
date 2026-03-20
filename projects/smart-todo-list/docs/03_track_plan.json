@@ -1,0 +1,85 @@
+{
+  "$schema": "../../../.trae/skills/stem-pbl-guide/artifacts/schemas/track_plan.schema.json",
+  "version": "1.0.0",
+  "created_at": "2026-03-18 00:00:00.000",
+  "updated_at": "2026-03-18 00:00:00.000",
+  "project_slug": "smart-todo-list",
+  "track": "web_nextjs",
+  "track_name": "Next.js Web开发",
+  "tech_stack": {
+    "language": "TypeScript",
+    "framework": "Next.js 14",
+    "ui_library": "React 18",
+    "styling": "CSS Modules / Tailwind CSS",
+    "state_management": "React Hooks (useState, useEffect)",
+    "data_storage": "Browser LocalStorage API"
+  },
+  "libraries": [
+    {
+      "name": "next",
+      "version": "^14.0.0",
+      "purpose": "React框架，提供SSR和路由"
+    },
+    {
+      "name": "react",
+      "version": "^18.0.0",
+      "purpose": "UI组件库"
+    },
+    {
+      "name": "typescript",
+      "version": "^5.0.0",
+      "purpose": "类型安全"
+    },
+    {
+      "name": "lucide-react",
+      "version": "^0.300.0",
+      "purpose": "图标库"
+    }
+  ],
+  "dev_environment": {
+    "ide": "AI IDE",
+    "package_manager": "npm",
+    "runtime": "Node.js 18+",
+    "browser": "Chrome / Edge / Firefox"
+  },
+  "deployment": {
+    "type": "local",
+    "environment": "AI IDE内置开发服务器",
+    "url": "http://localhost:3000",
+    "build_command": "npm run dev"
+  },
+  "template_id": "web_nextjs_standard_6h",
+  "resource_check": {
+    "has_pico_board": false,
+    "can_use_internet": true,
+    "dataset_ready": false,
+    "dependencies_available": true
+  },
+  "architecture": {
+    "type": "Single Page Application (SPA)",
+    "components": [
+      "TaskForm - 添加/编辑任务表单",
+      "TaskList - 任务列表展示",
+      "TaskCard - 单个任务卡片",
+      "PriorityBadge - 优先级标识",
+      "StatusBar - 任务统计栏"
+    ],
+    "data_flow": "用户输入 → TaskForm → LocalStorage → TaskList → UI渲染"
+  },
+  "technical_decisions": {
+    "why_nextjs": "现代React框架，提供优秀的开发体验和性能",
+    "why_typescript": "类型安全，减少运行时错误",
+    "why_localstorage": "无需后端，简化部署，数据持久化",
+    "why_hooks": "React官方推荐的状态管理方式，简单高效"
+  },
+  "alternatives_considered": [
+    {
+      "option": "Streamlit",
+      "reason_rejected": "虽然快速，但项目立项已选择Next.js"
+    },
+    {
+      "option": "Flask",
+      "reason_rejected": "需要后端服务器，超出范围"
+    }
+  ]
+}

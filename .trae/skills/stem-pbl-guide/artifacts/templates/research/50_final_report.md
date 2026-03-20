@@ -18,6 +18,9 @@
 - 证据1：
 - 证据2：
 - 证据3：
+- 证据4（UI截图）：`docs/research/assets/screenshots/{YYYY-MM-DD}_homepage_ui.png`
+- 证据5（流程说明）：引用 `20_prd_design.md` 或 `30_prototype_spec.md` 的流程章节
+- 证据6（ER图）：`docs/research/assets/charts/{YYYY-MM-DD}_er_diagram.png` 或文本图
 
 ## 4. 亮点（2–4条）
 - 亮点1：

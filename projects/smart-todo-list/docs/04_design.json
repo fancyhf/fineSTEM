@@ -1,0 +1,119 @@
+{
+  "$schema": "../../../.trae/skills/stem-pbl-guide/artifacts/schemas/design.schema.json",
+  "version": "1.0.0",
+  "created_at": "2026-03-18 00:00:00.000",
+  "updated_at": "2026-03-18 00:00:00.000",
+  "project_slug": "smart-todo-list",
+  "design_variant": "web_nextjs",
+  "ui_design": {
+    "style": "活泼",
+    "style_description": "明亮色彩、圆润设计、活泼有趣",
+    "color_palette": {
+      "primary": "#4CAF50",
+      "secondary": "#FF9800",
+      "accent": "#2196F3",
+      "background": "#FAFAFA",
+      "text": "#333333",
+      "success": "#4CAF50",
+      "warning": "#FFC107",
+      "error": "#F44336"
+    },
+    "elements": [
+      "输入框",
+      "列表",
+      "按钮",
+      "标签",
+      "进度条"
+    ],
+    "layout": "左右分栏",
+    "layout_description": "左侧添加任务，右侧显示列表"
+  },
+  "components": [
+    {
+      "name": "TaskForm",
+      "props": ["onSubmit", "editingTask"],
+      "state": ["title", "description", "deadline", "importance", "urgency"],
+      "description": "添加/编辑任务表单组件"
+    },
+    {
+      "name": "TaskList",
+      "props": ["tasks", "onTaskComplete", "onTaskDelete", "onTaskEdit"],
+      "state": ["filteredTasks"],
+      "description": "任务列表展示组件"
+    },
+    {
+      "name": "TaskCard",
+      "props": ["task", "onComplete", "onDelete", "onEdit"],
+      "state": ["isCompleted"],
+      "description": "单个任务卡片组件"
+    },
+    {
+      "name": "PriorityBadge",
+      "props": ["priority"],
+      "state": [],
+      "description": "优先级标识组件（高/中/低）"
+    },
+    {
+      "name": "StatusBar",
+      "props": ["total", "completed"],
+      "state": [],
+      "description": "任务完成统计栏"
+    }
+  ],
+  "data_flow": {
+    "input": "用户在TaskForm中输入任务信息",
+    "process": "计算优先级分数 → 排序 → 保存到LocalStorage",
+    "output": "TaskList按优先级显示任务列表"
+  },
+  "priority_algorithm": {
+    "formula": "priority_score = (importance * 3) + (urgency * 2) + (deadline_days * 1)",
+    "weights": {
+      "importance": 3,
+      "urgency": 2,
+      "deadline": 1
+    },
+    "scoring": {
+      "high": ">= 8",
+      "medium": "5-7",
+      "low": "< 5"
+    }
+  },
+  "acceptance_tests": [
+    {
+      "id": "test_01",
+      "given": "用户打开应用",
+      "when": "页面加载完成",
+      "then": "显示左侧表单和右侧空列表"
+    },
+    {
+      "id": "test_02",
+      "given": "用户填写任务信息",
+      "when": "点击添加按钮",
+      "then": "任务出现在右侧列表，并按优先级排序"
+    },
+    {
+      "id": "test_03",
+      "given": "用户点击任务完成按钮",
+      "when": "任务状态改变",
+      "then": "任务标记为完成，进度条更新"
+    },
+    {
+      "id": "test_04",
+      "given": "用户刷新页面",
+      "when": "页面重新加载",
+      "then": "任务数据仍然保留"
+    },
+    {
+      "id": "test_05",
+      "given": "用户在移动端访问",
+      "when": "屏幕宽度小于768px",
+      "then": "布局自动调整为上下结构"
+    }
+  ],
+  "report_theme_plan": {
+    "use_theme_factory": true,
+    "use_pptx_skill": true,
+    "theme_name": "Botanical Garden",
+    "theme_reason": "清新有机的花园色彩，符合活泼的界面风格"
+  }
+}

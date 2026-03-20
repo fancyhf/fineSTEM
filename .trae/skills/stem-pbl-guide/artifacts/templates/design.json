@@ -18,5 +18,25 @@
     "storage": ""
   },
   "acceptance_tests": [],
+  "ui_evidence_plan": {
+    "required_screenshots": [
+      "homepage_ui",
+      "feature_ui",
+      "result_ui",
+      "stats_ui"
+    ],
+    "save_dir": "docs/research/assets/screenshots",
+    "naming_rule": "YYYY-MM-DD_description.png"
+  },
+  "report_theme_plan": {
+    "use_theme_factory": true,
+    "use_pptx_skill": true,
+    "theme_name": "",
+    "theme_reason": "",
+    "doc_style_keywords": [],
+    "ppt_style_keywords": [],
+    "theme_config_path": "docs/reports/report_theme.json",
+    "theme_catalog_path": ".trae/skills/stem-pbl-guide/artifacts/templates/report_theme_catalog.json"
+  },
   "created_at": ""
 }

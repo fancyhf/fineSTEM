@@ -39,7 +39,9 @@ export default function Home() {
 
   // Save tasks to localStorage whenever tasks change
   useEffect(() => {
-    localStorage.setItem('smart-todo-tasks', JSON.stringify(tasks))
+    if (tasks.length > 0) {
+      localStorage.setItem('smart-todo-tasks', JSON.stringify(tasks))
+    }
   }, [tasks])
 
   // Calculate priority score (higher = more important)
@@ -47,17 +49,31 @@ export default function Home() {
     const importanceScore = { high: 3, medium: 2, low: 1 }
     const urgencyScore = { high: 3, medium: 2, low: 1 }
     
-    let score = importanceScore[task.importance] * 10 + urgencyScore[task.urgency] * 10
+    let score = importanceScore[task.importance] + urgencyScore[task.urgency]
     
     // Add deadline bonus (closer deadline = higher priority)
     if (task.deadline) {
       const daysUntil = Math.ceil((new Date(task.deadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
-      if (daysUntil <= 1) score += 50
-      else if (daysUntil <= 3) score += 30
-      else if (daysUntil <= 7) score += 10
+      if (daysUntil <= 1) score += 5
+      else if (daysUntil <= 3) score += 3
+      else if (daysUntil <= 7) score += 1
     }
     
     return score
+  }
+
+  // Check if task is due today
+  const isDueToday = (task: Task): boolean => {
+    if (!task.deadline) return false
+    const today = new Date().toISOString().split('T')[0]
+    return task.deadline === today
+  }
+
+  // Check if task is due today
+  const isDueToday = (task: Task): boolean => {
+    if (!task.deadline) return false
+    const today = new Date().toISOString().split('T')[0]
+    return task.deadline === today
   }
 
   // Sort tasks by priority
@@ -97,16 +113,16 @@ export default function Home() {
 
   const getPriorityColor = (task: Task): string => {
     const score = getPriorityScore(task)
-    if (score >= 70) return styles.priorityHigh
-    if (score >= 40) return styles.priorityMedium
+    if (score >= 6) return styles.priorityHigh
+    if (score >= 4) return styles.priorityMedium
     return styles.priorityLow
   }
 
   const getPriorityLabel = (task: Task): string => {
     const score = getPriorityScore(task)
-    if (score >= 70) return 'High'
-    if (score >= 40) return 'Medium'
-    return 'Low'
+    if (score >= 6) return '高'
+    if (score >= 4) return '中'
+    return '低'
   }
 
   const completedCount = tasks.filter(t => t.completed).length
@@ -115,11 +131,11 @@ export default function Home() {
     <main className={styles.main}>
       <div className={styles.container}>
         <header className={styles.header}>
-          <h1>Smart Todo List</h1>
-          <p>AI-powered priority sorting</p>
+          <h1>智能待办清单</h1>
+          <p>AI智能优先级排序</p>
           <div className={styles.stats}>
-            <span>{tasks.length - completedCount} pending</span>
-            <span>{completedCount} completed</span>
+            <span>{tasks.length - completedCount} 待处理</span>
+            <span>{completedCount} 已完成</span>
           </div>
         </header>
 
@@ -127,20 +143,20 @@ export default function Home() {
           className={styles.addButton}
           onClick={() => setShowForm(!showForm)}
         >
-          {showForm ? 'Cancel' : '+ Add New Task'}
+          {showForm ? '取消' : '+ 添加新任务'}
         </button>
 
         {showForm && (
           <div className={styles.form}>
             <input
               type="text"
-              placeholder="Task title..."
+              placeholder="任务标题..."
               value={newTask.title}
               onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
               className={styles.input}
             />
             <textarea
-              placeholder="Description (optional)..."
+              placeholder="任务描述（可选）..."
               value={newTask.description}
               onChange={(e) => setNewTask({ ...newTask, description: e.target.value })}
               className={styles.textarea}
@@ -157,34 +173,34 @@ export default function Home() {
                 onChange={(e) => setNewTask({ ...newTask, importance: e.target.value as any })}
                 className={styles.select}
               >
-                <option value="low">Low Importance</option>
-                <option value="medium">Medium Importance</option>
-                <option value="high">High Importance</option>
+                <option value="low">低重要性</option>
+                <option value="medium">中重要性</option>
+                <option value="high">高重要性</option>
               </select>
               <select
                 value={newTask.urgency}
                 onChange={(e) => setNewTask({ ...newTask, urgency: e.target.value as any })}
                 className={styles.select}
               >
-                <option value="low">Low Urgency</option>
-                <option value="medium">Medium Urgency</option>
-                <option value="high">High Urgency</option>
+                <option value="low">低紧急度</option>
+                <option value="medium">中紧急度</option>
+                <option value="high">高紧急度</option>
               </select>
             </div>
             <button onClick={addTask} className={styles.submitButton}>
-              Add Task
+              添加任务
             </button>
           </div>
         )}
 
         <div className={styles.taskList}>
           {sortedTasks.length === 0 ? (
-            <p className={styles.empty}>No tasks yet. Add your first task!</p>
+            <p className={styles.empty}>暂无任务。添加你的第一个任务吧！</p>
           ) : (
             sortedTasks.map(task => (
               <div 
                 key={task.id} 
-                className={`${styles.task} ${task.completed ? styles.completed : ''} ${getPriorityColor(task)}`}
+                className={`${styles.task} ${task.completed ? styles.completed : ''} ${getPriorityColor(task)} ${isDueToday(task) ? styles.dueToday : ''}`}
               >
                 <div className={styles.taskHeader}>
                   <input
@@ -209,10 +225,10 @@ export default function Home() {
                 )}
                 <div className={styles.taskMeta}>
                   {task.deadline && (
-                    <span>Due: {new Date(task.deadline).toLocaleDateString()}</span>
+                    <span>截止日期：{new Date(task.deadline).toLocaleDateString()}</span>
                   )}
-                  <span>Importance: {task.importance}</span>
-                  <span>Urgency: {task.urgency}</span>
+                  <span>重要性：{task.importance}</span>
+                  <span>紧急度：{task.urgency}</span>
                 </div>
               </div>
             ))

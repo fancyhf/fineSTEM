@@ -1,0 +1,101 @@
+{
+  "$schema": "../../../.trae/skills/stem-pbl-guide/artifacts/schemas/constraints.schema.json",
+  "version": "1.0.0",
+  "created_at": "2026-03-18 00:00:00.000",
+  "updated_at": "2026-03-18 00:00:00.000",
+  "project_slug": "smart-todo-list",
+  "project_title": "智能待办清单",
+  "time_budget": "6h",
+  "must_have": [
+    {
+      "id": "MH1",
+      "feature": "任务增删改查",
+      "description": "用户可以添加新任务、编辑现有任务、删除任务、标记任务完成",
+      "rationale": "没有这些基础功能，待办清单无法正常工作",
+      "priority": 1
+    },
+    {
+      "id": "MH2",
+      "feature": "智能优先级排序",
+      "description": "基于截止日期、重要性、紧急程度自动计算并排序任务",
+      "rationale": "这是项目的核心智能功能，体现AI思维",
+      "priority": 2
+    },
+    {
+      "id": "MH3",
+      "feature": "本地数据存储",
+      "description": "使用浏览器LocalStorage保存任务数据，刷新页面不丢失",
+      "rationale": "保证数据持久化，提升用户体验",
+      "priority": 3
+    }
+  ],
+  "must_have_max": 3,
+  "nice_to_have": [
+    {
+      "id": "NH1",
+      "feature": "优先级颜色可视化",
+      "description": "高优先级用红色、中优先级用黄色、低优先级用绿色显示",
+      "rationale": "让用户快速识别任务重要程度，提升视觉体验"
+    },
+    {
+      "id": "NH2",
+      "feature": "今日任务高亮显示",
+      "description": "截止日期为今天的任务用特殊样式高亮",
+      "rationale": "帮助用户聚焦当日需要完成的任务"
+    },
+    {
+      "id": "NH3",
+      "feature": "任务完成统计",
+      "description": "显示已完成任务数量和总任务数量",
+      "rationale": "给用户进度反馈，增强成就感"
+    }
+  ],
+  "wont_do": [
+    {
+      "id": "WD1",
+      "feature": "任务分类标签",
+      "description": "不实现工作/学习/生活等分类标签功能",
+      "reason": "需要额外的数据结构设计和UI复杂度，超出6小时预算",
+      "future_consideration": "可以作为v2.0版本的功能"
+    },
+    {
+      "id": "WD2",
+      "feature": "重复任务设置",
+      "description": "不实现每天/每周重复任务功能",
+      "reason": "需要复杂的调度算法和日期处理逻辑，时间不够",
+      "future_consideration": "可以在用户熟悉基础功能后添加"
+    }
+  ],
+  "wont_do_min": 2,
+  "scope_constraints": {
+    "max_pages": 3,
+    "max_components": 8,
+    "max_tasks_limit": 50,
+    "rationale": "保持项目简洁，确保6小时内可完成"
+  },
+  "tech_limitations": [
+    {
+      "limitation": "仅使用浏览器LocalStorage",
+      "reason": "不实现后端数据库和云端同步"
+    },
+    {
+      "limitation": "优先级算法采用简单加权公式",
+      "reason": "不使用复杂的机器学习模型，避免过度工程化"
+    },
+    {
+      "limitation": "单页面应用",
+      "reason": "不实现多页面路由，保持简单"
+    }
+  ],
+  "quality_constraints": {
+    "code_quality": "通过ESLint检查，无警告和错误",
+    "performance": "页面加载时间小于3秒",
+    "responsive": "支持移动端和桌面端显示"
+  },
+  "time_allocation": {
+    "must_have_total": "3h",
+    "nice_to_have_total": "2h",
+    "testing_and_refinement": "1h",
+    "buffer_time": "0h"
+  }
+}

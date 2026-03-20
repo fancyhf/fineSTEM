@@ -2,69 +2,120 @@
 
 > 用途：把“要做什么 + 怎么做”写清楚，供开发/实验阶段执行与验收。
 
-- 项目：{project_title}
-- 轨道/技术栈：{track_selected} / {template_id}
+- 项目：文学知识卡 - 二次元漫画版
+- 轨道/技术栈：web_flask / flask_basic
 - 版本：v1
-- 日期：{date}
+- 日期：2026-03-03
 
 ## 1. 用户与使用场景（≤150字）
-- 用户是谁？什么时候会用？为什么需要？
+- 目标用户是初中同学。典型场景是语文课前预习、课后复习、考试前快速回顾。用户希望把分散的古诗词资料集中管理，并通过搜索、分类和卡片浏览快速找到内容；对难记诗词可借助二次元插画形成“图文联想”。
 
 ## 2. 需求范围（Scope）
 ### 2.1 Must-have（≤3）
-1)
-2)
-3)
+1) 古诗词和文学知识库录入
+2) 卡片式学习展示
+3) 搜索功能
 
 ### 2.2 Nice-to-have（≤3）
-1)
-2)
-3)
+1) 收藏功能
+2) 导入更多知识库（网页导入）
+3) AI 生成二次元漫画（卡哇伊风格）
 
 ### 2.3 Won’t-do（≥2）
-1)
-2)
+1) 用户注册登录系统
+2) 多人协作功能
 
 ## 3. 用户故事（3–5条）
-- 作为{用户}，我想要{能力}，以便{收益}。
+- 作为初中生，我想按关键词搜索诗词，以便在复习时更快定位知识点。
+- 作为初中生，我想按分类筛选诗词，以便分专题学习唐诗、宋词和元曲。
+- 作为初中生，我想收藏重点卡片，以便形成个性化考前复习清单。
+- 作为初中生，我想从网页导入新诗词，以便持续扩展自己的学习资料。
+- 作为初中生，我想给诗词生成卡哇伊插画，以便通过图像增强记忆兴趣。
 
 ## 4. 验收标准（3–5条，Given/When/Then）
-- Given … When … Then …
-- Given … When … Then …
+- Given 用户访问首页，When 页面加载完成，Then 显示诗词卡片列表与搜索区域。
+- Given 用户输入关键词，When 点击搜索，Then 返回标题/作者/内容匹配的卡片。
+- Given 用户选择分类，When 点击筛选，Then 仅显示该分类下的诗词卡片。
+- Given 用户点击收藏按钮，When 刷新页面后再次查看，Then 收藏状态保持正确。
+- Given 用户提交有效网页链接，When 执行导入，Then 诗词被写入数据文件并可在首页看到。
 
 ## 5. 设计概览（按轨道填写）
 ### A) Web（Next.js）
-- 页面（≤{pages_max}）：{pages}
-- 组件/模块（≤{components_max}）：{components}
-- 数据流（mock→可选API）：{data_flow_one_liner}
-- 状态清单（最小）：{state_list}
+- 页面（≤5）：首页（卡片浏览）、新增页、导入页、收藏视图、统计页
+- 组件/模块（≤8）：Header、SearchBar、CategoryFilter、PoetryCard、AddForm、ImportForm、FavoriteAction、StatsPanel
+- 数据流（mock→可选API）：用户操作 → Flask 路由处理 → JSON 文件读写 → 模板渲染/JSON 响应 → 页面更新
+- 状态清单（最小）：search_query、current_category、is_favorite、import_result、image_url
+
+## 5.1 关键流程说明（必填）
+
+### 5.1.1 业务流程（用户视角）
+1) 打开首页浏览卡片  
+2) 输入关键词搜索/选择分类筛选  
+3) 点击卡片查看内容并收藏  
+4) 进入“新增/导入”页面扩展知识库  
+5) 返回首页复习，进入统计页查看总量与分类分布
+
+### 5.1.2 系统流程（系统视角）
+用户请求（浏览/搜索/新增/导入/收藏） → Flask 路由处理 → 读写 `src/data/poetry_data.json` → 返回 HTML 页面（或接口返回 JSON） → 页面刷新展示结果
+
+### 5.1.3 界面截图（必填）
+- 首页：`docs/research/assets/screenshots/2026-03-18_homepage_ui.png`
+- 新增页：`docs/research/assets/screenshots/2026-03-18_add_page_ui.png`
+- 导入页：`docs/research/assets/screenshots/2026-03-18_import_page_ui.png`
+- 收藏页：`docs/research/assets/screenshots/2026-03-18_favorites_page_ui.png`
+- 统计页：`docs/research/assets/screenshots/2026-03-18_stats_page_ui.png`
+
+## 5.2 数据模型（ER 图 / 数据字典）
+
+### 5.2.1 ER 图（简化）
+```text
+【分类 Category】(1) ───── (N) 【诗词卡片 PoetryCard】(N) ───── (1) 【作者 Author】
+
+PoetryCard 也可以关联 0..1 个 插画资源 ImageAsset
+PoetryCard 通过 isFavorite 表示是否收藏
+```
+
+### 5.2.2 字段定义（PoetryCard）
+- id：字符串，唯一标识
+- title：标题
+- author：作者名
+- dynasty：朝代（可选）
+- content：正文
+- category：分类（如“唐诗/宋词/元曲/主题”）
+- tags：标签数组（可选）
+- isFavorite：是否收藏（布尔）
+- sourceUrl：来源链接（可选，用于导入追溯）
+- imageUrl：插画图片链接或路径（可选）
 
 ### B) Kaggle/建模
-- 数据集：{dataset_source}
-- 预测目标：{target}
-- Baseline：{baseline_model}
-- 指标：{metric}
-- 验证策略：{validation_strategy}
+- 数据集：不适用（当前为 Web 学习应用）
+- 预测目标：不适用
+- Baseline：不适用
+- 指标：不适用
+- 验证策略：不适用
 - 计划改进（≤3）：
-  1)
-  2)
+  1) 如后续加入学习推荐，再引入学习行为数据建模
+  2) 增加用户学习记录后再定义评价指标
 
 ### C) 硬件（Pico + MicroPython）
-- 外设清单（≤{hw_peripherals_max}）：{hardware_list}
-- 引脚表（Pin Plan）：{pin_plan}
-- 状态机概览：{state_machine_one_liner}
-- 安全注意事项：{safety_notes}
+- 外设清单（≤0）：不适用
+- 引脚表（Pin Plan）：不适用
+- 状态机概览：不适用
+- 安全注意事项：不适用
 
 ### D) 课程融合
-- 学习目标（≤3）：{learning_objectives}
+- 学习目标（≤3）：掌握古诗词检索方法；形成数字化复习习惯；理解 AI 在学习工具中的辅助价值
 - 课堂流程：导入→讲解→练习→总结
-- 活动（≤2）：{activities}
-- 作业（1个）：{assignment}
-- Rubric 维度：{rubric_dims}
+- 活动（≤2）：课堂分组搜索挑战；诗词卡片讲解展示
+- 作业（1个）：围绕一个主题（如“思乡”）扩充 5 首诗词并制作收藏清单
+- Rubric 维度：功能完成度、学习表达清晰度、资料准确性
 
 ## 6. 风险与替代方案（≥2）
-- 风险1：… → 替代：…
-- 风险2：… → 替代：…
+- 风险1：AI 图像生成接口不可用或超时。→ 替代：保留 image_url 字段，先使用空图/占位图，不阻塞主流程。
+- 风险2：网页导入提取不稳定，页面结构差异大。→ 替代：回退为手动录入或半自动复制粘贴。
+- 风险3：功能扩张导致交付延期。→ 替代：严格执行 must-have 优先，nice-to-have 后置。
 
 ## 7. 决策记录（Decision Log）
-- {date}：选择了{decision}，原因：{reason}
+- 2026-03-03：选择 Flask 本地 Web 路线，原因：实现速度快、模板渲染直观，适合初中生项目展示。
+- 2026-03-03：数据存储使用本地 JSON 文件，原因：结构简单、便于查看与修改，降低数据库学习门槛。
+- 2026-03-03：将 AI 二次元插画设为增强功能，原因：主线学习功能必须可独立运行，避免外部 API 依赖卡住项目进度。

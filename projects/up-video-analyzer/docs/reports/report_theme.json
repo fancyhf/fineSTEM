@@ -1,0 +1,21 @@
+{
+  "themeName": "Golden Hour",
+  "themeReason": "温暖、秋季色调，适合创意/艺术项目",
+  "colors": {
+    "primary": "#FF8C00",
+    "secondary": "#FFA500",
+    "accent": "#FF6B00",
+    "background": "#FFF8E7",
+    "text": "#4A4A4A",
+    "textDark": "#333333"
+  },
+  "fonts": {
+    "header": "Microsoft YaHei",
+    "body": "Microsoft YaHei"
+  },
+  "appliedTo": [
+    "项目报告PPT",
+    "研学报告PPT"
+  ],
+  "createdAt": "2026-03-18"
+}

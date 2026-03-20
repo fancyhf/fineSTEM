@@ -30,6 +30,11 @@
 - 流程A：开始 → … → 结束
 - 流程B（可选）：开始 → … → 结束
 
+### 4.1 流程说明（系统序列，必填）
+- 用户操作：
+- 系统处理：
+- 页面反馈：
+
 ## 5. 文案与反馈（UX）
 - 成功提示：
 - 错误提示：
@@ -43,3 +48,9 @@
 ## 7. 原型产物位置
 - 截图/草图：`docs/research/assets/`
 - 原型链接（可选）：{link_or_none}
+
+## 8. UI 截图清单（必填，至少4张）
+- 首页：`docs/research/assets/screenshots/{YYYY-MM-DD}_homepage_ui.png`
+- 功能页1：`docs/research/assets/screenshots/{YYYY-MM-DD}_feature1_ui.png`
+- 功能页2：`docs/research/assets/screenshots/{YYYY-MM-DD}_feature2_ui.png`
+- 结果页：`docs/research/assets/screenshots/{YYYY-MM-DD}_result_ui.png`

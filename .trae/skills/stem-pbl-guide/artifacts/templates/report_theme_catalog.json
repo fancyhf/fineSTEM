@@ -1,0 +1,125 @@
+{
+  "defaultTheme": "Tech Innovation",
+  "themes": [
+    {
+      "name": "Ocean Depths",
+      "displayName": "海洋深蓝",
+      "titleFont": "Microsoft YaHei",
+      "bodyFont": "Microsoft YaHei",
+      "coverBackground": "#1E2761",
+      "contentBackground": "#EEF3FF",
+      "titleColor": "#FFFFFF",
+      "contentTitleColor": "#1E2761",
+      "bodyColor": "#1E2761",
+      "accentColor": "#CADCFC"
+    },
+    {
+      "name": "Sunset Boulevard",
+      "displayName": "日落大道",
+      "titleFont": "Microsoft YaHei",
+      "bodyFont": "Microsoft YaHei",
+      "coverBackground": "#F96167",
+      "contentBackground": "#FFF6E9",
+      "titleColor": "#2F3C7E",
+      "contentTitleColor": "#B85042",
+      "bodyColor": "#2F3C7E",
+      "accentColor": "#F9E795"
+    },
+    {
+      "name": "Forest Canopy",
+      "displayName": "森林穹顶",
+      "titleFont": "Microsoft YaHei",
+      "bodyFont": "Microsoft YaHei",
+      "coverBackground": "#2C5F2D",
+      "contentBackground": "#F4F9F2",
+      "titleColor": "#FFFFFF",
+      "contentTitleColor": "#2C5F2D",
+      "bodyColor": "#2C5F2D",
+      "accentColor": "#97BC62"
+    },
+    {
+      "name": "Modern Minimalist",
+      "displayName": "现代极简",
+      "titleFont": "Microsoft YaHei",
+      "bodyFont": "Microsoft YaHei",
+      "coverBackground": "#36454F",
+      "contentBackground": "#F2F2F2",
+      "titleColor": "#FFFFFF",
+      "contentTitleColor": "#212121",
+      "bodyColor": "#212121",
+      "accentColor": "#36454F"
+    },
+    {
+      "name": "Golden Hour",
+      "displayName": "金色时刻",
+      "titleFont": "Microsoft YaHei",
+      "bodyFont": "Microsoft YaHei",
+      "coverBackground": "#B85042",
+      "contentBackground": "#FAF4E6",
+      "titleColor": "#FFFFFF",
+      "contentTitleColor": "#B85042",
+      "bodyColor": "#4A3B2A",
+      "accentColor": "#E7E8D1"
+    },
+    {
+      "name": "Arctic Frost",
+      "displayName": "极地霜蓝",
+      "titleFont": "Microsoft YaHei",
+      "bodyFont": "Microsoft YaHei",
+      "coverBackground": "#065A82",
+      "contentBackground": "#F2FAFF",
+      "titleColor": "#FFFFFF",
+      "contentTitleColor": "#065A82",
+      "bodyColor": "#1C7293",
+      "accentColor": "#BFDFF2"
+    },
+    {
+      "name": "Desert Rose",
+      "displayName": "沙漠玫瑰",
+      "titleFont": "Microsoft YaHei",
+      "bodyFont": "Microsoft YaHei",
+      "coverBackground": "#6D2E46",
+      "contentBackground": "#F8F2F4",
+      "titleColor": "#FFFFFF",
+      "contentTitleColor": "#6D2E46",
+      "bodyColor": "#6D2E46",
+      "accentColor": "#A26769"
+    },
+    {
+      "name": "Tech Innovation",
+      "displayName": "科技创新",
+      "titleFont": "Microsoft YaHei",
+      "bodyFont": "Microsoft YaHei",
+      "coverBackground": "#028090",
+      "contentBackground": "#E8FBF7",
+      "titleColor": "#FFFFFF",
+      "contentTitleColor": "#065A82",
+      "bodyColor": "#1F3C4A",
+      "accentColor": "#02C39A"
+    },
+    {
+      "name": "Botanical Garden",
+      "displayName": "植物花园",
+      "titleFont": "Microsoft YaHei",
+      "bodyFont": "Microsoft YaHei",
+      "coverBackground": "#50808E",
+      "contentBackground": "#F1F8F5",
+      "titleColor": "#FFFFFF",
+      "contentTitleColor": "#2C5F2D",
+      "bodyColor": "#2C5F2D",
+      "accentColor": "#84B59F"
+    },
+    {
+      "name": "Midnight Galaxy",
+      "displayName": "午夜星河",
+      "titleFont": "Microsoft YaHei",
+      "bodyFont": "Microsoft YaHei",
+      "coverBackground": "#21295C",
+      "contentBackground": "#EEF1FF",
+      "titleColor": "#FFFFFF",
+      "contentTitleColor": "#21295C",
+      "bodyColor": "#2F3C7E",
+      "accentColor": "#6C8AE4"
+    }
+  ]
+}

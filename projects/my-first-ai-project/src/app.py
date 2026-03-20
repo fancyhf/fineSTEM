@@ -134,7 +134,7 @@ def extract_poetry_from_web(url):
         author_patterns = ['作者', '诗人', '撰']
         for pattern in author_patterns:
             author_elem = soup.find(text=re.compile(pattern))
-            if author_elem:
+            if author_elem and author_elem.parent:
                 parent = author_elem.parent
                 author_text = parent.get_text()
                 match = re.search(r'[作者诗人撰][:：]\s*([^\n]+)', author_text)
@@ -529,4 +529,6 @@ if __name__ == '__main__':
     if not os.path.exists(DATA_FILE):
         save_data(get_default_data())
     
-    app.run(debug=True, port=5000)
+    # 从环境变量读取端口，默认为 4001
+    port = int(os.environ.get('FLASK_PORT', 4001))
+    app.run(debug=True, port=port)

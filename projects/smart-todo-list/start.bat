@@ -29,8 +29,7 @@ if %errorlevel% neq 0 (
 
 REM Start simple HTTP server
 echo Starting application...
-cd src
-python -m http.server %PORT%
+python -m http.server %PORT% --directory src
 
 echo Application stopped
 pause

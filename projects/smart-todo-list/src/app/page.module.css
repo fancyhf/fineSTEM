@@ -1,12 +1,32 @@
 .main {
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #FAFAFA;
   padding: 2rem 1rem;
 }
 
 .container {
   max-width: 800px;
   margin: 0 auto;
+  padding: 0 1rem;
+}
+
+@media (max-width: 768px) {
+  .container {
+    max-width: 100%;
+    padding: 1rem;
+  }
+  
+  .main {
+    flex-direction: column;
+  }
+  
+  .form {
+    max-width: 100%;
+  }
+  
+  .taskList {
+    max-width: 100%;
+  }
 }
 
 .header {
@@ -115,14 +135,25 @@
 
 .priorityHigh {
   border-left-color: #f44336;
+  background: #ffebee;
+  color: #c62828;
 }
 
 .priorityMedium {
-  border-left-color: #ff9800;
+  border-left-color: #FFC107;
+  background: #fff3e0;
+  color: #ef6c00;
 }
 
 .priorityLow {
   border-left-color: #4CAF50;
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.dueToday {
+  background: linear-gradient(135deg, #fff9c4 0%, #ffeb3b 100%);
+  border: 2px solid #FFC107;
 }
 
 .completed {

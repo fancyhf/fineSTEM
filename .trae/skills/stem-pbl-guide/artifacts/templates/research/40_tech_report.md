@@ -11,6 +11,16 @@
 - 模块：{modules}
 - 数据/信号流：{flow_one_liner}
 
+## 1.1 流程说明（必填）
+- 主流程：开始 → … → 结束
+- 异常流程：触发条件 → 降级/回退 → 用户提示
+
+## 1.2 ER 图与数据结构（必填）
+- ER 图路径：`docs/research/assets/charts/{YYYY-MM-DD}_er_diagram.png`（若无图片可先放文本图）
+- 结构说明：
+  - 实体A：
+  - 实体B：
+
 ## 2. 里程碑与步骤（来自 step_plan）
 - 里程碑：
   - M1：{demo}
@@ -42,3 +52,4 @@
 ## 7. 产物索引
 - 关键文件：{src_paths}
 - 证据目录：`docs/research/assets/`
+- UI 截图索引：`docs/research/assets/screenshots/`
