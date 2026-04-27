@@ -1,0 +1,22 @@
+{
+  "agent_stream": {
+    "enabled": true,
+    "rollout_percent": 100
+  },
+  "agent_ws": {
+    "enabled": true,
+    "rollout_percent": 100
+  },
+  "skill_sandbox": {
+    "enabled": true,
+    "rollout_percent": 100
+  },
+  "provider_fallback": {
+    "enabled": true,
+    "rollout_percent": 100
+  },
+  "metrics_persistence": {
+    "enabled": true,
+    "rollout_percent": 100
+  }
+}

@@ -1,0 +1,16 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-gray-50 text-gray-700;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+  }
+}
+
+@layer components {
+  .container-default {
+    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+  }
+}

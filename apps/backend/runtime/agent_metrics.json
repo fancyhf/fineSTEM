@@ -1,0 +1,8 @@
+{
+  "total_requests": 1,
+  "success_requests": 1,
+  "error_requests": 0,
+  "latency_ms": [
+    5386
+  ]
+}

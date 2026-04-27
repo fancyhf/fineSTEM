@@ -1,0 +1,438 @@
+import {
+  ApiResponse,
+  PaginationResult,
+  UserResponse,
+  UserCreate,
+  UserUpdate,
+  AuthResponse,
+  Demo,
+  ForkTemplate,
+  DemoListQuery,
+  Project,
+  ProjectCreate,
+  ProjectUpdate,
+  ProjectProgress,
+  ProjectUpgrade,
+  LightProjectStep1Data,
+  LightProjectStep2Data,
+  LightProjectStep3Data,
+  StandardProjectStepData,
+  AchievementCard,
+  AchievementCardCreate,
+  AchievementCardUpdate,
+  ShareTokenResponse,
+  SubmitPublicRequest,
+  AchievementRecommendation,
+  Evidence,
+  EvidenceCreate,
+  EvidenceUpdate,
+  AutoEvidenceCollectRequest,
+  SkillManifest,
+  SkillRecord,
+  SkillInstallRequest,
+  AgentChatRequest,
+  AgentChatResponse,
+  HongKongMacaoPlan,
+  InternationalPlan,
+  ProfileEnhancementPlan,
+  KnowledgeSource,
+  QuestionnaireTemplate,
+  QuestionnaireResponse,
+  AssistantDialogueSession,
+  AssistantDialogueMessage,
+  AssistantDialogueChatResponse,
+  AuditLogItem,
+  Course,
+  CourseCreate,
+  CapabilityTagSuggestion,
+} from '../types';
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
+
+// 认证 Token 管理
+const TOKEN_KEY = 'auth_token';
+const USER_KEY = 'auth_user';
+
+export const authStorage = {
+  getToken: () => localStorage.getItem(TOKEN_KEY),
+  setToken: (token: string) => localStorage.setItem(TOKEN_KEY, token),
+  removeToken: () => localStorage.removeItem(TOKEN_KEY),
+  getUser: (): UserResponse | null => {
+    const userStr = localStorage.getItem(USER_KEY);
+    return userStr ? JSON.parse(userStr) : null;
+  },
+  setUser: (user: UserResponse) => localStorage.setItem(USER_KEY, JSON.stringify(user)),
+  removeUser: () => localStorage.removeItem(USER_KEY),
+  clear: () => {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
+  },
+};
+
+async function request<T>(
+  endpoint: string,
+  options: RequestInit = {}
+): Promise<ApiResponse<T>> {
+  const url = `${API_BASE_URL}${endpoint}`;
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  if (options.headers && !Array.isArray(options.headers)) {
+    Object.assign(headers, options.headers as Record<string, string>);
+  }
+
+  // 添加认证 Token
+  const token = authStorage.getToken();
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const response = await fetch(url, {
+    ...options,
+    headers,
+  });
+
+  const result = await response.json();
+  
+  // 处理 401 未认证
+  if (response.status === 401) {
+    authStorage.clear();
+    window.location.href = '/login';
+  }
+
+  return result;
+}
+
+async function requestText(
+  endpoint: string,
+  options: RequestInit = {}
+): Promise<string> {
+  const url = `${API_BASE_URL}${endpoint}`;
+  const headers: Record<string, string> = {};
+  if (options.headers && !Array.isArray(options.headers)) {
+    Object.assign(headers, options.headers as Record<string, string>);
+  }
+  const token = authStorage.getToken();
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const response = await fetch(url, {
+    ...options,
+    headers,
+  });
+
+  if (response.status === 401) {
+    authStorage.clear();
+    window.location.href = '/login';
+    return '';
+  }
+
+  if (!response.ok) {
+    throw new Error('请求失败');
+  }
+
+  return response.text();
+}
+
+async function requestBlob(
+  endpoint: string,
+  options: RequestInit = {}
+): Promise<{ blob: Blob; fileName?: string }> {
+  const url = `${API_BASE_URL}${endpoint}`;
+  const headers: Record<string, string> = {};
+  if (options.headers && !Array.isArray(options.headers)) {
+    Object.assign(headers, options.headers as Record<string, string>);
+  }
+  const token = authStorage.getToken();
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  const response = await fetch(url, { ...options, headers });
+  if (response.status === 401) {
+    authStorage.clear();
+    window.location.href = '/login';
+  }
+  if (!response.ok) {
+    throw new Error('文件下载失败');
+  }
+  const disposition = response.headers.get('Content-Disposition') || '';
+  const match = disposition.match(/filename="?([^"]+)"?/);
+  return { blob: await response.blob(), fileName: match?.[1] };
+}
+
+export const api = {
+  get: <T>(endpoint: string) => request<T>(endpoint, { method: 'GET' }),
+  post: <T>(endpoint: string, body: unknown) =>
+    request<T>(endpoint, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  patch: <T>(endpoint: string, body: unknown) =>
+    request<T>(endpoint, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  delete: <T>(endpoint: string) => request<T>(endpoint, { method: 'DELETE' }),
+  postForm: <T>(endpoint: string, formData: FormData) => {
+    const token = authStorage.getToken();
+    return fetch(`${API_BASE_URL}${endpoint}`, {
+      method: 'POST',
+      body: formData,
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+    }).then(res => res.json() as Promise<ApiResponse<T>>);
+  }
+};
+
+// 认证 API
+export const authApi = {
+  register: (data: UserCreate) => api.post<AuthResponse>('/auth/register', data),
+  lightRegister: (name = '同学') => api.post<AuthResponse>('/auth/light-register', { name }),
+  login: (email: string, password: string) => {
+    const formData = new URLSearchParams();
+    formData.append('username', email);
+    formData.append('password', password);
+    return fetch(`${API_BASE_URL}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: formData,
+    }).then(res => res.json() as Promise<ApiResponse<AuthResponse>>);
+  },
+  getMe: () => api.get<UserResponse>('/auth/me'),
+  updateMe: (data: UserUpdate) => api.patch<UserResponse>('/auth/me', data),
+};
+
+// Demo API
+export const demosApi = {
+  list: (query?: DemoListQuery) => {
+    const params = new URLSearchParams();
+    if (query) {
+      Object.entries(query).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          params.append(key, String(value));
+        }
+      });
+    }
+    const queryString = params.toString();
+    return api.get<PaginationResult<Demo>>(`/demos${queryString ? `?${queryString}` : ''}`);
+  },
+  get: (id: string) => api.get<Demo>(`/demos/${id}`),
+  useAsTemplate: (id: string) => api.get<{ demo_id: string; name: string; description: string; tech_stack: string[]; difficulty: string; subjects: string[]; display_mode: string }>(`/demos/${id}/use-project`),
+  getBreakdown: (id: string) =>
+    api.get<{ demo_id: string; project_breakdown: string; minimal_replica?: string }>(`/demos/${id}/breakdown`),
+  getForkTemplate: (id: string) =>
+    api.get<ForkTemplate>(`/demos/${id}/fork-template`),
+};
+
+// Project API
+export const projectsApi = {
+  create: (data: ProjectCreate) => api.post<Project>('/projects', data),
+  list: (params?: { page?: number; page_size?: number; mode?: string; stage?: string }) => {
+    const query = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value) query.append(key, String(value));
+      });
+    }
+    return api.get<PaginationResult<Project>>(`/projects${query.toString() ? `?${query.toString()}` : ''}`);
+  },
+  get: (id: string) => api.get<Project>(`/projects/${id}`),
+  getProgress: (id: string) => api.get<ProjectProgress>(`/projects/${id}/progress`),
+  update: (id: string, data: ProjectUpdate) => api.patch<Project>(`/projects/${id}`, data),
+  delete: (id: string) => api.delete<void>(`/projects/${id}`),
+  advanceStage: (id: string) => api.post<ProjectProgress>(`/projects/${id}/advance`, {}),
+  // 轻量项目步骤
+  saveLightStep1: (id: string, data: LightProjectStep1Data) =>
+    api.post<ProjectProgress>(`/projects/${id}/progress/light/step1`, data),
+  saveLightStep2: (id: string, data: LightProjectStep2Data) =>
+    api.post<ProjectProgress>(`/projects/${id}/progress/light/step2`, data),
+  saveLightStep3: (id: string, data: LightProjectStep3Data) =>
+    api.post<ProjectProgress>(`/projects/${id}/progress/light/step3`, data),
+  // 标准项目步骤
+  saveStandardStep: (id: string, step: number, data: StandardProjectStepData) =>
+    api.post<ProjectProgress>(`/projects/${id}/progress/standard/${step}`, data),
+  // 升级项目
+  upgrade: (id: string, data: ProjectUpgrade) =>
+    api.post<Project>(`/projects/${id}/upgrade`, data),
+  export: (id: string, format: 'json' | 'md' = 'md') =>
+    requestText(`/projects/${id}/export?format=${format}`, { method: 'GET' }),
+  exportFile: (id: string, format: 'json' | 'md' | 'zip' | 'pdf' | 'docx') =>
+    requestBlob(`/projects/${id}/export?format=${format}`, { method: 'GET' }),
+};
+
+// 成就卡片 API
+export const achievementCardsApi = {
+  create: (projectId: string, data: AchievementCardCreate) =>
+    api.post<AchievementCard>(`/achievement-cards/projects/${projectId}`, data),
+  getByProject: (projectId: string) =>
+    api.get<AchievementCard>(`/achievement-cards/projects/${projectId}`),
+  update: (id: string, data: AchievementCardUpdate) =>
+    api.patch<AchievementCard>(`/achievement-cards/${id}`, data),
+  createShareLink: (id: string) =>
+    api.post<ShareTokenResponse>(`/achievement-cards/${id}/share`, {}),
+  getShared: (token: string) =>
+    api.get<AchievementCard>(`/achievement-cards/share/${token}`),
+  submitPublic: (id: string, data: SubmitPublicRequest = { submit_public: true }) =>
+    api.post<AchievementCard>(`/achievement-cards/${id}/submit-public`, data),
+  withdrawPublic: (id: string) =>
+    api.post<AchievementCard>(`/achievement-cards/${id}/withdraw-public`, {}),
+  forkProjectFromCard: (id: string) =>
+    api.post<Project>(`/achievement-cards/${id}/fork-project`, {}),
+  recommendations: (id: string) =>
+    api.get<AchievementRecommendation[]>(`/achievement-cards/${id}/recommendations`),
+  listPublic: (params?: { page?: number; page_size?: number; capability_tag?: string; project_mode?: string; sort_by?: string }) => {
+    const query = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value) query.append(key, String(value));
+      });
+    }
+    return api.get<PaginationResult<AchievementCard>>(`/achievement-cards/inspiration-wall${query.toString() ? `?${query.toString()}` : ''}`);
+  },
+};
+
+// 证据 API
+export const evidenceApi = {
+  create: (projectId: string, data: EvidenceCreate) =>
+    api.post<Evidence>(`/evidence/projects/${projectId}`, data),
+  list: (projectId: string, params?: { page?: number; page_size?: number; type?: string }) => {
+    const query = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value) query.append(key, String(value));
+      });
+    }
+    return api.get<PaginationResult<Evidence>>(`/evidence/projects/${projectId}${query.toString() ? `?${query.toString()}` : ''}`);
+  },
+  get: (id: string) => api.get<Evidence>(`/evidence/${id}`),
+  update: (id: string, data: EvidenceUpdate) =>
+    api.patch<Evidence>(`/evidence/${id}`, data),
+  autoCollect: (projectId: string, data: AutoEvidenceCollectRequest) =>
+    api.post<Evidence>(`/evidence/projects/${projectId}/auto-collect`, data),
+  uploadScreenshot: (projectId: string, file: File, relatedStep?: string) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (relatedStep) formData.append('related_step', relatedStep);
+    return api.postForm<Evidence>(`/evidence/projects/${projectId}/screenshots`, formData);
+  },
+};
+
+// Skill API
+export const skillsApi = {
+  marketplace: () => api.get<SkillManifest[]>('/skills/marketplace'),
+  listInstalled: () => api.get<SkillRecord[]>('/skills'),
+  install: (data: SkillInstallRequest) => api.post<SkillRecord>('/skills/install', data),
+  toggle: (skillId: string, enabled: boolean) =>
+    api.post<SkillRecord>(`/skills/${skillId}/toggle`, { enabled }),
+  uninstall: (skillId: string) => api.delete<boolean>(`/skills/${skillId}`),
+};
+
+// Agent API
+export const agentApi = {
+  chat: (data: AgentChatRequest) => api.post<AgentChatResponse>('/agent/chat', data),
+  streamUrl: (message: string, projectId?: string) => {
+    const query = new URLSearchParams({ message });
+    if (projectId) query.append('project_id', projectId);
+    return `${API_BASE_URL}/agent/stream?${query.toString()}`;
+  },
+  metrics: () => api.get<Record<string, number>>('/agent/metrics'),
+};
+
+export const hongkongMacaoApi = {
+  list: () => api.get<HongKongMacaoPlan[]>('/hongkong-macao/plans'),
+  create: (data: {
+    student_name: string;
+    grade: string;
+    target_track: 'hk' | 'macao' | 'both';
+    timeline: string;
+    requirement_summary: string;
+    status: 'draft' | 'active' | 'completed';
+  }) => api.post<HongKongMacaoPlan>('/hongkong-macao/plans', data),
+};
+
+export const internationalAdmissionsApi = {
+  list: () => api.get<InternationalPlan[]>('/international-admissions/plans'),
+  create: (data: {
+    student_name: string;
+    grade: string;
+    target_country: string;
+    target_school_level: string;
+    timeline: string;
+    requirement_summary: string;
+    status: 'draft' | 'active' | 'completed';
+  }) => api.post<InternationalPlan>('/international-admissions/plans', data),
+};
+
+export const profileEnhancementApi = {
+  list: () => api.get<ProfileEnhancementPlan[]>('/profile-enhancement/plans'),
+  create: (data: {
+    student_name: string;
+    objective: string;
+    activities: string[];
+    evidence_targets: string[];
+    status: 'draft' | 'active' | 'completed';
+  }) => api.post<ProfileEnhancementPlan>('/profile-enhancement/plans', data),
+};
+
+export const knowledgeSourcesApi = {
+  list: () => api.get<KnowledgeSource[]>('/knowledge-sources'),
+  create: (data: {
+    title: string;
+    source_type: 'article' | 'official' | 'report' | 'video' | 'other';
+    url: string;
+    summary: string;
+    tags: string[];
+    reliability_score: number;
+  }) => api.post<KnowledgeSource>('/knowledge-sources', data),
+};
+
+export const questionnaireEngineApi = {
+  listTemplates: () => api.get<QuestionnaireTemplate[]>('/questionnaire-engine/templates'),
+  createTemplate: (data: {
+    name: string;
+    description: string;
+    questions: Array<{
+      id: string;
+      text: string;
+      question_type: 'single_choice' | 'multi_choice' | 'text';
+      required: boolean;
+      options: string[];
+    }>;
+  }) => api.post<QuestionnaireTemplate>('/questionnaire-engine/templates', data),
+  submitResponse: (data: {
+    template_id: string;
+    respondent_name: string;
+    answers: Record<string, string | string[]>;
+  }) => api.post<QuestionnaireResponse>('/questionnaire-engine/responses', data),
+};
+
+export const assistantDialoguesApi = {
+  listSessions: () => api.get<AssistantDialogueSession[]>('/assistant-dialogues/sessions'),
+  createSession: (title: string) => api.post<AssistantDialogueSession>(`/assistant-dialogues/sessions?title=${encodeURIComponent(title)}`, {}),
+  listMessages: (sessionId: string) => api.get<AssistantDialogueMessage[]>(`/assistant-dialogues/sessions/${sessionId}/messages`),
+  chat: (data: { session_id?: string; message: string; project_id?: string; enable_tools?: boolean }) =>
+    api.post<AssistantDialogueChatResponse>('/assistant-dialogues/chat', data),
+};
+
+export const auditLogsApi = {
+  list: (module?: string) => api.get<AuditLogItem[]>(`/audit-logs${module ? `?module=${encodeURIComponent(module)}` : ''}`),
+};
+
+export const documentsApi = {
+  generate: (
+    projectId: string,
+    documentType: 'proposal' | 'technical' | 'final',
+    format: 'md' | 'json' | 'pdf' | 'docx',
+  ) => requestBlob(`/documents/projects/${projectId}/generate?document_type=${documentType}&format=${format}`, { method: 'GET' }),
+};
+
+export const courseLibraryApi = {
+  listCourses: () => api.get<Course[]>('/course-library/courses'),
+  createCourse: (data: CourseCreate) => api.post<Course>('/course-library/courses', data),
+};
+
+export const capabilityTagsApi = {
+  recommend: (projectId: string) => api.get<CapabilityTagSuggestion>(`/capability-tags/projects/${projectId}/recommend`),
+  apply: (projectId: string, tags: string[]) => api.post<string[]>(`/capability-tags/projects/${projectId}/apply`, { tags }),
+  get: (projectId: string) => api.get<string[]>(`/capability-tags/projects/${projectId}`),
+};
