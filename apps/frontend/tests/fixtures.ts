@@ -8,7 +8,10 @@
 
 import { test as base, expect, Page } from '@playwright/test';
 
-const API_BASE = process.env.E2E_API_URL || 'http://localhost:8000/api/v1';
+const API_BASE = process.env.E2E_API_URL;
+if (!API_BASE) {
+  throw new Error('E2E_API_URL 环境变量未设置，请通过 E2E_API_URL=http://localhost:<PORT>/api/v1 指定后端地址');
+}
 
 interface TestUser {
   email: string;

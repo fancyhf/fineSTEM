@@ -10,7 +10,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from app.core.config import settings
-from app.api import demos, projects, auth, achievement_cards, evidence, chat, skills, agent, documents, files, courses
+from app.api import demos, projects, auth, achievement_cards, evidence, chat, skills, agent, documents, files, courses, code_execution
 import os
 
 app = FastAPI(
@@ -39,6 +39,7 @@ app.include_router(agent.router, prefix=API_PREFIX)
 app.include_router(documents.router, prefix=API_PREFIX)
 app.include_router(files.router, prefix=API_PREFIX)
 app.include_router(courses.router, prefix=API_PREFIX)
+app.include_router(code_execution.router, prefix=API_PREFIX)
 
 DEMOS_STATIC_DIR = os.environ.get("DEMOS_STATIC_DIR", r"D:\data\finestem\demos")
 if os.path.isdir(DEMOS_STATIC_DIR):
@@ -47,11 +48,6 @@ if os.path.isdir(DEMOS_STATIC_DIR):
 
 @app.get("/")
 async def root():
-    """
-    根路径接口，返回应用基本信息
-
-    返回：应用名称、版本、欢迎消息、文档链接
-    """
     return {
         "name": settings.APP_NAME,
         "version": settings.APP_VERSION,
@@ -62,11 +58,6 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    """
-    健康检查接口，用于监控服务状态
-
-    返回：健康状态
-    """
     return {"status": "healthy"}
 
 

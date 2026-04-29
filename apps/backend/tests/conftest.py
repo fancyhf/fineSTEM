@@ -31,15 +31,6 @@ from app.db.models import (
     CourseModel,
     ProjectCapabilityTagModel,
     SkillRecordModel,
-    HongKongMacaoPlanModel,
-    InternationalPlanModel,
-    ProfileEnhancementPlanModel,
-    KnowledgeSourceModel,
-    QuestionnaireTemplateModel,
-    QuestionnaireResponseModel,
-    DialogueSessionModel,
-    DialogueMessageModel,
-    AuditLogModel,
 )
 from main import app
 
@@ -105,8 +96,6 @@ def client() -> Generator:
     ev_mod.db = test_db
     from app.api import skills as skills_mod
     skills_mod.db = test_db
-    from app.api import course_library as cl_mod
-    cl_mod.db = test_db
 
     with TestClient(app) as c:
         yield c

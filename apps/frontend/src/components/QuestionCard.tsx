@@ -1,0 +1,211 @@
+import React, { useState } from 'react';
+import { MessageSquare, X, ChevronLeft, ChevronRight } from 'lucide-react';
+
+export interface QuestionOption {
+  id: string;
+  label: string;
+  description?: string;
+  recommended?: boolean;
+}
+
+export interface QuestionData {
+  id: string;
+  title: string;
+  subtitle?: string;
+  options: QuestionOption[];
+  multiple?: boolean;
+  allowCustom?: boolean;
+  step?: number;
+  totalSteps?: number;
+}
+
+interface QuestionCardProps {
+  data: QuestionData;
+  onAnswer: (selectedIds: string[], customText?: string) => void;
+  onCancel?: () => void;
+  onDismiss?: () => void;
+}
+
+export const QuestionCard: React.FC<QuestionCardProps> = ({
+  data,
+  onAnswer,
+  onCancel,
+  onDismiss,
+}) => {
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [customText, setCustomText] = useState('');
+  const [showCustomInput, setShowCustomInput] = useState(false);
+
+  const isMultiple = data.multiple ?? false;
+
+  const toggleOption = (optionId: string) => {
+    if (isMultiple) {
+      setSelectedIds(prev =>
+        prev.includes(optionId)
+          ? prev.filter(id => id !== optionId)
+          : [...prev, optionId]
+      );
+    } else {
+      setSelectedIds([optionId]);
+    }
+  };
+
+  const handleSubmit = () => {
+    if (selectedIds.length === 0 && !customText.trim()) return;
+    onAnswer(selectedIds, customText.trim() || undefined);
+  };
+
+  const selectedLabels = selectedIds
+    .map(id => data.options.find(o => o.id === id)?.label || '')
+    .filter(Boolean);
+
+  return (
+    <div className="my-3 rounded-xl border border-teal-200 bg-gradient-to-br from-white to-teal-50/30 overflow-hidden shadow-sm">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-2.5 bg-teal-50/80 border-b border-teal-100">
+        <div className="flex items-center gap-2">
+          <MessageSquare className="w-4 h-4 text-teal-600" />
+          <span className="text-xs font-semibold text-teal-700">提问</span>
+        </div>
+        {onDismiss && (
+          <button
+            onClick={onDismiss}
+            className="p-0.5 hover:bg-teal-100 rounded text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
+
+      {/* Body */}
+      <div className="px-4 py-3">
+        {data.subtitle && (
+          <p className="text-[11px] text-gray-400 mb-1.5">{data.subtitle}</p>
+        )}
+        <p className="text-sm text-gray-800 leading-relaxed mb-3">{data.title}</p>
+
+        {/* Options */}
+        <div className="space-y-1.5">
+          {data.options.map((option) => {
+            const isSelected = selectedIds.includes(option.id);
+            return (
+              <button
+                key={option.id}
+                onClick={() => toggleOption(option.id)}
+                className={`w-full text-left px-3 py-2.5 rounded-lg border transition-all group ${
+                  isSelected
+                    ? 'border-teal-300 bg-teal-50 shadow-sm'
+                    : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'
+                }`}
+              >
+                <div className="flex items-start gap-2.5">
+                  {/* Radio / Checkbox */}
+                  <div className={`mt-0.5 flex-shrink-0 w-4 h-4 rounded-full border-2 flex items-center justify-center transition-colors ${
+                    isSelected
+                      ? 'border-teal-500 bg-teal-500'
+                      : 'border-gray-300 group-hover:border-gray-400'
+                  }`}>
+                    {isSelected && (
+                      <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className={`text-xs font-medium ${
+                      isSelected ? 'text-teal-800' : 'text-gray-700'
+                    }`}>
+                      {option.label}
+                      {option.recommended && (
+                        <span className="ml-1.5 px-1.5 py-0.5 text-[10px] font-normal bg-amber-50 text-amber-600 rounded border border-amber-200">
+                          推荐
+                        </span>
+                      )}
+                    </div>
+                    {option.description && (
+                      <p className="text-[11px] text-gray-400 mt-0.5 leading-relaxed">{option.description}</p>
+                    )}
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+
+          {/* Other / Custom option */}
+          {(data.allowCustom !== false) && (
+            <>
+              {!showCustomInput ? (
+                <button
+                  onClick={() => setShowCustomInput(true)}
+                  className={`w-full text-left px-3 py-2.5 rounded-lg border transition-all ${
+                    showCustomInput
+                      ? 'border-teal-300 bg-teal-50'
+                      : 'border-gray-200 bg-white hover:border-gray-300'
+                  }`}
+                >
+                  <div className="flex items-start gap-2.5">
+                    <div className="mt-0.5 w-4 h-4 rounded-full border-2 border-gray-300 flex-shrink-0" />
+                    <span className="text-xs text-gray-500">其他</span>
+                  </div>
+                </button>
+              ) : (
+                <div className="px-3 py-2 rounded-lg border border-teal-300 bg-teal-50">
+                  <textarea
+                    value={customText}
+                    onChange={(e) => setCustomText(e.target.value)}
+                    placeholder="输入你的想法..."
+                    rows={2}
+                    className="w-full text-xs bg-transparent border-0 outline-none resize-none placeholder:text-gray-400"
+                  />
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50/50 border-t border-gray-100">
+        <div className="flex items-center gap-2">
+          {data.step != null && data.totalSteps != null && (
+            <span className="text-[11px] text-gray-400">
+              {data.step} / {data.totalSteps} {data.subtitle || '子选项设计'}
+            </span>
+          )}
+          {selectedLabels.length > 0 && (
+            <span className="text-[11px] text-teal-600 font-medium truncate max-w-[140px]">
+              已选: {selectedLabels.join(', ')}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          {onCancel && (
+            <button
+              onClick={onCancel}
+              className="px-3 py-1 text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
+            >
+              取消
+            </button>
+          )}
+          {data.step != null && data.step > 1 && onCancel && (
+            <button
+              onClick={onCancel}
+              className="px-3 py-1 text-xs text-gray-600 hover:text-gray-800 bg-white border border-gray-200 rounded hover:bg-gray-50 transition-colors flex items-center gap-1"
+            >
+              <ChevronLeft className="w-3 h-3" /> 上一步
+            </button>
+          )}
+          <button
+            onClick={handleSubmit}
+            disabled={selectedIds.length === 0 && !customText.trim()}
+            className="px-3 py-1 text-xs font-medium text-white bg-gray-800 hover:bg-gray-900 disabled:bg-gray-200 disabled:text-gray-400 rounded transition-colors flex items-center gap-1"
+          >
+            {data.step != null && data.totalSteps != null && data.step < data.totalSteps ? (
+              <>下一步 <ChevronRight className="w-3 h-3" /></>
+            ) : (
+              '确定'
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};

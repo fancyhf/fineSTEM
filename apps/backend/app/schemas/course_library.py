@@ -1,41 +1,39 @@
 """
-课程库与能力标签数据模型
+课程库数据模型
 
-用途：课程资源管理与项目能力标签推荐
+用途：课程资源管理
 维护者：AI Agent
+links: .trae/documents/api-specs/v1/spec.json
 """
 
 from datetime import datetime
-from typing import Literal
+from typing import Optional
 
 from pydantic import BaseModel, Field
 
+from app.schemas.common import AuditFields
 
-class CourseBase(BaseModel):
-    title: str = Field(..., min_length=1, max_length=150)
-    summary: str = Field(default="")
-    subject: str = Field(default="")
-    difficulty: Literal["beginner", "intermediate", "advanced"] = "beginner"
+
+class Course(BaseModel):
+    id: Optional[str] = None
+    owner_id: Optional[str] = None
+    title: str
+    summary: str = ""
+    subject: str = ""
+    difficulty: str = "beginner"
     tags: list[str] = Field(default_factory=list)
-    resource_url: str = Field(default="")
-
-
-class CourseCreate(CourseBase):
-    pass
-
-
-class Course(CourseBase):
-    id: str
-    owner_id: str
+    resource_url: str = ""
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
 
-class CapabilityTagSuggestion(BaseModel):
-    project_id: str
+class CourseCreate(BaseModel):
+    title: str
+    summary: str = ""
+    subject: str = ""
+    difficulty: str = "beginner"
     tags: list[str] = Field(default_factory=list)
-    reason: str = Field(default="")
+    resource_url: str = ""
 
 
-class CapabilityTagApplyRequest(BaseModel):
-    tags: list[str] = Field(default_factory=list)
+CourseCreateRequest = CourseCreate

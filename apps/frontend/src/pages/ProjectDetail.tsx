@@ -391,7 +391,7 @@ function ProjectAchievement({
   onCreated: (achievement: AchievementCard) => void;
 }) {
   const [title, setTitle] = useState(project.name);
-  const [oneLiner, setOneLiner] = useState(project.description);
+  const [oneLiner, setOneLiner] = useState(project.description || '');
   const [problemSolved, setProblemSolved] = useState('');
   const [methodUsed, setMethodUsed] = useState('');
   const [reflection, setReflection] = useState('');

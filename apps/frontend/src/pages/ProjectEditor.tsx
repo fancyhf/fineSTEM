@@ -52,7 +52,7 @@ export default function ProjectEditor() {
       if (projectRes.data) {
         setFormData({
           name: projectRes.data.name,
-          description: projectRes.data.description,
+          description: projectRes.data.description || '',
           mode: projectRes.data.mode,
           tech_stack: projectRes.data.tech_stack || [],
           subjects: projectRes.data.subjects || [],

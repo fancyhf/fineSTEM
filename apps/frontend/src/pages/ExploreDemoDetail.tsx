@@ -24,6 +24,14 @@ export default function ExploreDemoDetail() {
   const [forkTemplate, setForkTemplate] = useState<ForkTemplate | null>(null);
   const [activeTab, setActiveTab] = useState<'experience' | 'breakdown' | 'code'>('experience');
   const [selectedTemplateFile, setSelectedTemplateFile] = useState<string>('');
+  const [currentScreenshot, setCurrentScreenshot] = useState(0);
+
+  const getScreenshotUrl = (path: string) => {
+    if (path.startsWith('http')) return path;
+    const baseUrl = import.meta.env.VITE_API_URL || '/api/v1';
+    const origin = baseUrl.startsWith('http') ? new URL(baseUrl).origin : window.location.origin;
+    return `${origin}${path}`;
+  };
 
   const loadDemo = async () => {
     if (!demoId) return;
@@ -204,6 +212,16 @@ export default function ExploreDemoDetail() {
                 <CardTitle className="text-3xl">{demo.name}</CardTitle>
               </CardHeader>
               <CardContent>
+                {demo.screenshots && demo.screenshots.length > 0 && (
+                  <div className="mb-6 rounded-lg overflow-hidden border border-gray-200 bg-white">
+                    <img
+                      src={getScreenshotUrl(demo.screenshots[0])}
+                      alt={demo.name}
+                      className="w-full h-auto max-h-[300px] object-cover"
+                      loading="lazy"
+                    />
+                  </div>
+                )}
                 <p className="text-gray-700 text-lg mb-6">{demo.description}</p>
 
                 <div className="mb-6">
@@ -299,6 +317,43 @@ export default function ExploreDemoDetail() {
                           >
                             打开体验窗口
                           </Button>
+                        </div>
+                      ) : demo.screenshots && demo.screenshots.length > 0 ? (
+                        <div className="space-y-3">
+                          <div className="relative w-full bg-white rounded-lg overflow-hidden border border-gray-200" style={{ minHeight: 360 }}>
+                            <img
+                              src={getScreenshotUrl(demo.screenshots[currentScreenshot])}
+                              alt={`${demo.name} 截图 ${currentScreenshot + 1}`}
+                              className="w-full h-auto object-contain"
+                              loading="lazy"
+                            />
+                          </div>
+                          {demo.screenshots!.length > 1 && (
+                            <div className="flex items-center justify-center gap-2">
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                disabled={currentScreenshot === 0}
+                                onClick={() => setCurrentScreenshot(i => Math.max(0, i - 1))}
+                              >
+                                上一张
+                              </Button>
+                              <span className="text-sm text-gray-500">
+                                {currentScreenshot + 1} / {demo.screenshots!.length}
+                              </span>
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                disabled={currentScreenshot === demo.screenshots!.length - 1}
+                                onClick={() => setCurrentScreenshot(i => Math.min(demo.screenshots!.length - 1, i + 1))}
+                              >
+                                下一张
+                              </Button>
+                            </div>
+                          )}
+                          <p className="text-xs text-gray-400 text-center">
+                            {demo.display_mode === 'static' ? '此项目为静态展示，请查看截图了解运行效果' : '项目截图预览'}
+                          </p>
                         </div>
                       ) : (
                         <p className="text-sm text-gray-600">当前 Demo 无在线体验地址，请查看拆解与代码说明。</p>

@@ -4,7 +4,7 @@ import { Card, CardContent, CardFooter, CardTitle } from '../components/ui/Card'
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Badge } from '../components/ui/Badge';
-import { achievementCardsApi, courseLibraryApi, demosApi } from '../services/api';
+import { achievementCardsApi, demosApi, coursesApi } from '../services/api';
 import { AchievementCard, Course, Demo } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { LightRegisterPrompt } from '../components/LightRegisterPrompt';
@@ -31,7 +31,7 @@ export function Explore() {
       setDemos(demoRes.data?.items ?? []);
       setInspirations(inspirationRes.data?.items ?? []);
       if (user) {
-        const courseRes = await courseLibraryApi.listCourses();
+        const courseRes = await coursesApi.listCourses();
         setCourses(courseRes.data ?? []);
       } else {
         setCourses([]);

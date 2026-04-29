@@ -21,10 +21,12 @@ class Settings(BaseSettings):
     APP_VERSION: str = "0.1.0"
     DEBUG: bool = True
     API_V1_STR: str = "/api/v1"
-    
-    # CORS 允许的源地址
-    BACKEND_CORS_ORIGINS: list[str] = [
+    BACKEND_PORT: int = 8001
+
+    CORS_ALLOW_ORIGINS: list[str] = [
         "http://localhost:5173",
+        "http://localhost:5174",
+        "http://localhost:8081",
         "http://localhost:3000",
     ]
     
@@ -42,6 +44,7 @@ class Settings(BaseSettings):
     ZEROCLAW_ENABLE_MOCK_FALLBACK: bool = False
     ZEROCLAW_TIMEOUT_SECONDS: int = 30
     glm_key: Optional[str] = None
+    deepseek_key: Optional[str] = None
     AGENT_SKILL_TIMEOUT_MS: int = 15000
     AGENT_ALLOW_NETWORK_SKILL: bool = False
     AGENT_ALLOWED_FS_PATHS: list[str] = []
@@ -71,10 +74,15 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7
 
     def model_post_init(self, __context) -> None:
+        if not self.ZEROCLAW_API_KEY and self.deepseek_key:
+            self.ZEROCLAW_API_KEY = self.deepseek_key
         if not self.ZEROCLAW_API_KEY and self.glm_key:
             self.ZEROCLAW_API_KEY = self.glm_key
         if not self.ZEROCLAW_GATEWAY_URL and self.ZEROCLAW_API_KEY:
-            self.ZEROCLAW_GATEWAY_URL = "https://open.bigmodel.cn/api/paas/v4"
+            if self.deepseek_key:
+                self.ZEROCLAW_GATEWAY_URL = "https://api.deepseek.com/v1"
+            else:
+                self.ZEROCLAW_GATEWAY_URL = "https://open.bigmodel.cn/api/paas/v4"
 
         insecure_values = {
             "",

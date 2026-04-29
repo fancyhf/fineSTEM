@@ -109,7 +109,7 @@ export interface DemoListQuery {
 // 项目类型
 export interface ProjectBase {
   name: string;
-  description: string;
+  description?: string;
   mode: 'light' | 'standard';
   from_demo_id?: string;
   display_mode?: 'iframe' | 'static' | 'step_by_step' | 'single_page' | 'interactive';
@@ -411,116 +411,4 @@ export interface CapabilityTagSuggestion {
   reason: string;
 }
 
-// 升学与辅导模块类型
-export interface HongKongMacaoPlan {
-  id: string;
-  owner_id: string;
-  student_name: string;
-  grade: string;
-  target_track: 'hk' | 'macao' | 'both';
-  timeline: string;
-  requirement_summary: string;
-  status: 'draft' | 'active' | 'completed';
-  created_at: string;
-  updated_at: string;
-}
 
-export interface InternationalPlan {
-  id: string;
-  owner_id: string;
-  student_name: string;
-  grade: string;
-  target_country: string;
-  target_school_level: string;
-  timeline: string;
-  requirement_summary: string;
-  status: 'draft' | 'active' | 'completed';
-  created_at: string;
-  updated_at: string;
-}
-
-export interface ProfileEnhancementPlan {
-  id: string;
-  owner_id: string;
-  student_name: string;
-  objective: string;
-  activities: string[];
-  evidence_targets: string[];
-  status: 'draft' | 'active' | 'completed';
-  created_at: string;
-  updated_at: string;
-}
-
-export interface KnowledgeSource {
-  id: string;
-  owner_id: string;
-  title: string;
-  source_type: 'article' | 'official' | 'report' | 'video' | 'other';
-  url: string;
-  summary: string;
-  tags: string[];
-  reliability_score: number;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface QuestionnaireQuestion {
-  id: string;
-  text: string;
-  question_type: 'single_choice' | 'multi_choice' | 'text';
-  required: boolean;
-  options: string[];
-}
-
-export interface QuestionnaireTemplate {
-  id: string;
-  owner_id: string;
-  name: string;
-  description: string;
-  questions: QuestionnaireQuestion[];
-  created_at: string;
-  updated_at: string;
-}
-
-export interface QuestionnaireResponse {
-  id: string;
-  template_id: string;
-  respondent_name: string;
-  answers: Record<string, string | string[]>;
-  completion_rate: number;
-  created_at: string;
-}
-
-export interface AssistantDialogueSession {
-  id: string;
-  owner_id: string;
-  title: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface AssistantDialogueMessage {
-  id: string;
-  session_id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  created_at: string;
-}
-
-export interface AssistantDialogueChatResponse {
-  session: AssistantDialogueSession;
-  user_message: AssistantDialogueMessage;
-  assistant_message: AssistantDialogueMessage;
-  trace_id: string;
-  model?: string;
-}
-
-export interface AuditLogItem {
-  id: string;
-  owner_id: string;
-  module: string;
-  action: string;
-  resource_id: string;
-  detail: Record<string, string>;
-  created_at: string;
-}

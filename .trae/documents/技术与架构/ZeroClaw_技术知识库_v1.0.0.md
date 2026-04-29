@@ -1,10 +1,11 @@
 # ZeroClaw 技术知识库（独立版）
 
 ## 文档信息
-- version: `1.0.0`
+- version: `1.1.0`
 - created_at: `2026-04-25 07:41:04.266` (UTC)
+- updated_at: `2026-04-27` (UTC)
 - maintainer: `AI Agent`
-- scope: `通用技术文档（与具体业务项目解耦）`
+- scope: `通用技术文档 + fineSTEM 集成实践`
 
 ## 1. ZeroClaw 是什么
 ZeroClaw 是一个面向 AI 助手系统的基础设施底座，核心特征是可插拔、可替换、可组合。它不等同于某一个模型 SDK，而是位于业务应用与模型供应商之间的中间层，提供统一的网关、编排、能力扩展与治理能力。
@@ -152,5 +153,62 @@ Provider 层统一了模型调用接口，关键价值包括：
 - ZeroClaw 官方站点：<https://www.zeroclaw.dev/>
 - ZeroClaw 中文介绍页：<https://zeroclaw.space/zh/guides/what-is-zeroclaw>
 
-## 15. 变更记录
-- `2026-04-25 07:41:04.266` (UTC): 创建独立版 ZeroClaw 技术知识库文档，覆盖定位、架构、组件、部署、安全与实践建议。
+## 15. fineSTEM 集成实践
+
+### 15.1 当前架构（MVP 阶段）
+
+```text
+前端 → FastAPI (chat API) → AgentOrchestrator → ZeroClawProvider → DeepSeek API
+                                                    ↓ (fallback)
+                                                  智谱 GLM API
+                                                    ↓ (mock)
+                                                  本地回退
+```
+
+当前 MVP 阶段使用 **FastAPI 代理层**模拟 ZeroClaw Gateway 的核心功能：
+- Provider 抽象：DeepSeek（主）+ 智谱 GLM（回退）+ Mock（兜底）
+- 场景化 System Prompt：根据页面/场景自动切换 AI 角色
+- 上下文注入：project_id / current_stage / demo_id / tool_results
+- Skill 调用：项目检查、PBL 引导、Demo 探索、知识检索
+- 流式响应：SSE 透传
+
+### 15.2 场景化 Prompt 体系
+
+| 场景 | System Prompt 重点 |
+|------|-------------------|
+| 问问题 | STEM 知识咨询，类比解释 |
+| 解释代码 | 逐行分析，标注模式，指出问题 |
+| 开始项目 | 推荐模板，评估难度，引导 Fork |
+| 写报告 | 报告结构，证据引用，学术规范 |
+| 探索中心 | Demo 功能介绍，技术栈说明 |
+| 研学流程 | 按阶段指导（脑爆→收敛→设计→编码→展示） |
+
+### 15.3 向原生 ZeroClaw 迁移路线
+
+| 阶段 | 目标 | 依赖 |
+|------|------|------|
+| Phase 1（当前） | FastAPI 代理层 + 场景化 Prompt | DeepSeek/GLM API |
+| Phase 2 | 部署 ZeroClaw Gateway 本地实例 | ZeroClaw 二进制 |
+| Phase 3 | 注册 fineSTEM MCP Server（项目状态/证据/Demo 查询） | MCP 协议 |
+| Phase 4 | 注册 fineSTEM Channel（Webhook → Agent Loop） | Channel trait |
+| Phase 5 | SOP 引擎驱动研学 9 阶段自动推进 | SOP Engine |
+
+### 15.4 ZeroClaw 核心能力与 fineSTEM 对应关系
+
+| ZeroClaw 能力 | fineSTEM 对应 | 当前状态 |
+|--------------|-------------|---------|
+| Provider 抽象 + Fallback | DeepSeek → GLM → Mock | ✅ 已实现 |
+| Agent Loop（对话循环） | chat/stream_chat | ✅ 已实现 |
+| Tools（工具调用） | Skill Runtime | ✅ 已实现 |
+| Memory（对话记忆） | 会话级（前端管理） | 部分实现 |
+| Gateway（HTTP/WS/SSE） | FastAPI 代理层 | ✅ 已实现 |
+| MCP（外部工具协议） | 未接入 | ❌ 待实现 |
+| Channel（消息通道） | 未接入 | ❌ 待实现 |
+| SOP（标准操作流程） | 研学 9 阶段（硬编码） | 部分实现 |
+| Security（安全策略） | 匿名次数限制 | 部分实现 |
+| Tool Receipts（审计） | 审计日志（后端保留） | ✅ 已实现 |
+
+## 16. 变更记录
+
+- `2026-04-27`: 新增 §15 fineSTEM 集成实践，更新版本至 1.1.0
+- `2026-04-25 07:41:04.266` (UTC): 创建独立版 ZeroClaw 技术知识库文档

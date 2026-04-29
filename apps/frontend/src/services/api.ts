@@ -32,16 +32,6 @@ import {
   SkillInstallRequest,
   AgentChatRequest,
   AgentChatResponse,
-  HongKongMacaoPlan,
-  InternationalPlan,
-  ProfileEnhancementPlan,
-  KnowledgeSource,
-  QuestionnaireTemplate,
-  QuestionnaireResponse,
-  AssistantDialogueSession,
-  AssistantDialogueMessage,
-  AssistantDialogueChatResponse,
-  AuditLogItem,
   Course,
   CourseCreate,
   CapabilityTagSuggestion,
@@ -338,86 +328,6 @@ export const agentApi = {
   metrics: () => api.get<Record<string, number>>('/agent/metrics'),
 };
 
-export const hongkongMacaoApi = {
-  list: () => api.get<HongKongMacaoPlan[]>('/hongkong-macao/plans'),
-  create: (data: {
-    student_name: string;
-    grade: string;
-    target_track: 'hk' | 'macao' | 'both';
-    timeline: string;
-    requirement_summary: string;
-    status: 'draft' | 'active' | 'completed';
-  }) => api.post<HongKongMacaoPlan>('/hongkong-macao/plans', data),
-};
-
-export const internationalAdmissionsApi = {
-  list: () => api.get<InternationalPlan[]>('/international-admissions/plans'),
-  create: (data: {
-    student_name: string;
-    grade: string;
-    target_country: string;
-    target_school_level: string;
-    timeline: string;
-    requirement_summary: string;
-    status: 'draft' | 'active' | 'completed';
-  }) => api.post<InternationalPlan>('/international-admissions/plans', data),
-};
-
-export const profileEnhancementApi = {
-  list: () => api.get<ProfileEnhancementPlan[]>('/profile-enhancement/plans'),
-  create: (data: {
-    student_name: string;
-    objective: string;
-    activities: string[];
-    evidence_targets: string[];
-    status: 'draft' | 'active' | 'completed';
-  }) => api.post<ProfileEnhancementPlan>('/profile-enhancement/plans', data),
-};
-
-export const knowledgeSourcesApi = {
-  list: () => api.get<KnowledgeSource[]>('/knowledge-sources'),
-  create: (data: {
-    title: string;
-    source_type: 'article' | 'official' | 'report' | 'video' | 'other';
-    url: string;
-    summary: string;
-    tags: string[];
-    reliability_score: number;
-  }) => api.post<KnowledgeSource>('/knowledge-sources', data),
-};
-
-export const questionnaireEngineApi = {
-  listTemplates: () => api.get<QuestionnaireTemplate[]>('/questionnaire-engine/templates'),
-  createTemplate: (data: {
-    name: string;
-    description: string;
-    questions: Array<{
-      id: string;
-      text: string;
-      question_type: 'single_choice' | 'multi_choice' | 'text';
-      required: boolean;
-      options: string[];
-    }>;
-  }) => api.post<QuestionnaireTemplate>('/questionnaire-engine/templates', data),
-  submitResponse: (data: {
-    template_id: string;
-    respondent_name: string;
-    answers: Record<string, string | string[]>;
-  }) => api.post<QuestionnaireResponse>('/questionnaire-engine/responses', data),
-};
-
-export const assistantDialoguesApi = {
-  listSessions: () => api.get<AssistantDialogueSession[]>('/assistant-dialogues/sessions'),
-  createSession: (title: string) => api.post<AssistantDialogueSession>(`/assistant-dialogues/sessions?title=${encodeURIComponent(title)}`, {}),
-  listMessages: (sessionId: string) => api.get<AssistantDialogueMessage[]>(`/assistant-dialogues/sessions/${sessionId}/messages`),
-  chat: (data: { session_id?: string; message: string; project_id?: string; enable_tools?: boolean }) =>
-    api.post<AssistantDialogueChatResponse>('/assistant-dialogues/chat', data),
-};
-
-export const auditLogsApi = {
-  list: (module?: string) => api.get<AuditLogItem[]>(`/audit-logs${module ? `?module=${encodeURIComponent(module)}` : ''}`),
-};
-
 export const documentsApi = {
   generate: (
     projectId: string,
@@ -426,13 +336,18 @@ export const documentsApi = {
   ) => requestBlob(`/documents/projects/${projectId}/generate?document_type=${documentType}&format=${format}`, { method: 'GET' }),
 };
 
-export const courseLibraryApi = {
-  listCourses: () => api.get<Course[]>('/course-library/courses'),
-  createCourse: (data: CourseCreate) => api.post<Course>('/course-library/courses', data),
-};
-
 export const capabilityTagsApi = {
   recommend: (projectId: string) => api.get<CapabilityTagSuggestion>(`/capability-tags/projects/${projectId}/recommend`),
   apply: (projectId: string, tags: string[]) => api.post<string[]>(`/capability-tags/projects/${projectId}/apply`, { tags }),
   get: (projectId: string) => api.get<string[]>(`/capability-tags/projects/${projectId}`),
+};
+
+export const coursesApi = {
+  listCourses: () => api.get<Course[]>('/courses'),
+  createCourse: (data: CourseCreate) => api.post<Course>('/courses', data),
+};
+
+export const codeExecutionApi = {
+  execute: (code: string, language: string = 'python') =>
+    api.post<{ success: boolean; output: string; error?: string; exit_code?: number }>('/code/execute', { code, language }),
 };

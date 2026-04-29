@@ -62,9 +62,36 @@ export function DemoCard({ demo, onFork }: DemoCardProps) {
     navigate(`/explore/demos/${demo.id}?action=save`);
   };
 
+  const getScreenshotUrl = (path: string) => {
+    if (path.startsWith('http')) return path;
+    const baseUrl = import.meta.env.VITE_API_URL || '/api/v1';
+    const origin = baseUrl.startsWith('http') ? new URL(baseUrl).origin : window.location.origin;
+    return `${origin}${path}`;
+  };
+
+  const coverImage = demo.screenshots && demo.screenshots.length > 0
+    ? getScreenshotUrl(demo.screenshots[0])
+    : null;
+
   return (
     <>
       <Card hoverable className="h-full flex flex-col">
+        {coverImage ? (
+          <div className="w-full h-[180px] overflow-hidden rounded-t-lg bg-gray-100">
+            <img
+              src={coverImage}
+              alt={demo.name}
+              className="w-full h-full object-cover"
+              loading="lazy"
+            />
+          </div>
+        ) : (
+          <div className="w-full h-[180px] bg-gradient-to-br from-teal-50 to-cyan-50 rounded-t-lg flex items-center justify-center">
+            <span className="text-4xl text-teal-300">
+              {demo.display_mode === 'iframe' ? '🎮' : '📸'}
+            </span>
+          </div>
+        )}
         <CardHeader className="pb-2">
         <div className="flex justify-between items-start mb-2">
           <Badge className={getDifficultyColor(demo.difficulty)}>

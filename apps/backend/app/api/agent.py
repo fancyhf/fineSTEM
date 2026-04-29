@@ -121,21 +121,14 @@ async def ws_chat(websocket: WebSocket):
                 project_id=incoming.get("project_id"),
                 session_id=incoming.get("session_id"),
                 stream=True,
+                enable_tools=True,
             )
             try:
-                async for token in agent_orchestrator_service.stream_chat(user_id_str, request):
-                    await websocket.send_json(
-                        {
-                            "event": "token",
-                            "data": {"token": token},
-                        }
-                    )
-                await websocket.send_json(
-                    {
-                        "event": "final",
-                        "data": {"status": "completed"},
-                    }
-                )
+                async for event_type, event_data in agent_orchestrator_service.stream_chat_with_events(user_id_str, request):
+                    await websocket.send_json({
+                        "event": event_type,
+                        "data": event_data,
+                    })
             except Exception as exc:
                 await websocket.send_json(
                     {"event": "error", "message": f"流式对话失败: {exc}"}
