@@ -439,7 +439,7 @@ class SkillLoader:
             skill_file = skill_dir / "SKILL.md"
             loaded = self.load_skill(skill_file)
             if loaded:
-                print(f"[SkillLoader] ✅ 已加载: {loaded.manifest.skill_id} ({loaded.manifest.name})")
+                print(f"[SkillLoader] [OK] 已加载: {loaded.manifest.skill_id} ({loaded.manifest.name})")
         
         return self._cache
     

@@ -258,6 +258,7 @@ export function Create() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
   const messageSeqRef = useRef(0);
+  const handleSendRef = useRef<typeof handleSend>(null! as unknown as typeof handleSend);
 
   useEffect(() => {
     if (user) {
@@ -358,15 +359,11 @@ export function Create() {
       answerText = answerText ? `${answerText}（其他：${customText}）` : customText;
     }
 
-    const userMsg: Message = {
-      id: nextMessageId(),
-      role: 'user',
-      content: `[选择] ${question.title}\n回答：${answerText}`,
-    };
-    setMessages(prev => [...prev, userMsg]);
+    const sendText = `[选择] ${question.title}\n回答：${answerText}`;
     setPendingQuestion(null);
-    setInputValue(answerText);
-    setTimeout(() => handleSend(answerText), 100);
+    setInputValue('');
+    setIsLoading(false);
+    setTimeout(() => handleSendRef.current(sendText), 50);
   }, [pendingQuestion]);
 
   const dismissQuestion = useCallback(() => {
@@ -608,6 +605,7 @@ export function Create() {
       setIsLoading(false);
     }
   };
+  handleSendRef.current = handleSend;
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }

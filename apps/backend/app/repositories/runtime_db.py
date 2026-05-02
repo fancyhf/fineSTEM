@@ -141,11 +141,11 @@ class RepositoryBackedDB:
 
     def list_public_achievement_cards(self, skip=0, limit=100, capability_tag=None, project_mode=None):
         with self._session() as session:
-            return AchievementRepo(session).list_public_achievement_cards(skip=skip, limit=limit, capability_tag=capability_tag, project_mode=project_mode)
+            return AchievementRepo(session).list_public_achievement_cards(skip=skip, limit=limit, capability_tag=capability_tag, mode=project_mode)
 
     def count_public_achievement_cards(self, capability_tag=None, project_mode=None):
         with self._session() as session:
-            return AchievementRepo(session).count_public_achievement_cards(capability_tag=capability_tag, project_mode=project_mode)
+            return AchievementRepo(session).count_public_achievement_cards(capability_tag=capability_tag, mode=project_mode)
 
     def create_achievement_card(self, card):
         with self._session() as session:

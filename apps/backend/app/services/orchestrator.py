@@ -326,12 +326,19 @@ class AgentOrchestratorService:
             # 输出层去重：修复 LLM 重复输出问题（如"好好想法想法"→"好想法"）
             deduped_content = self.deduplicate_repeated_text(full_content)
             if deduped_content != full_content and len(deduped_content) > 0:
-                yield ("content_update", {"content": deduped_content})
                 full_content = deduped_content
 
-            # 在流式输出完成后检测 question 块（关键修复！）
-            if full_content and _contains_question_block(full_content):
-                question_data = _parse_question_block(full_content)
+            # 剥离 question XML 块（内部协议格式，不显示给用户）
+            # 关键：在剥离前先保存原始内容用于解析
+            raw_for_question_parse = full_content
+            clean_content, has_question = self.strip_question_xml(full_content)
+            if clean_content != full_content:
+                yield ("content_update", {"content": clean_content})
+                full_content = clean_content
+
+            # 用原始内容（含XML）解析question事件，发送给前端渲染选项卡
+            if has_question or _contains_question_block(raw_for_question_parse):
+                question_data = _parse_question_block(raw_for_question_parse)
                 if question_data:
                     yield ("question", question_data)
 
@@ -522,19 +529,54 @@ class AgentOrchestratorService:
         
         return text.strip()
 
+    @staticmethod
+    def strip_question_xml(text: str) -> tuple[str, bool]:
+        """
+        剥离 question XML 块，返回 (干净文本, 是否包含question)
+        
+        XML 标签是内部协议格式，不应显示给用户
+        """
+        if not text:
+            return text, False
+        
+        import re
+        
+        has_question = _contains_question_block(text)
+        
+        # 移除 <question>...</question> 整块（包括嵌套的子标签）
+        cleaned = re.sub(
+            r'<question[^>]*>.*?</question>',
+            '',
+            text,
+            flags=re.DOTALL | re.IGNORECASE
+        )
+        
+        # 清理可能残留的多余空行
+        cleaned = re.sub(r'\n{3,}', '\n\n', cleaned)
+        
+        return cleaned.strip(), has_question
+
 
 def _contains_question_block(text: str) -> bool:
     if not text:
         return False
-    markers = ["<question>", "【提问】", "[提问]", "::question::", "{{question}}"]
+    # 支持 <question>、<question type="...">、<question\n 等多种格式
+    markers = ["<question>", "<question ", "<question\n", "【提问】", "[提问]", "::question::", "{{question}}"]
     return any(m in text.lower() for m in markers)
 
 
 def _parse_question_block(text: str) -> dict | None:
     import re
 
+    # 首先尝试直接匹配 <question>...</question>
     pattern = r'<question[^>]*>(.*?)</question>'
     match = re.search(pattern, text, re.DOTALL | re.IGNORECASE)
+    
+    if not match:
+        # 尝试从代码块中提取（AI 有时会把 question 放在 ``` 代码块中）
+        code_block_pattern = r'```(?:xml)?\s*\n?(<question[^>]*>.*?</question>)\s*\n?```'
+        match = re.search(code_block_pattern, text, re.DOTALL | re.IGNORECASE)
+    
     if not match:
         return None
 

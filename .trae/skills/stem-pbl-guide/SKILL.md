@@ -925,45 +925,59 @@ def process_video(video_url):
 **输出**: 目录结构 + `SKILL_STATE.json` + docs 模板
 **通过条件**: 工件文件存在（可 draft）
 
-### 步骤 0.1: 收集基本信息
+### 步骤 0.1: 收集基本信息（多轮选择式问答）
 
-**调用 AskUserQuestion:**
+**重要：必须分 3 轮提问，每轮只输出一个 `<question>` XML 块，等用户选择后再问下一个。如果用户没有提供所有信息，必须继续提问，直到收集完 3 个信息为止。**
 
-```json
-{
-  "questions": [
-    {
-      "question": "🎉 欢迎来到未来科技学院！让我们创建你的AI项目。首先告诉我：",
-      "header": "项目启动",
-      "options": [
-        {"label": "初中（7-9年级）", "description": "我会用更简单易懂的方式引导你"},
-        {"label": "高中（10-12年级）", "description": "我们可以深入探讨技术细节"}
-      ],
-      "multiSelect": false
-    },
-    {
-      "question": "⏱️ 你打算花多长时间完成？",
-      "header": "时间预算",
-      "options": [
-        {"label": "2小时", "description": "做一个超简单的MVP，快速体验"},
-        {"label": "6小时", "description": "做一个完整的小项目"},
-        {"label": "12小时+", "description": "做一个有挑战性的项目"}
-      ],
-      "multiSelect": false
-    },
-    {
-      "question": "💡 你有初步想法了吗？",
-      "header": "初始想法",
-      "options": [
-        {"label": "完全没想法，需要脑爆", "description": "从零开始，一起探索"},
-        {"label": "有个大概方向", "description": "我知道想做什么类型"},
-        {"label": "已经有具体想法", "description": "直接立项开干"}
-      ],
-      "multiSelect": false
-    }
-  ]
-}
-```
+**关键规则（强制）：**
+- 每轮必须等用户选择后再输出下一轮 question
+- **不要跳过任何一轮**，即使你认为已经了解了用户情况
+- **不要一次性输出所有 3 个问题**，必须分步
+- 使用 `step` 和 `total_steps` 属性让用户知道进度
+- 如果用户回答了问题但没有选择选项，继续用 question 提问
+- **`<question>` XML 必须直接输出，不要用代码块包裹（不要加 ```）**
+- 普通文本和 `<question>` XML 可以一起输出
+
+#### 第 1 轮：询问年级（必须问）
+
+当用户说"我想做一个项目"或"帮我选题"时，首先输出：
+
+🎉 欢迎来到未来科技学院！让我们创建你的AI项目。首先告诉我：
+
+<question type="single" title="你现在是哪个年级？" step="1" total_steps="3">
+  <option id="junior" label="初中（7-9年级）">我会用更简单易懂的方式引导你</option>
+  <option id="senior" label="高中（10-12年级）">我们可以深入探讨技术细节</option>
+</question>
+
+**等待用户选择后，根据选择继续第 2 轮。**
+
+#### 第 2 轮：询问时间预算（必须问）
+
+收到年级选择后，**必须**输出第 2 个 question：
+
+好的！接下来告诉我：
+
+<question type="single" title="你打算花多长时间完成？" step="2" total_steps="3">
+  <option id="2h" label="2小时">做一个超简单的MVP，快速体验</option>
+  <option id="6h" label="6小时">做一个完整的小项目</option>
+  <option id="12h" label="12小时+">做一个有挑战性的项目</option>
+</question>
+
+**等待用户选择后，根据选择继续第 3 轮。**
+
+#### 第 3 轮：询问初始想法（必须问）
+
+收到时间选择后，**必须**输出第 3 个 question：
+
+最后一个问题：
+
+<question type="single" title="你有初步想法了吗？" step="3" total_steps="3">
+  <option id="brainstorm" label="完全没想法，需要脑爆">从零开始，一起探索</option>
+  <option id="direction" label="有个大概方向">我知道想做什么类型</option>
+  <option id="idea" label="已经有具体想法">直接立项开干</option>
+</question>
+
+**收到所有 3 个回答后，进入步骤 0.2 创建项目。**
 
 ### 步骤 0.2: 创建项目目录与初始化 SKILL_STATE.json
 

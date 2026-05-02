@@ -3,7 +3,7 @@ import { useCallback } from 'react';
 // 使用环境变量或相对路径，避免硬编码
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '/';
 
-export type EventCategory = 'track_a' | 'track_e' | 'general';
+export type EventCategory = 'general' | 'project' | 'skill' | 'code';
 
 export interface AnalyticsEvent {
   event_name: string;
