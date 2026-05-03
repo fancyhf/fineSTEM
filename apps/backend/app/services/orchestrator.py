@@ -353,7 +353,38 @@ class AgentOrchestratorService:
 
     def _build_system_prompt(self, req: AgentChatRequest, skill_def: Any, sub_skill_id: Optional[str]) -> str:
         if skill_def:
-            return skill_def.get_system_prompt_for_stage(sub_skill_id)
+            prompt = skill_def.get_system_prompt_for_stage(sub_skill_id)
+            # 追加 XML 选项格式指令，确保 AI 在每一轮对话中都输出可解析的 <option> 标签
+            # 此指令追加在系统提示词末尾，优先级最高，AI 必须始终遵守
+            xml_instruction = """
+
+---
+
+## 🔴 关键规则（每次回复都必须遵守）
+
+**当你的回复需要让学生做选择时（包括但不限于：选题方向、年级、时间预算、技术栈、项目类型等），你必须使用以下 XML 格式输出选项。这是唯一的选项输出格式。**
+
+```xml
+<question type="single" title="问题标题">
+<option id="opt_1" label="选项标签">选项描述</option>
+<option id="opt_2" label="选项标签">选项描述</option>
+<option id="opt_other" label="其他">请告诉我具体情况</option>
+</question>
+```
+
+**绝对禁止**：
+- ❌ 禁止用 JSON 格式输出选项
+- ❌ 禁止用 Markdown 列表（`- 选项1`、`1. 选项1`）代替选项
+- ❌ 禁止用纯文字描述选项而不使用上面的 XML 格式
+
+**适用场景（每轮对话都可能需要）**：
+- 第1轮：了解学生背景（年级、经验、时间）
+- 第2轮+：确认具体方向/技术选型/项目范围
+- 任何需要学生做选择的时刻
+
+无论对话进行到第几轮，只要需要选择，就必须用 `<option>` 格式。
+"""
+            return prompt + xml_instruction
 
         from app.services.providers.zeroclaw_provider import build_system_prompt
         return build_system_prompt(req.context or {})
@@ -551,6 +582,14 @@ class AgentOrchestratorService:
             flags=re.DOTALL | re.IGNORECASE
         )
         
+        # 移除裸露的 <option>...</option> 标签（AI 有时不用 question 包裹）
+        cleaned = re.sub(
+            r'<option\s+id=["\'][^"\']*["\'][^>]*>.*?</option>',
+            '',
+            cleaned,
+            flags=re.DOTALL | re.IGNORECASE
+        )
+        
         # 清理可能残留的多余空行
         cleaned = re.sub(r'\n{3,}', '\n\n', cleaned)
         
@@ -560,41 +599,80 @@ class AgentOrchestratorService:
 def _contains_question_block(text: str) -> bool:
     if not text:
         return False
+    import re
     # 支持 <question>、<question type="...">、<question\n 等多种格式
     markers = ["<question>", "<question ", "<question\n", "【提问】", "[提问]", "::question::", "{{question}}"]
-    return any(m in text.lower() for m in markers)
+    if any(m in text.lower() for m in markers):
+        return True
+    # 支持裸露的 <option 标签（AI 有时不用 question 包裹）
+    return bool(re.search(r'<option\s+id=["\']', text, re.IGNORECASE))
 
 
 def _parse_question_block(text: str) -> dict | None:
     import re
+    from datetime import datetime
+
+    raw = None
 
     # 首先尝试直接匹配 <question>...</question>
     pattern = r'<question[^>]*>(.*?)</question>'
     match = re.search(pattern, text, re.DOTALL | re.IGNORECASE)
     
-    if not match:
+    if match:
+        raw = match.group(1).strip()
+        q_tag_match = re.search(r'<question[^>]*title=["\']([^"\']*)["\']', text, re.IGNORECASE)
+        q_title = q_tag_match.group(1).strip() if q_tag_match else None
+    else:
         # 尝试从代码块中提取（AI 有时会把 question 放在 ``` 代码块中）
         code_block_pattern = r'```(?:xml)?\s*\n?(<question[^>]*>.*?</question>)\s*\n?```'
         match = re.search(code_block_pattern, text, re.DOTALL | re.IGNORECASE)
+        if match:
+            raw = match.group(1).strip()
+            q_tag_match = re.search(r'<question[^>]*title=["\']([^"\']*)["\']', text, re.IGNORECASE)
+            q_title = q_tag_match.group(1).strip() if q_tag_match else None
+        else:
+            q_title = None
     
-    if not match:
+    # 如果没有 <question> 包裹，尝试直接从文本中提取裸露的 <option> 标签
+    if not raw and re.search(r'<option\s+id=["\']', text, re.IGNORECASE):
+        raw = text
+
+    if not raw:
         return None
 
-    raw = match.group(1).strip()
-
     title_match = re.search(r'<title>(.*?)</title>', raw, re.DOTALL | re.IGNORECASE)
-    title = title_match.group(1).strip() if title_match else raw.split('\n')[0][:200]
+    if title_match:
+        title = title_match.group(1).strip()
+    elif q_title:
+        title = q_title
+    elif '<option' not in raw.split('\n')[0]:
+        title = raw.split('\n')[0][:200]
+    else:
+        title = "请选择"
 
     options = []
-    opt_pattern = r'<option\s+id=["\']([^"\']*)["\'][^>]*>(.*?)</option>'
+    opt_pattern = r'<option\s+id=["\']([^"\']*)["\'](?:[^>]*?label=["\']([^"\']*)["\'])?[^>]*>(.*?)</option>'
     for om in re.finditer(opt_pattern, raw, re.DOTALL | re.IGNORECASE):
         opt_id = om.group(1).strip()
-        opt_body = om.group(2).strip()
-        label_match = re.search(r'<label>(.*?)</label>', opt_body, re.DOTALL | re.IGNORECASE)
+        attr_label = om.group(2).strip() if om.group(2) else None
+        opt_body = om.group(3).strip()
+        
+        # 支持三种 label 来源优先级: 属性 > 子标签 <label> > 内部文本首行
+        child_label_match = re.search(r'<label>(.*?)</label>', opt_body, re.DOTALL | re.IGNORECASE)
         desc_match = re.search(r'<desc>(.*?)</desc>', opt_body, re.DOTALL | re.IGNORECASE)
+        
+        final_label = attr_label
+        if not final_label:
+            if child_label_match:
+                final_label = child_label_match.group(1).strip()
+            else:
+                # 清理 opt_body 中的 XML 标签，取纯文本首行
+                clean_body = re.sub(r'</?(?:label|desc)[^>]*>', '', opt_body).strip()
+                final_label = clean_body.split('\n')[0][:100]
+        
         options.append({
             "id": opt_id or f"opt-{len(options)}",
-            "label": label_match.group(1).strip() if label_match else opt_body.split('\n')[0][:100],
+            "label": final_label,
             "description": desc_match.group(1).strip() if desc_match else None,
             "recommended": "推荐" in opt_body or "recommended" in opt_body.lower(),
         })

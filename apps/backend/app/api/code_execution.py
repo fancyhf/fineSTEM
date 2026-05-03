@@ -61,6 +61,19 @@ async def execute_code(req: CodeExecuteRequest):
     raise HTTPException(status_code=400, detail=f"不支持的语言: {language}")
 
 
+def _run_subprocess(cmd: list[str], timeout: int) -> tuple[bytes | None, bytes | None, int]:
+    """在线程中同步执行子进程，避免 Windows asyncio subprocess 兼容性问题"""
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            timeout=timeout,
+        )
+        return result.stdout, result.stderr, result.returncode
+    except subprocess.TimeoutExpired as e:
+        return b"", (e.stderr or b""), -1
+
+
 async def _execute_python(code: str, timeout: int = 10) -> ApiResponse:
     """执行 Python 代码"""
     with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False, encoding='utf-8') as f:
@@ -68,40 +81,30 @@ async def _execute_python(code: str, timeout: int = 10) -> ApiResponse:
         temp_path = f.name
     
     try:
-        process = await asyncio.create_subprocess_exec(
-            'python', temp_path,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+        loop = asyncio.get_running_loop()
+        stdout, stderr, exit_code = await loop.run_in_executor(
+            None, _run_subprocess, ['python', temp_path], timeout
         )
         
-        try:
-            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout)
-        except asyncio.TimeoutError:
-            process.kill()
-            await process.wait()
-            return ApiResponse(data=CodeExecuteResponse(
-                success=False,
-                output="",
-                error=f"代码执行超时（{timeout}秒限制）",
-                exit_code=-1,
-            ))
-        
-        output = stdout.decode('utf-8', errors='replace')
+        output = stdout.decode('utf-8', errors='replace') if stdout else ""
         error = stderr.decode('utf-8', errors='replace') if stderr else None
         
-        success = process.returncode == 0
+        success = exit_code == 0
+        
+        if exit_code == -1:
+            error = error or f"代码执行超时（{timeout}秒限制）"
         
         return ApiResponse(data=CodeExecuteResponse(
             success=success,
             output=output,
             error=error if not success else None,
-            exit_code=process.returncode,
+            exit_code=exit_code,
         ))
     
     finally:
         try:
             os.unlink(temp_path)
-        except:
+        except Exception:
             pass
 
 
@@ -112,38 +115,28 @@ async def _execute_javascript(code: str, timeout: int = 10) -> ApiResponse:
         temp_path = f.name
     
     try:
-        process = await asyncio.create_subprocess_exec(
-            'node', temp_path,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+        loop = asyncio.get_running_loop()
+        stdout, stderr, exit_code = await loop.run_in_executor(
+            None, _run_subprocess, ['node', temp_path], timeout
         )
         
-        try:
-            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout)
-        except asyncio.TimeoutError:
-            process.kill()
-            await process.wait()
-            return ApiResponse(data=CodeExecuteResponse(
-                success=False,
-                output="",
-                error=f"代码执行超时（{timeout}秒限制）",
-                exit_code=-1,
-            ))
-        
-        output = stdout.decode('utf-8', errors='replace')
+        output = stdout.decode('utf-8', errors='replace') if stdout else ""
         error = stderr.decode('utf-8', errors='replace') if stderr else None
         
-        success = process.returncode == 0
+        success = exit_code == 0
+        
+        if exit_code == -1:
+            error = error or f"代码执行超时（{timeout}秒限制）"
         
         return ApiResponse(data=CodeExecuteResponse(
             success=success,
             output=output,
             error=error if not success else None,
-            exit_code=process.returncode,
+            exit_code=exit_code,
         ))
     
     finally:
         try:
             os.unlink(temp_path)
-        except:
+        except Exception:
             pass

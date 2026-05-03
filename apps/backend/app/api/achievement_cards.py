@@ -246,11 +246,11 @@ async def get_inspiration_wall(
         skip=skip,
         limit=page_size,
         capability_tag=capability_tag,
-        mode=project_mode,
+        project_mode=project_mode,
     )
     total = db.count_public_achievement_cards(
         capability_tag=capability_tag,
-        mode=project_mode,
+        project_mode=project_mode,
     )
     total_pages = (total + page_size - 1) // page_size
     
