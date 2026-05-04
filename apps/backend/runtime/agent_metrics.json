@@ -1,10 +1,16 @@
 {
-  "total_requests": 3,
-  "success_requests": 3,
+  "total_requests": 9,
+  "success_requests": 9,
   "error_requests": 0,
   "latency_ms": [
     5386,
     1208,
-    4752
+    4752,
+    2847,
+    5549,
+    4266,
+    2832,
+    4066,
+    10061
   ]
 }

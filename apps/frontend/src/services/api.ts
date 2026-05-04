@@ -82,8 +82,17 @@ async function request<T>(
     headers,
   });
 
-  const result = await response.json();
-  
+  let result: any;
+  const contentType = response.headers.get('content-type') || '';
+  if (contentType.includes('application/json')) {
+    result = await response.json();
+  } else {
+    const text = await response.text();
+    try { result = JSON.parse(text); } catch {
+      result = { success: false, message: text.slice(0, 500), errors: [{ message: `服务器返回非JSON响应(${response.status})` }] };
+    }
+  }
+
   // 处理 401 未认证
   if (response.status === 401) {
     authStorage.clear();
@@ -248,6 +257,11 @@ export const projectsApi = {
     requestText(`/projects/${id}/export?format=${format}`, { method: 'GET' }),
   exportFile: (id: string, format: 'json' | 'md' | 'zip' | 'pdf' | 'docx') =>
     requestBlob(`/projects/${id}/export?format=${format}`, { method: 'GET' }),
+  // 代码持久化
+  saveCode: (id: string, data: { code: string; language?: string; filename?: string }) =>
+    api.post<{ saved: boolean; project_id: string }>(`/projects/${id}/code`, data),
+  getCode: (id: string) =>
+    api.get<{ code: string; language: string; filename?: string; has_code: boolean }>(`/projects/${id}/code`),
 };
 
 // 成就卡片 API

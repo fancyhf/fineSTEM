@@ -241,6 +241,16 @@ class ProjectUpdate(BaseModel):
     """
     name: Optional[str] = None
     mode: Optional[Literal['light', 'standard']] = None
+    initial_data: Optional[Dict[str, Any]] = Field(default=None, description="项目数据（含代码快照等）")
+
+
+class ProjectCodeSave(BaseModel):
+    """
+    项目代码保存请求
+    """
+    code: str = Field(..., description="代码内容")
+    language: str = Field(default="python", description="编程语言")
+    filename: Optional[str] = Field(default=None, description="文件名")
 
 
 class ProjectUpgradeRequest(BaseModel):

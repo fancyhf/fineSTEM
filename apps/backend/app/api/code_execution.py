@@ -68,6 +68,7 @@ def _run_subprocess(cmd: list[str], timeout: int) -> tuple[bytes | None, bytes |
             cmd,
             capture_output=True,
             timeout=timeout,
+            env={**os.environ, 'PYTHONUTF8': '1', 'PYTHONIOENCODING': 'utf-8'},
         )
         return result.stdout, result.stderr, result.returncode
     except subprocess.TimeoutExpired as e:

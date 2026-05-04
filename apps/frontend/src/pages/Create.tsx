@@ -156,6 +156,35 @@ function CodeBlock({ code, language, onWriteToEditor, onRun }: { code: string; l
   );
 }
 
+function parseQuestionFromText(text: string): QuestionData | null {
+  const qMatch = text.match(/<question[^>]*>/);
+  if (!qMatch) return null;
+  const qTagMatch = text.match(/<question[^>]*title=["']([^"']*)["']/);
+  const title = qTagMatch ? qTagMatch[1] : '请选择';
+  const options: { id: string; label: string; description?: string }[] = [];
+  const optRegex = /<option\s+id=["']([^"']*)["'][^>]*?(?:label=["']([^"']*)["'])?[^>]*>(.*?)<\/option>/gs;
+  let optMatch;
+  while ((optMatch = optRegex.exec(text)) !== null) {
+    const optId = optMatch[1];
+    const attrLabel = optMatch[2]?.trim() || '';
+    const rawBody = (optMatch[3] || '').trim();
+    const childLabelMatch = rawBody.match(/<label>([\s\S]*?)<\/label>/i);
+    const descMatch = rawBody.match(/<desc>([\s\S]*?)<\/desc>/i);
+    let finalLabel: string;
+    if (attrLabel) {
+      finalLabel = attrLabel;
+    } else if (childLabelMatch) {
+      finalLabel = childLabelMatch[1].trim().split('\n')[0]?.slice(0, 100) || attrLabel || `选项${options.length + 1}`;
+    } else {
+      finalLabel = rawBody.replace(/<\/?(?:label|desc)[^>]*>/gi, '').trim().split('\n')[0]?.slice(0, 100) || `选项${options.length + 1}`;
+    }
+    const description = descMatch ? descMatch[1].trim().slice(0, 200) : undefined;
+    options.push({ id: optId, label: finalLabel, description });
+  }
+  if (options.length === 0) return null;
+  return { id: `q-fallback-${Date.now()}`, title, options };
+}
+
 function EnhancedMarkdownText({ content, onWriteCode, onRunCode }: { content: string; onWriteCode: (code: string, lang: string) => void; onRunCode: (code: string, lang: string) => void }) {
   const parts: React.ReactNode[] = [];
   const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/g;
@@ -269,6 +298,16 @@ export function Create() {
   useEffect(() => { const q = searchParams.get('q'); if (q && messages.length === 0) handleSend(q); }, [searchParams]);
   useEffect(() => { if (messagesEndRef.current) messagesEndRef.current.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
   useEffect(() => { if (textareaRef.current) { textareaRef.current.style.height = 'auto'; textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 200) + 'px'; } }, [inputValue]);
+
+  const codeSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (!projectContext.projectId || !projectContext.projectId.startsWith('local-')) return;
+    if (codeSaveTimerRef.current) clearTimeout(codeSaveTimerRef.current);
+    codeSaveTimerRef.current = setTimeout(() => {
+      projectsApi.saveCode(projectContext.projectId, { code: editorCode, language: editorLanguage }).catch(() => {});
+    }, 2000);
+    return () => { if (codeSaveTimerRef.current) clearTimeout(codeSaveTimerRef.current); };
+  }, [editorCode, projectContext.projectId, editorLanguage]);
 
   const loadUserProjects = useCallback(async () => {
     try {
@@ -534,9 +573,18 @@ export function Create() {
               }
               return updated;
             });
+            if (!pendingQuestion) {
+              const fallback = parseQuestionFromText(dedupedContent);
+              if (fallback) setPendingQuestion(fallback);
+            }
           },
         },
       );
+
+      if (!pendingQuestion) {
+        const finalFallback = parseQuestionFromText(assistantContent);
+        if (finalFallback) setPendingQuestion(finalFallback);
+      }
 
       const codeResult = extractCodeFromResponse(assistantContent);
       if (codeResult) {
@@ -553,6 +601,10 @@ export function Create() {
               mode: createdProject.mode as 'light' | 'standard',
               currentStage: 'stage_07',
             }));
+            projectsApi.saveCode(createdProject.id, {
+              code: codeResult.code,
+              language: codeResult.language,
+            }).catch(() => {});
           } else {
             setProjectContext(prev => ({
               ...prev,
@@ -673,13 +725,22 @@ export function Create() {
                 ) : (
                   <div className="flex items-center px-2 py-1.5">
                     <div
-                      onClick={() => setProjectContext(prev => ({
-                        ...prev,
-                        projectId: proj.id,
-                        projectName: proj.name,
-                        mode: proj.mode as 'light' | 'standard',
-                        currentStage: proj.current_stage || '',
-                      }))}
+                      onClick={() => {
+                        setProjectContext(prev => ({
+                          ...prev,
+                          projectId: proj.id,
+                          projectName: proj.name,
+                          mode: proj.mode as 'light' | 'standard',
+                          currentStage: proj.current_stage || '',
+                        }));
+                        projectsApi.getCode(proj.id).then(res => {
+                          if (res.data?.has_code) {
+                            handleWriteCodeToEditor(res.data.code, res.data.language);
+                            setShowEditor(true);
+                            setEditorTab('code');
+                          }
+                        }).catch(() => {});
+                      }}
                       className="flex-1 text-left min-w-0 cursor-pointer"
                     >
                       <div className={`text-xs truncate ${projectContext.projectId === proj.id ? 'text-teal-700 font-medium' : 'text-gray-600'}`}>

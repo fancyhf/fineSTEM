@@ -24,6 +24,7 @@ from app.schemas.projects import (
     LightProjectStep3Data,
     LightProjectStepsData,
     StandardProjectStepData,
+    ProjectCodeSave,
 )
 from app.schemas.evidence import Evidence
 from app.schemas.common import ApiResponse, PaginationResult
@@ -199,6 +200,75 @@ async def update_project(
     update_data = project_update.model_dump(exclude_unset=True)
     updated_project = db.update_project(project_id, update_data)
     return ApiResponse(data=updated_project, message="更新成功")
+
+
+@router.post("/{project_id}/code", response_model=ApiResponse[dict])
+async def save_project_code(
+    project_id: str,
+    code_data: ProjectCodeSave,
+    current_user: UserResponse = Depends(get_current_user),
+):
+    """
+    保存项目代码（持久化到数据库，下次打开可恢复）
+    """
+    project = db.get_project(project_id)
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
+    if project.author_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权操作此项目")
+
+    import json as _json
+    initial = {}
+    if project.initial_data:
+        try:
+            initial = project.initial_data if isinstance(project.initial_data, dict) else _json.loads(project.initial_data)
+        except (TypeError, ValueError):
+            initial = {}
+
+    initial['code'] = code_data.code
+    initial['language'] = code_data.language
+    if code_data.filename:
+        initial['filename'] = code_data.filename
+    initial['saved_at'] = __import__('datetime').datetime.utcnow().isoformat()
+
+    updated = db.update_project(project_id, {'initial_data': initial})
+    return ApiResponse(data={'saved': True, 'project_id': project_id}, message="代码已保存")
+
+
+@router.get("/{project_id}/code", response_model=ApiResponse[dict])
+async def get_project_code(
+    project_id: str,
+    current_user: UserResponse = Depends(get_current_user),
+):
+    """
+    获取项目保存的代码
+    """
+    project = db.get_project(project_id)
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
+    if project.author_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权查看此项目")
+
+    import json as _json
+    initial = {}
+    if project.initial_data:
+        try:
+            initial = project.initial_data if isinstance(project.initial_data, dict) else _json.loads(project.initial_data)
+        except (TypeError, ValueError):
+            pass
+
+    code = initial.get('code', '')
+    language = initial.get('language', 'python')
+    filename = initial.get('filename')
+    saved_at = initial.get('saved_at')
+
+    return ApiResponse(data={
+        'code': code,
+        'language': language,
+        'filename': filename,
+        'saved_at': saved_at,
+        'has_code': bool(code),
+    }, message="获取成功")
 
 
 @router.post("/{project_id}/progress/light/step1", response_model=ApiResponse[ProjectProgress])

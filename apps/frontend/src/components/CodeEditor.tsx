@@ -1,5 +1,15 @@
 import React, { useRef, useCallback } from 'react';
-import Editor, { OnMount } from '@monaco-editor/react';
+import Editor, { OnMount, loader } from '@monaco-editor/react';
+import * as monaco from 'monaco-editor';
+
+loader.init().then((monacoInstance) => {
+  monacoInstance.editor.defineTheme('fineSTEM-dark', {
+    base: 'vs-dark',
+    inherit: true,
+    rules: [],
+    colors: { 'editor.background': '#1e1e2e' },
+  });
+});
 
 interface CodeEditorProps {
   code: string;
@@ -14,9 +24,9 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   onChange,
   readOnly = false,
 }) => {
-  const editorRef = useRef<any>(null);
+  const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
 
-  const handleEditorMount: OnMount = (editor, monaco) => {
+  const handleEditorMount: OnMount = (editor) => {
     editorRef.current = editor;
     editor.updateOptions({
       fontSize: 14,
@@ -39,7 +49,16 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
     [onChange]
   );
 
-  const monacoLanguage = language === 'python' ? 'python' : language === 'javascript' ? 'javascript' : language === 'html' ? 'html' : language === 'css' ? 'css' : 'plaintext';
+  const monacoLanguage =
+    language === 'python'
+      ? 'python'
+      : language === 'javascript'
+        ? 'javascript'
+        : language === 'html'
+          ? 'html'
+          : language === 'css'
+            ? 'css'
+            : 'plaintext';
 
   return (
     <div className="h-full w-full">
