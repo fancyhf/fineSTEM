@@ -116,16 +116,40 @@ class RepositoryBackedDB:
             return result
 
     def get_skill_state(self, project_id: str):
-        return memory_db.get_skill_state(project_id)
+        with self._session() as session:
+            return ProjectRepo(session).get_skill_state(project_id)
 
     def create_skill_state(self, skill_state):
-        return memory_db.create_skill_state(skill_state)
+        with self._session() as session:
+            repo = ProjectRepo(session)
+            result = repo.create_skill_state(skill_state)
+            session.commit()
+            return result
 
     def update_skill_state(self, project_id: str, dict_data: dict):
-        return memory_db.update_skill_state(project_id, dict_data)
+        with self._session() as session:
+            repo = ProjectRepo(session)
+            result = repo.update_skill_state(project_id, dict_data)
+            session.commit()
+            return result
 
     def advance_skill_state(self, project_id: str):
-        return memory_db.advance_skill_state(project_id)
+        with self._session() as session:
+            repo = ProjectRepo(session)
+            result = repo.advance_skill_state(project_id)
+            session.commit()
+            return result
+
+    def get_project_workspace(self, project_id: str):
+        with self._session() as session:
+            return ProjectRepo(session).get_project_workspace(project_id)
+
+    def save_project_workspace(self, project_id: str, workspace_data: dict, updated_by: str | None = None):
+        with self._session() as session:
+            repo = ProjectRepo(session)
+            result = repo.save_project_workspace(project_id, workspace_data, updated_by=updated_by)
+            session.commit()
+            return result
 
     def get_achievement_card(self, card_id: str):
         with self._session() as session:
@@ -171,6 +195,10 @@ class RepositoryBackedDB:
     def get_evidence(self, evidence_id: str):
         with self._session() as session:
             return EvidenceRepo(session).get_evidence(evidence_id)
+
+    def list_evidence_by_project(self, project_id: str, skip=0, limit=50):
+        with self._session() as session:
+            return EvidenceRepo(session).list_evidence_by_project(project_id, skip=skip, limit=limit)
 
     def list_evidence(self, project_id: str, skip=0, limit=100, type=None):
         with self._session() as session:
@@ -225,10 +253,15 @@ class RepositoryBackedDB:
             return result
 
     def get_project_capability_tags(self, project_id: str):
-        return memory_db.get_project_capability_tags(project_id)
+        with self._session() as session:
+            return ProjectRepo(session).get_project_capability_tags(project_id)
 
     def set_project_capability_tags(self, project_id: str, tags: list):
-        return memory_db.set_project_capability_tags(project_id, tags)
+        with self._session() as session:
+            repo = ProjectRepo(session)
+            result = repo.set_project_capability_tags(project_id, tags)
+            session.commit()
+            return result
 
 
 db = RepositoryBackedDB()

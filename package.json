@@ -7,7 +7,8 @@
     "dev:backend": "cd apps/backend && uvicorn main:app --reload --port 8001",
     "build:web": "npm run build --workspace=apps/web",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
-    "preview": "npm run preview --workspace=apps/web"
+    "preview": "npm run preview --workspace=apps/web",
+    "test:create-smoke": "python scripts/run_create_smoke.py"
   },
   "workspaces": [
     "apps/*",

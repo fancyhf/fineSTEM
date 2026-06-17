@@ -10,8 +10,34 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from app.core.config import settings
+from app.db.database import Base, engine, SessionLocal
+from app.db.models import UserModel
+from app.api.auth import get_password_hash
 from app.api import demos, projects, auth, achievement_cards, evidence, chat, skills, agent, documents, files, courses, code_execution
 import os
+
+Base.metadata.create_all(bind=engine)
+
+def _ensure_seed_user():
+    session = SessionLocal()
+    try:
+        count = session.query(UserModel).count()
+        if count == 0:
+            demo_user = UserModel(
+                id="demo-user-001",
+                name="演示用户",
+                email="demo@finestem.dev",
+                password=get_password_hash("demo123456"),
+                role="student",
+                level=5,
+                capability_tags='["python", "math", "physics"]',
+            )
+            session.add(demo_user)
+            session.commit()
+    finally:
+        session.close()
+
+_ensure_seed_user()
 
 app = FastAPI(
     title=settings.APP_NAME,

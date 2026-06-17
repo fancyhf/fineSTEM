@@ -4,7 +4,7 @@ import json
 import time
 
 async def test():
-    uri = 'ws://localhost:3000/api/v1/agent/ws'
+    uri = 'ws://localhost:3200/api/v1/agent/ws'
     
     print('=' * 60)
     print('  WebSocket 事件调试测试')

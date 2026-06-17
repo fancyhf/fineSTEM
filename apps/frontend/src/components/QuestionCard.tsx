@@ -17,6 +17,8 @@ export interface QuestionData {
   allowCustom?: boolean;
   step?: number;
   totalSteps?: number;
+  stage?: string;
+  isStageFinal?: boolean;
 }
 
 interface QuestionCardProps {

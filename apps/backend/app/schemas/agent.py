@@ -25,6 +25,7 @@ class AgentChatRequest(BaseModel):
     context: Dict[str, Any] = Field(default_factory=dict)
     project_id: Optional[str] = None
     session_id: Optional[str] = None
+    skill_id: Optional[str] = None
     enable_tools: bool = True
     stream: bool = False
 

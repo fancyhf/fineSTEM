@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/Button';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
-import { ArrowLeft, Download, FileText, Sparkles, Trash2, Award, TrendingUp } from 'lucide-react';
+import { ArrowLeft, Download, FileText, Sparkles, Trash2, Award, TrendingUp, Code } from 'lucide-react';
 import { projectsApi, achievementCardsApi, documentsApi, capabilityTagsApi } from '../services/api';
 import { Project, ProjectProgress, AchievementCard } from '../types';
 import { ProjectStageBar } from '../components/ProjectStageBar';
@@ -132,6 +132,29 @@ export default function ProjectDetail() {
     } finally {
       setUpgrading(false);
     }
+  };
+
+  const handleEnterCodeEditor = async () => {
+    if (!project?.id) return;
+    try {
+      const workspaceRes = await projectsApi.getWorkspace(project.id);
+      const restoreData: Record<string, any> = {
+        projectId: project.id,
+        projectName: project.name,
+        mode: project.mode,
+        currentStage: workspaceRes.data?.progress.current_stage || project.current_stage,
+      };
+      if (workspaceRes.data?.workspace) {
+        restoreData.code = workspaceRes.data.workspace.code;
+        restoreData.language = workspaceRes.data.workspace.language || 'python';
+        restoreData.messages = workspaceRes.data.workspace.chat_messages || [];
+      }
+
+      sessionStorage.setItem('finestem_restore_project', JSON.stringify(restoreData));
+    } catch (err) {
+      console.error('[handleEnterCodeEditor] 恢复数据失败:', err);
+    }
+    navigate('/create');
   };
 
   const getModeColor = (mode: string) => {
@@ -270,6 +293,13 @@ export default function ProjectDetail() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
+                  <Button
+                    className="w-full justify-start bg-blue-600 hover:bg-blue-700"
+                    onClick={handleEnterCodeEditor}
+                  >
+                    <Code className="mr-2 h-4 w-4" />
+                    进入代码编辑器
+                  </Button>
                   {project.mode === 'light' && (
                     <Button
                       className="w-full justify-start bg-purple-600 hover:bg-purple-700"
@@ -314,6 +344,15 @@ export default function ProjectDetail() {
                   >
                     <FileText className="mr-2 h-4 w-4" />
                     导出结题PDF
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    className="w-full justify-start"
+                    onClick={() => void handleExportProject('docx')}
+                    disabled={!!downloading}
+                  >
+                    <FileText className="mr-2 h-4 w-4" />
+                    导出结题DOCX
                   </Button>
                   <Button
                     variant="secondary"

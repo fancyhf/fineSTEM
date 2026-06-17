@@ -1,0 +1,11 @@
+{
+  "timestamp": "2026-05-04 17:11:04",
+  "user": "测试用户",
+  "message": "你好，我想做一个项目！",
+  "assistant": "你好！很高兴你想开始一个 STEM 项目。让我来帮你找到最适合的方向吧！",
+  "context": {
+    "project_id": "test_001",
+    "stage": "开始项目",
+    "language": "python"
+  }
+}

@@ -7,8 +7,8 @@
 
 import { test, expect, Page } from '@playwright/test';
 
-const BASE_URL = 'http://localhost:5173/finestem/create';
-const API_URL = 'http://localhost:3000/api/v1';
+const BASE_URL = 'http://localhost:5284/create';
+const API_URL = 'http://localhost:3200/api/v1';
 
 /** 通过Playwright API轻注册获取测试用户 */
 async function apiLightRegister(request: any): Promise<{ token: string; user: any }> {

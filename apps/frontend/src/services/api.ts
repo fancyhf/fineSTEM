@@ -17,6 +17,7 @@ import {
   LightProjectStep2Data,
   LightProjectStep3Data,
   StandardProjectStepData,
+  ProjectWorkspaceResponse,
   AchievementCard,
   AchievementCardCreate,
   AchievementCardUpdate,
@@ -237,7 +238,10 @@ export const projectsApi = {
   },
   get: (id: string) => api.get<Project>(`/projects/${id}`),
   getProgress: (id: string) => api.get<ProjectProgress>(`/projects/${id}/progress`),
+  getWorkspace: (id: string) => api.get<ProjectWorkspaceResponse>(`/projects/${id}/workspace`),
   update: (id: string, data: ProjectUpdate) => api.patch<Project>(`/projects/${id}`, data),
+  updateTeachingMode: (id: string, teachingMode: 'guided' | 'demo' | 'hands_on' | 'lecture') =>
+    api.post<ProjectProgress>(`/projects/${id}/teaching-mode`, { teaching_mode: teachingMode }),
   delete: (id: string) => api.delete<void>(`/projects/${id}`),
   advanceStage: (id: string) => api.post<ProjectProgress>(`/projects/${id}/advance`, {}),
   // 轻量项目步骤
@@ -259,9 +263,24 @@ export const projectsApi = {
     requestBlob(`/projects/${id}/export?format=${format}`, { method: 'GET' }),
   // 代码持久化
   saveCode: (id: string, data: { code: string; language?: string; filename?: string }) =>
-    api.post<{ saved: boolean; project_id: string }>(`/projects/${id}/code`, data),
+    api.post<{ saved: boolean; project_id: string }>(`/projects/${id}/code`, data).then((res) => {
+      if (!res.data?.saved) {
+        throw new Error(res.message || '代码保存失败');
+      }
+      return res;
+    }),
   getCode: (id: string) =>
     api.get<{ code: string; language: string; filename?: string; has_code: boolean }>(`/projects/${id}/code`),
+  // 聊天记录持久化
+  saveChatHistory: (id: string, data: { messages: any[] }) =>
+    api.post<{ saved: boolean; message_count: number; project_id: string }>(`/projects/${id}/chat`, data).then((res) => {
+      if (!res.data?.saved) {
+        throw new Error(res.message || '聊天记录保存失败');
+      }
+      return res;
+    }),
+  getChatHistory: (id: string) =>
+    api.get<{ messages: any[]; message_count: number; has_messages: boolean; saved_at?: string }>(`/projects/${id}/chat`),
 };
 
 // 成就卡片 API

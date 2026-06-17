@@ -107,7 +107,7 @@ export default function Login() {
         <div className="mt-8 bg-white rounded-xl shadow-sm p-4 text-center">
           <p className="text-sm text-gray-600 mb-2">测试账户</p>
           <p className="text-xs text-gray-500">
-            邮箱：demo@example.com | 密码：demo123
+            邮箱：demo@finestem.dev | 密码：demo123456
           </p>
         </div>
       </div>

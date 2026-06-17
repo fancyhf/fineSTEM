@@ -3,7 +3,7 @@ import websockets
 import json
 
 async def test_ws():
-    uri = 'ws://localhost:3000/api/v1/agent/ws'
+    uri = 'ws://localhost:3200/api/v1/agent/ws'
     try:
         async with websockets.connect(uri, open_timeout=10) as ws:
             print('WebSocket connected')

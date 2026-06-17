@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+import uuid
 
 from app.db.models import EvidenceModel
 from app.repositories.base import BaseRepository
@@ -30,7 +31,7 @@ def _to_schema(model: EvidenceModel) -> Evidence:
 class EvidenceRepo(BaseRepository):
     def create_evidence(self, evidence: Evidence) -> Evidence:
         row = EvidenceModel(
-            id=evidence.id,
+            id=evidence.id or str(uuid.uuid4()),
             project_id=evidence.project_id,
             author_id=evidence.author_id,
             type=evidence.type,
@@ -67,6 +68,31 @@ class EvidenceRepo(BaseRepository):
             .all()
         )
         return [_to_schema(item) for item in rows]
+
+    def list_evidence(
+        self,
+        project_id: str,
+        skip: int = 0,
+        limit: int = 50,
+        type: str | None = None,
+    ) -> list[Evidence]:
+        query = self.db.query(EvidenceModel).filter(
+            EvidenceModel.project_id == project_id,
+            EvidenceModel.is_deleted.is_(False),
+        )
+        if type:
+            query = query.filter(EvidenceModel.type == type)
+        rows = query.order_by(EvidenceModel.created_at.desc()).offset(skip).limit(limit).all()
+        return [_to_schema(item) for item in rows]
+
+    def count_evidence(self, project_id: str, type: str | None = None) -> int:
+        query = self.db.query(EvidenceModel).filter(
+            EvidenceModel.project_id == project_id,
+            EvidenceModel.is_deleted.is_(False),
+        )
+        if type:
+            query = query.filter(EvidenceModel.type == type)
+        return query.count()
 
     def update_evidence(self, evidence_id: str, data: dict) -> Evidence | None:
         row = self.db.get(EvidenceModel, evidence_id)

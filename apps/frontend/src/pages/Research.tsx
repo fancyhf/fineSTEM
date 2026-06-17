@@ -109,6 +109,28 @@ function ProjectCard({ item, completed }: ProjectCardProps) {
   const navigate = useNavigate();
   const progress = completed ? 100 : getProgressByStage(item.current_stage);
 
+  const handleContinue = async () => {
+    try {
+      const workspaceRes = await projectsApi.getWorkspace(item.id);
+      const restoreData: Record<string, unknown> = {
+        projectId: item.id,
+        projectName: item.name,
+        mode: item.mode,
+        currentStage: workspaceRes.data?.progress.current_stage || item.current_stage,
+      };
+      if (workspaceRes.data?.workspace) {
+        restoreData.code = workspaceRes.data.workspace.code;
+        restoreData.language = workspaceRes.data.workspace.language || 'python';
+        restoreData.messages = workspaceRes.data.workspace.chat_messages || [];
+      }
+      sessionStorage.setItem('finestem_restore_project', JSON.stringify(restoreData));
+      navigate('/create');
+    } catch (error) {
+      console.error('[research:continue] 恢复项目失败:', error);
+      navigate(`/research/projects/${item.id}`);
+    }
+  };
+
   return (
     <Card hoverable>
       <CardContent className="p-6">
@@ -140,7 +162,7 @@ function ProjectCard({ item, completed }: ProjectCardProps) {
             </p>
           </div>
           <div className="flex flex-col gap-2 ml-6">
-            <Button onClick={() => navigate(`/research/projects/${item.id}`)}>
+            <Button onClick={() => void handleContinue()}>
               {completed ? '查看' : '继续'}
             </Button>
             {!completed && (

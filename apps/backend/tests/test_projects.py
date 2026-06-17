@@ -7,6 +7,14 @@ links: .trae/documents/testing/
 """
 
 from fastapi.testclient import TestClient
+import pytest
+import asyncio
+import json
+from pathlib import Path
+from app.core.config import settings
+from app.schemas.agent import AgentChatRequest
+from app.services.orchestrator import AgentOrchestratorService
+from app.services.pbl_engine import ARTIFACT_TO_FILENAME
 
 
 class TestProjectCreate:
@@ -86,6 +94,26 @@ class TestProjectUpdate:
         }, headers=auth_headers)
         assert resp.status_code == 200
         assert resp.json()["data"]["name"] == "更新后的项目名"
+
+    def test_update_teaching_mode(self, client: TestClient, auth_headers: dict):
+        create_resp = client.post("/api/v1/projects", json={
+            "name": "教学模式项目",
+            "mode": "standard",
+        }, headers=auth_headers)
+        project_id = create_resp.json()["data"]["id"]
+
+        resp = client.post(
+            f"/api/v1/projects/{project_id}/teaching-mode",
+            json={"teaching_mode": "lecture"},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["data"]["teaching_mode"] == "lecture"
+
+        workspace_resp = client.get(f"/api/v1/projects/{project_id}/workspace", headers=auth_headers)
+        assert workspace_resp.status_code == 200
+        assert workspace_resp.json()["data"]["progress"]["teaching_mode"] == "lecture"
 
 
 class TestProjectDelete:
@@ -215,3 +243,244 @@ class TestProjectExport:
     def test_export_docx(self, client: TestClient, auth_headers: dict, created_project: dict):
         resp = client.get(f"/api/v1/projects/{created_project['id']}/export?format=docx", headers=auth_headers)
         assert resp.status_code == 200
+
+
+class TestTeachingModePrompt:
+    @pytest.mark.parametrize(
+        ("teaching_mode", "headline", "keyword"),
+        [
+            ("guided", "当前教学模式：guided（引导式）", "先做什么 → 学生自己补哪一块"),
+            ("demo", "当前教学模式：demo（演示式）", "完整示例 → 模块拆解"),
+            ("hands_on", "当前教学模式：hands_on（动手式）", "本轮任务 → 验证标准"),
+            ("lecture", "当前教学模式：lecture（讲解式）", "先讲清原理、概念、结构和为什么这样设计"),
+        ],
+    )
+    def test_build_system_prompt_contains_teaching_mode_instruction(
+        self,
+        client: TestClient,
+        auth_headers: dict,
+        teaching_mode: str,
+        headline: str,
+        keyword: str,
+    ):
+        create_resp = client.post("/api/v1/projects", json={
+            "name": "讲解模式项目",
+            "mode": "standard",
+        }, headers=auth_headers)
+        project_id = create_resp.json()["data"]["id"]
+        client.post(
+            f"/api/v1/projects/{project_id}/teaching-mode",
+            json={"teaching_mode": teaching_mode},
+            headers=auth_headers,
+        )
+
+        req = AgentChatRequest(
+            message="请继续帮我完成这个项目",
+            project_id=project_id,
+            context={"current_stage": "stage_07_execute", "teaching_mode": teaching_mode},
+        )
+        orchestrator = AgentOrchestratorService()
+        prompt = orchestrator._build_system_prompt(req, None, None)
+
+        assert headline in prompt
+        assert keyword in prompt
+
+
+class TestTeachingModeBlackBoxBehavior:
+    @pytest.mark.parametrize(
+        ("teaching_mode", "expected_keyword", "forbidden_keyword"),
+        [
+            ("guided", "下一步你先补", "完整可运行示例"),
+            ("demo", "完整可运行示例", "先自己尝试完成"),
+            ("hands_on", "先自己尝试完成", "先讲清原理"),
+            ("lecture", "先讲清原理", "下一步你先补"),
+        ],
+    )
+    def test_chat_response_shape_changes_with_teaching_mode(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        teaching_mode: str,
+        expected_keyword: str,
+        forbidden_keyword: str,
+    ):
+        async def fake_call_llm_with_tools(self, messages, available_tools, owner_id):
+            system_content = messages[0]["content"]
+            if "当前教学模式：guided（引导式）" in system_content:
+                return (
+                    "第一步：先把页面标题和输入框搭起来。\n第二步：把按钮点击事件接上。\n下一步你先补提交按钮的处理函数。",
+                    [],
+                    "fake-model",
+                )
+            if "当前教学模式：demo（演示式）" in system_content:
+                return (
+                    "下面先给你一个完整可运行示例：\n```html\n<h1>学生成绩管理</h1>\n```\n然后我再拆给你看每一块怎么改。",
+                    [],
+                    "fake-model",
+                )
+            if "当前教学模式：hands_on（动手式）" in system_content:
+                return (
+                    "本轮小任务：请你先自己尝试完成成绩表格的表头。\n验证标准：页面里要出现姓名、语文、数学三列。\n如果你卡住，我再给你关键代码。",
+                    [],
+                    "fake-model",
+                )
+            if "当前教学模式：lecture（讲解式）" in system_content:
+                return (
+                    "先讲清原理：这个页面本质上是数据输入、状态存储和结果渲染三层结构。\n接着再看为什么先拆表单，再拆列表，最后才接事件。",
+                    [],
+                    "fake-model",
+                )
+            return ("默认响应", [], "fake-model")
+
+        monkeypatch.setattr(
+            AgentOrchestratorService,
+            "_call_llm_with_tools",
+            fake_call_llm_with_tools,
+        )
+
+        orchestrator = AgentOrchestratorService()
+        req = AgentChatRequest(
+            message="继续教我完成这个网页项目",
+            context={
+                "current_stage": "stage_07_execute",
+                "teaching_mode": teaching_mode,
+                "preferred_output_language": "html",
+            },
+        )
+
+        response = asyncio.run(orchestrator.chat("test-owner", req))
+
+        assert expected_keyword in response.content
+        assert forbidden_keyword not in response.content
+        assert response.model == "fake-model"
+
+
+# =============================================================================
+# PBL 闭环全链路 API 集成测试（确定性，不碰 LLM）
+# =============================================================================
+
+# 逐阶段工件样本（固定文本，用于确定性推进）
+_PBL_STAGE_ARTIFACTS = [
+    ("stage_01_brainstorm", "brainstorm", "# 脑爆选题\nAI 辅助古诗词创作"),
+    ("stage_02_brief", "project_brief", "# 项目简介\n做一个 AI 诗词工具"),
+    ("stage_03_constraints", "constraints", "# 约束条件\nPython + React，2 周"),
+    ("stage_04_track", "track_plan", "# 轨道选择\nWeb 应用轨道"),
+    ("stage_05_design", "design", "# 设计蓝图\n前端 React + 后端 FastAPI"),
+    ("stage_06_step_plan", "step_plan", "# 分步计划\nStep1 脚手架 Step2 API"),
+    ("stage_07_execute", "dev_log", "# 开发日志\nDay1 初始化 Day2 API"),
+    ("stage_08_evaluate", "evaluate", "# 验收总结\n核心功能完成"),
+]
+
+
+class TestPBLFullLoop:
+    """PBL 闭环全链路 API 集成测试——走完整 HTTP 层，验证工件落盘与 workspace 恢复。"""
+
+    def test_complete_stage_endpoint_drives_full_loop(
+        self, client: TestClient, auth_headers: dict
+    ):
+        """用 /pbl/complete-stage 端点逐阶段推完整条 PBL 链，并断言 docs 文件落盘。"""
+        # 1. 创建标准项目
+        create_resp = client.post(
+            "/api/v1/projects",
+            json={"name": "PBL 全链路集成测试", "mode": "standard"},
+            headers=auth_headers,
+        )
+        assert create_resp.status_code == 200
+        project = create_resp.json()["data"]
+        project_id = project["id"]
+        project_name = project["name"]
+
+        # 2. 逐阶段推进
+        for stage, artifact_name, content in _PBL_STAGE_ARTIFACTS:
+            resp = client.post(
+                f"/api/v1/projects/{project_id}/pbl/complete-stage",
+                json={"stage": stage, "artifacts": {artifact_name: content}},
+                headers=auth_headers,
+            )
+            assert resp.status_code == 200, f"阶段 {stage} 推进失败: {resp.text}"
+
+        # 3. 断言终态
+        progress = client.get(
+            f"/api/v1/projects/{project_id}/progress", headers=auth_headers
+        )
+        assert progress.status_code == 200
+        assert progress.json()["data"]["current_stage"] == "stage_08_evaluate"
+
+        # 4. 断言每个 docs 文件落盘到 projects/{slug}/docs/
+        slug = project_name.lower().replace(" ", "-")
+        docs_dir = Path(settings.STORAGE_BASE_PATH) / "projects" / slug / "docs"
+        for _stage, artifact_name, content in _PBL_STAGE_ARTIFACTS:
+            filename = ARTIFACT_TO_FILENAME.get(artifact_name)
+            assert filename is not None
+            file_path = docs_dir / filename
+            assert file_path.exists(), f"工件文件 {file_path} 未落盘"
+            written = file_path.read_text(encoding="utf-8")
+            assert content in written, f"工件 {artifact_name} 落盘内容不匹配"
+
+    def test_workspace_restores_pbl_artifacts(
+        self, client: TestClient, auth_headers: dict
+    ):
+        """推进到 stage_08 后，/workspace 恢复 standard_step_data 数据完整。"""
+        # 1. 创建项目并推到 stage_08
+        create_resp = client.post(
+            "/api/v1/projects",
+            json={"name": "Workspace 恢复测试", "mode": "standard"},
+            headers=auth_headers,
+        )
+        project_id = create_resp.json()["data"]["id"]
+
+        for stage, artifact_name, content in _PBL_STAGE_ARTIFACTS:
+            client.post(
+                f"/api/v1/projects/{project_id}/pbl/complete-stage",
+                json={"stage": stage, "artifacts": {artifact_name: content}},
+                headers=auth_headers,
+            )
+
+        # 2. 调 /workspace 恢复
+        ws_resp = client.get(
+            f"/api/v1/projects/{project_id}/workspace", headers=auth_headers
+        )
+        assert ws_resp.status_code == 200
+        ws_data = ws_resp.json()["data"]
+
+        # 3. 断言 progress.current_stage 正确
+        assert ws_data["progress"]["current_stage"] == "stage_08_evaluate"
+
+        # 4. 断言 standard_step_data 包含所有工件 blob
+        sd = ws_data["progress"]["standard_step_data"]
+        if isinstance(sd, str):
+            sd = json.loads(sd)
+
+        expected_blobs = [
+            "brainstorm_content",
+            "brief_content",
+            "constraints_content",
+            "track_plan_content",
+            "design_content",
+            "step_plan_content",
+            "dev_log_content",
+            "evaluate_content",
+        ]
+        for blob_key in expected_blobs:
+            assert blob_key in sd, f"standard_step_data 缺少 {blob_key}"
+            assert sd[blob_key], f"{blob_key} 内容为空"
+
+    def test_advance_returns_422_with_missing_requirements(
+        self, client: TestClient, auth_headers: dict
+    ):
+        """不写入工件直接 /advance 时返回 422 + missing_requirements 详情。"""
+        create_resp = client.post(
+            "/api/v1/projects",
+            json={"name": "门禁 422 测试", "mode": "standard"},
+            headers=auth_headers,
+        )
+        project_id = create_resp.json()["data"]["id"]
+
+        resp = client.post(
+            f"/api/v1/projects/{project_id}/advance", headers=auth_headers
+        )
+        assert resp.status_code == 422
+        detail = resp.json()["detail"]
+        assert "missing_requirements" in detail
+        assert isinstance(detail["missing_requirements"], list)
+        assert len(detail["missing_requirements"]) > 0
+

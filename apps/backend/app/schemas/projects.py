@@ -148,6 +148,9 @@ class SkillState(BaseModel):
     project_id: str = Field(..., description="项目 ID")
     mode: Literal['light', 'standard'] = Field(default='light', description="项目模式")
     current_stage: Literal[
+        'step_1',
+        'step_2',
+        'step_3',
         'stage_00_bootstrap',
         'stage_01_brainstorm',
         'stage_02_brief',
@@ -253,6 +256,13 @@ class ProjectCodeSave(BaseModel):
     filename: Optional[str] = Field(default=None, description="文件名")
 
 
+class ProjectChatSave(BaseModel):
+    """
+    项目聊天记录保存请求
+    """
+    messages: List[Dict[str, Any]] = Field(..., description="聊天消息列表")
+
+
 class ProjectUpgradeRequest(BaseModel):
     """
     轻项目升级为标准研学请求
@@ -283,6 +293,36 @@ class ProjectProgress(BaseModel):
     stage_history: List[Dict[str, Any]]
     light_step_data: Optional[LightProjectStepsData] = None
     standard_step_data: Optional[Dict[str, Any]] = None
+    teaching_mode: Literal['guided', 'demo', 'hands_on', 'lecture'] = Field(
+        default='guided',
+        description="代码讲解教学模式",
+    )
+
+
+class ProjectWorkspaceData(BaseModel):
+    code: str = ""
+    language: str = "python"
+    filename: Optional[str] = None
+    chat_messages: List[Dict[str, Any]] = Field(default_factory=list)
+    preview_html: str = ""
+    saved_at: Optional[str] = None
+    chat_saved_at: Optional[str] = None
+
+
+class ProjectWorkspaceResponse(BaseModel):
+    project: "Project"
+    progress: ProjectProgress
+    workspace: ProjectWorkspaceData
+
+
+class ProjectTeachingModeUpdate(BaseModel):
+    """
+    项目教学模式更新请求
+    """
+    teaching_mode: Literal['guided', 'demo', 'hands_on', 'lecture'] = Field(
+        ...,
+        description="教学模式：guided/demo/hands_on/lecture",
+    )
 
 
 class Project(ProjectBase, AuditFields):

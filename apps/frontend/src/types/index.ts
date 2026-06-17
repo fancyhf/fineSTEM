@@ -18,7 +18,7 @@ export interface UserBase {
   name: string;
   email: string;
   role: 'student';
-  level: 1 | 2 | 3;
+  level: 1 | 2 | 3 | 4 | 5;
   capability_tags: string[];
 }
 
@@ -199,6 +199,23 @@ export interface ProjectProgress {
   stage_history: Array<{ stage: SkillStage; started_at: string; completed_at?: string }>;
   light_step_data?: LightProjectStep1Data & LightProjectStep2Data & LightProjectStep3Data;
   standard_step_data?: Record<string, StandardProjectStepData>;
+  teaching_mode?: 'guided' | 'demo' | 'hands_on' | 'lecture';
+}
+
+export interface ProjectWorkspaceData {
+  code: string;
+  language: string;
+  filename?: string | null;
+  chat_messages: Array<Record<string, unknown>>;
+  preview_html: string;
+  saved_at?: string | null;
+  chat_saved_at?: string | null;
+}
+
+export interface ProjectWorkspaceResponse {
+  project: Project;
+  progress: ProjectProgress;
+  workspace: ProjectWorkspaceData;
 }
 
 export interface SkillState {
@@ -410,5 +427,3 @@ export interface CapabilityTagSuggestion {
   tags: string[];
   reason: string;
 }
-
-

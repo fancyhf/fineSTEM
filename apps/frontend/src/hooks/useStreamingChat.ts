@@ -8,6 +8,7 @@ interface StreamPayload {
   projectId?: string;
   context?: Record<string, unknown>;
   skillId?: string;
+  messages?: Array<{ role: 'user' | 'assistant'; content: string }>;
 }
 
 interface StreamResult {
@@ -17,7 +18,7 @@ interface StreamResult {
 
 interface StreamEvents {
   onSkillActivated?: (data: { skill_id: string; skill_name: string; sub_skill_id?: string; sub_skill_name?: string }) => void;
-  onProjectCreated?: (data: { project_id: string; project_name: string }) => void;
+  onProjectCreated?: (data: { project_id: string; project_name: string; current_stage?: string }) => void;
   onToolCall?: (data: { tool_name: string; success: boolean; data?: unknown }) => void;
   onStageChanged?: (data: { stage: string; stage_name: string }) => void;
   onQuestion?: (data: QuestionData) => void;
@@ -46,6 +47,13 @@ function getWsBaseUrl(): string {
   return `${protocol}//${window.location.host}`;
 }
 
+function buildMessageWithSkillHint(message: string, skillId?: string): string {
+  if (!skillId) {
+    return message;
+  }
+  return `[[skill:${skillId}]] ${message}`;
+}
+
 export function useStreamingChat() {
   const stream = useCallback(async (
     payload: StreamPayload,
@@ -58,6 +66,7 @@ export function useStreamingChat() {
     const ws = new WebSocket(wsUrl);
     const user = authStorage.getUser();
     const userId = user?.id || getAnonymousId();
+    const outgoingMessage = buildMessageWithSkillHint(payload.message, payload.skillId);
 
     await new Promise<void>((resolve, reject) => {
       const timeout = setTimeout(() => {
@@ -106,7 +115,7 @@ export function useStreamingChat() {
           }
 
           if (data.event === 'project_created' && events?.onProjectCreated) {
-            events.onProjectCreated(data.data as { project_id: string; project_name: string });
+            events.onProjectCreated(data.data as { project_id: string; project_name: string; current_stage?: string });
           }
 
           if (data.event === 'tool_call' && events?.onToolCall) {
@@ -128,6 +137,8 @@ export function useStreamingChat() {
               allowCustom: qData.allow_custom as boolean | undefined,
               step: qData.step as number | undefined,
               totalSteps: qData.total_steps as number | undefined,
+              stage: qData.stage as string | undefined,
+              isStageFinal: qData.is_stage_final === true,
             });
           }
 
@@ -149,7 +160,7 @@ export function useStreamingChat() {
             ws.close();
             reject(new Error(data.message || '流式对话失败'));
           }
-        } catch {
+        } catch (error) {
           clearTimeout(timeout);
           ws.close();
           reject(new Error('解析 AI 响应失败'));
@@ -162,7 +173,8 @@ export function useStreamingChat() {
 
       ws.send(JSON.stringify({
         user_id: userId,
-        message: payload.message,
+        message: outgoingMessage,
+        messages: payload.messages || [],
         session_id: payload.sessionId,
         project_id: payload.projectId,
         context: payload.context || {},

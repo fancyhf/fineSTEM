@@ -108,7 +108,6 @@ def client() -> Generator:
     ac_mod.db = original_rt_db
     ev_mod.db = original_rt_db
     skills_mod.db = original_rt_db
-    cl_mod.db = original_rt_db
 
 
 @pytest.fixture

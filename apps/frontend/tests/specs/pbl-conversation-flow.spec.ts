@@ -19,15 +19,15 @@
  *   npx playwright test pbl-conversation-flow.spec.ts -g "完整PBL流程"
  *
  * 配置：
- *   BASE_URL: 前端地址（默认 http://localhost:5174/finestem）
- *   API_BASE: 后端 API 地址（默认 http://localhost:3000/api/v1）
+ *   BASE_URL: 前端地址（默认 http://localhost:5284/create）
+ *   API_BASE: 后端 API 地址（默认 http://localhost:3200/api/v1）
  */
 
 import { test, expect, Page, Locator } from '@playwright/test';
 
 const CONFIG = {
-  BASE_URL: process.env.BASE_URL || 'http://localhost:5174/finestem',
-  API_BASE: process.env.API_BASE || 'http://localhost:3000/api/v1',
+  BASE_URL: process.env.BASE_URL || 'http://localhost:5284/create',
+  API_BASE: process.env.API_BASE || 'http://localhost:3200/api/v1',
   TIMEOUTS: {
     AI_RESPONSE: 45000,
     QUESTION_APPEAR: 15000,

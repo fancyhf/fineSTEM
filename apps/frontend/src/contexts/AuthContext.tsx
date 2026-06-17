@@ -45,11 +45,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setIsLoading(true);
     try {
       const response = await authApi.login(email, password);
-      if (response.data) {
-        authStorage.setToken(response.data.access_token);
-        authStorage.setUser(response.data.user);
-        setUser(response.data.user);
+      if (!response.data) {
+        const msg = response.message || '登录失败，请检查邮箱和密码';
+        throw new Error(msg);
       }
+      authStorage.setToken(response.data.access_token);
+      authStorage.setUser(response.data.user);
+      setUser(response.data.user);
     } finally {
       setIsLoading(false);
     }
@@ -66,11 +68,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         level: 1,
         capability_tags: [],
       });
-      if (response.data) {
-        authStorage.setToken(response.data.access_token);
-        authStorage.setUser(response.data.user);
-        setUser(response.data.user);
+      if (!response.data) {
+        const msg = response.message || '注册失败，请稍后重试';
+        throw new Error(msg);
       }
+      authStorage.setToken(response.data.access_token);
+      authStorage.setUser(response.data.user);
+      setUser(response.data.user);
     } finally {
       setIsLoading(false);
     }

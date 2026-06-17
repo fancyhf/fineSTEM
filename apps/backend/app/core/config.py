@@ -21,13 +21,11 @@ class Settings(BaseSettings):
     APP_VERSION: str = "0.1.0"
     DEBUG: bool = True
     API_V1_STR: str = "/api/v1"
-    BACKEND_PORT: int = 8001
+    BACKEND_PORT: int = 3200
 
     CORS_ALLOW_ORIGINS: list[str] = [
-        "http://localhost:5173",
-        "http://localhost:5174",
-        "http://localhost:8081",
-        "http://localhost:3000",
+        "http://localhost:5184",
+        "http://localhost:3300",
     ]
     
     # 数据库配置（MVP 阶段使用内存数据库）

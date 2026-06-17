@@ -126,7 +126,6 @@ class DynamicSkillDefinition:
             "artifact_writer",
             "artifact_reader",
             "project_creator",
-            "code_generator",
             "code_runner",
         ]
         

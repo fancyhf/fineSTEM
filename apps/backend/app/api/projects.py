@@ -6,6 +6,7 @@
 links: .trae/documents/api-specs/v1/spec.json
 """
 
+from datetime import datetime
 from typing import Optional
 import io
 import json
@@ -13,10 +14,12 @@ import uuid
 import zipfile
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from fastapi.responses import PlainTextResponse
+from pydantic import BaseModel
 from app.schemas.projects import (
     Project,
     ProjectCreate,
     ProjectUpdate,
+    ProjectTeachingModeUpdate,
     ProjectUpgrade,
     ProjectProgress,
     LightProjectStep1Data,
@@ -25,6 +28,9 @@ from app.schemas.projects import (
     LightProjectStepsData,
     StandardProjectStepData,
     ProjectCodeSave,
+    ProjectChatSave,
+    ProjectWorkspaceData,
+    ProjectWorkspaceResponse,
 )
 from app.schemas.evidence import Evidence
 from app.schemas.common import ApiResponse, PaginationResult
@@ -32,8 +38,50 @@ from app.schemas.auth import UserResponse
 from app.repositories.runtime_db import db
 from app.api.auth import get_current_user
 from app.services.document_service import document_service
+from app.services.pbl_engine import advance_with_gate, save_artifact
 
 router = APIRouter(prefix="/projects", tags=["研学项目"])
+
+
+def _get_teaching_mode_from_state(skill_state) -> str:
+    metadata = getattr(skill_state, "metadata", {}) or {}
+    if isinstance(metadata, str):
+        try:
+            import json
+            metadata = json.loads(metadata)
+        except Exception:
+            metadata = {}
+    teaching_mode = metadata.get("teachingMode", "guided")
+    if teaching_mode in {"guided", "demo", "hands_on", "lecture"}:
+        return teaching_mode
+    return "guided"
+
+
+def _build_workspace_payload(project_id: str) -> tuple[ProjectProgress, ProjectWorkspaceData]:
+    skill_state = db.get_skill_state(project_id)
+    if not skill_state:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="项目状态不存在",
+        )
+    workspace = db.get_project_workspace(project_id) or {}
+    progress = ProjectProgress(
+        current_stage=skill_state.current_stage,
+        stage_history=skill_state.stage_history,
+        light_step_data=skill_state.light_step_data,
+        standard_step_data=skill_state.standard_step_data,
+        teaching_mode=_get_teaching_mode_from_state(skill_state),
+    )
+    workspace_data = ProjectWorkspaceData(
+        code=str(workspace.get("code") or ""),
+        language=str(workspace.get("language") or "python"),
+        filename=workspace.get("filename"),
+        chat_messages=workspace.get("chat_messages") or [],
+        preview_html=str(workspace.get("preview_html") or ""),
+        saved_at=workspace.get("saved_at"),
+        chat_saved_at=workspace.get("chat_saved_at"),
+    )
+    return progress, workspace_data
 
 def _collect_auto_evidence(project_id: str, user_id: str, evidence_type: str, content: str, related_step: str | None = None) -> None:
     db.create_evidence(
@@ -158,22 +206,81 @@ async def get_project_progress(
             detail="无权查看此项目",
         )
     
+    progress, _ = _build_workspace_payload(project_id)
+    return ApiResponse(data=progress, message="获取成功")
+
+
+@router.get("/{project_id}/workspace", response_model=ApiResponse[ProjectWorkspaceResponse])
+async def get_project_workspace(
+    project_id: str,
+    current_user: UserResponse = Depends(get_current_user),
+):
+    """
+    获取项目工作台恢复数据（项目 + 进度 + 代码/聊天工作区）
+    """
+    project = db.get_project(project_id)
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="项目不存在",
+        )
+    if project.author_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="无权查看此项目",
+        )
+
+    progress, workspace = _build_workspace_payload(project_id)
+    return ApiResponse(
+        data=ProjectWorkspaceResponse(
+            project=project,
+            progress=progress,
+            workspace=workspace,
+        ),
+        message="获取成功",
+    )
+
+
+@router.post("/{project_id}/teaching-mode", response_model=ApiResponse[ProjectProgress])
+async def update_project_teaching_mode(
+    project_id: str,
+    payload: ProjectTeachingModeUpdate,
+    current_user: UserResponse = Depends(get_current_user),
+):
+    """
+    更新项目教学模式
+    """
+    project = db.get_project(project_id)
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="项目不存在",
+        )
+    if project.author_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="无权修改此项目",
+        )
+
     skill_state = db.get_skill_state(project_id)
     if not skill_state:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="项目状态不存在",
         )
-    
-    return ApiResponse(
-        data=ProjectProgress(
-            current_stage=skill_state.current_stage,
-            stage_history=skill_state.stage_history,
-            light_step_data=skill_state.light_step_data,
-            standard_step_data=skill_state.standard_step_data,
-        ),
-        message="获取成功",
-    )
+
+    metadata = getattr(skill_state, "metadata", {}) or {}
+    if isinstance(metadata, str):
+        try:
+            import json
+            metadata = json.loads(metadata)
+        except Exception:
+            metadata = {}
+    metadata["teachingMode"] = payload.teaching_mode
+    db.update_skill_state(project_id, {"metadata": metadata})
+
+    progress, _ = _build_workspace_payload(project_id)
+    return ApiResponse(data=progress, message="教学模式更新成功")
 
 
 @router.patch("/{project_id}", response_model=ApiResponse[Project])
@@ -217,21 +324,16 @@ async def save_project_code(
     if project.author_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权操作此项目")
 
-    import json as _json
-    initial = {}
-    if project.initial_data:
-        try:
-            initial = project.initial_data if isinstance(project.initial_data, dict) else _json.loads(project.initial_data)
-        except (TypeError, ValueError):
-            initial = {}
-
-    initial['code'] = code_data.code
-    initial['language'] = code_data.language
-    if code_data.filename:
-        initial['filename'] = code_data.filename
-    initial['saved_at'] = __import__('datetime').datetime.utcnow().isoformat()
-
-    updated = db.update_project(project_id, {'initial_data': initial})
+    db.save_project_workspace(
+        project_id,
+        {
+            "code": code_data.code,
+            "language": code_data.language,
+            "filename": code_data.filename,
+            "saved_at": datetime.utcnow().isoformat(),
+        },
+        updated_by=current_user.id,
+    )
     return ApiResponse(data={'saved': True, 'project_id': project_id}, message="代码已保存")
 
 
@@ -249,18 +351,11 @@ async def get_project_code(
     if project.author_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权查看此项目")
 
-    import json as _json
-    initial = {}
-    if project.initial_data:
-        try:
-            initial = project.initial_data if isinstance(project.initial_data, dict) else _json.loads(project.initial_data)
-        except (TypeError, ValueError):
-            pass
-
-    code = initial.get('code', '')
-    language = initial.get('language', 'python')
-    filename = initial.get('filename')
-    saved_at = initial.get('saved_at')
+    workspace = db.get_project_workspace(project_id) or {}
+    code = str(workspace.get('code') or '')
+    language = str(workspace.get('language') or 'python')
+    filename = workspace.get('filename')
+    saved_at = workspace.get('saved_at')
 
     return ApiResponse(data={
         'code': code,
@@ -268,6 +363,58 @@ async def get_project_code(
         'filename': filename,
         'saved_at': saved_at,
         'has_code': bool(code),
+    }, message="获取成功")
+
+
+@router.post("/{project_id}/chat", response_model=ApiResponse[dict])
+async def save_project_chat(
+    project_id: str,
+    chat_data: ProjectChatSave,
+    current_user: UserResponse = Depends(get_current_user),
+):
+    """
+    保存项目聊天记录（持久化到数据库，下次打开可恢复）
+    """
+    project = db.get_project(project_id)
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
+    if project.author_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权操作此项目")
+
+    db.save_project_workspace(
+        project_id,
+        {
+            "chat_messages": chat_data.messages,
+            "chat_saved_at": datetime.utcnow().isoformat(),
+        },
+        updated_by=current_user.id,
+    )
+    return ApiResponse(data={'saved': True, 'message_count': len(chat_data.messages), 'project_id': project_id}, message="聊天记录已保存")
+
+
+@router.get("/{project_id}/chat", response_model=ApiResponse[dict])
+async def get_project_chat(
+    project_id: str,
+    current_user: UserResponse = Depends(get_current_user),
+):
+    """
+    获取项目保存的聊天记录
+    """
+    project = db.get_project(project_id)
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
+    if project.author_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权查看此项目")
+
+    workspace = db.get_project_workspace(project_id) or {}
+    messages = workspace.get('chat_messages', [])
+    chat_saved_at = workspace.get('chat_saved_at')
+
+    return ApiResponse(data={
+        'messages': messages,
+        'message_count': len(messages),
+        'has_messages': bool(messages),
+        'saved_at': chat_saved_at,
     }, message="获取成功")
 
 
@@ -612,22 +759,85 @@ async def advance_project_stage(
             detail="项目状态不存在",
         )
     
-    updated_skill_state = db.advance_skill_state(project_id)
-    _collect_auto_evidence(
-        project_id=project_id,
-        user_id=current_user.id,
-        evidence_type="auto_stage_change",
-        content=f"阶段自动推进到 {updated_skill_state.current_stage}",
-        related_step=updated_skill_state.current_stage,
-    )
+    # 带门禁推进（仅标准项目受 PBL 门禁约束；轻项目直接推进）
+    if project.mode == "standard":
+        result = advance_with_gate(project_id, db)
+        if not result["success"]:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={
+                    "message": "当前阶段未满足推进条件",
+                    "current_stage": result["current_stage"],
+                    "missing_requirements": result["missing"],
+                },
+            )
+    else:
+        db.advance_skill_state(project_id)
+
+    updated_skill_state = db.get_skill_state(project_id)
+    if updated_skill_state:
+        _collect_auto_evidence(
+            project_id=project_id,
+            user_id=current_user.id,
+            evidence_type="auto_stage_change",
+            content=f"阶段自动推进到 {updated_skill_state.current_stage}",
+            related_step=updated_skill_state.current_stage,
+        )
     return ApiResponse(
         data=ProjectProgress(
-            current_stage=updated_skill_state.current_stage,
-            stage_history=updated_skill_state.stage_history,
-            light_step_data=updated_skill_state.light_step_data,
-            standard_step_data=updated_skill_state.standard_step_data,
+            current_stage=updated_skill_state.current_stage if updated_skill_state else result.get("new_stage", ""),
+            stage_history=updated_skill_state.stage_history if updated_skill_state else [],
+            light_step_data=updated_skill_state.light_step_data if updated_skill_state else {},
+            standard_step_data=updated_skill_state.standard_step_data if updated_skill_state else {},
+            teaching_mode=_get_teaching_mode_from_state(updated_skill_state) if updated_skill_state else "guided",
         ),
         message="推进成功",
+    )
+
+
+class CompleteStageRequest(BaseModel):
+    """确定性推进请求体：写入指定阶段的工件并尝试推进。"""
+    stage: str
+    artifacts: dict[str, str]
+
+
+@router.post("/{project_id}/pbl/complete-stage", response_model=ApiResponse[ProjectProgress])
+async def complete_pbl_stage(
+    project_id: str,
+    body: CompleteStageRequest,
+    current_user: UserResponse = Depends(get_current_user),
+):
+    """
+    确定性推进：写入指定阶段的工件，并尝试带门禁推进到下一阶段。
+    用于自动化测试——用固定工件样本逐阶段调用即可推完整条 PBL 链。
+    """
+    project = db.get_project(project_id)
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
+    if project.author_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权操作此项目")
+
+    # 1. 逐 artifact 写入（blob + 落盘）
+    for artifact_name, content in body.artifacts.items():
+        save_artifact(project_id, artifact_name, content, db)
+
+    # 2. 尝试带门禁推进
+    result = advance_with_gate(project_id, db)
+
+    # 3. 返回当前状态
+    skill_state = db.get_skill_state(project_id)
+    if not skill_state:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目状态不存在")
+
+    return ApiResponse(
+        data=ProjectProgress(
+            current_stage=skill_state.current_stage,
+            stage_history=skill_state.stage_history,
+            light_step_data=skill_state.light_step_data,
+            standard_step_data=skill_state.standard_step_data,
+            teaching_mode=_get_teaching_mode_from_state(skill_state),
+        ),
+        message="推进成功" if result["success"] else "工件已保存，但门禁未通过",
     )
 
 

@@ -19,6 +19,7 @@ from app.schemas.auth import User
 from app.schemas.skills import SkillRecord
 from app.schemas.course_library import Course
 from app.core.config import settings
+from app.db.sqlite_db import SQLiteDatabase
 
 
 class MemoryDatabase:
@@ -89,6 +90,8 @@ class MemoryDatabase:
         return result
 
     def _persist_state(self) -> None:
+        import logging
+        logger = logging.getLogger(__name__)
         payload = {
             "users": self._serialize_dict(self.users),
             "user_email_index": self.user_email_index,
@@ -104,8 +107,12 @@ class MemoryDatabase:
             "courses": self._serialize_dict(self.courses),
             "project_capability_tags": self.project_capability_tags,
         }
-        self._state_file.parent.mkdir(parents=True, exist_ok=True)
-        self._state_file.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+        try:
+            self._state_file.parent.mkdir(parents=True, exist_ok=True)
+            self._state_file.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+            logger.info(f"[persist] OK projects={len(payload.get('projects',{}))} users={len(payload.get('users',{}))}")
+        except Exception as e:
+            logger.error(f"[persist] FAILED: {e}")
 
     def _restore_state(self) -> bool:
         if not self._state_file.exists():

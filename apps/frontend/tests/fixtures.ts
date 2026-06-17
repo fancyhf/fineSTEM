@@ -6,7 +6,16 @@
  * links: .trae/documents/testing/
  */
 
+import { existsSync } from 'node:fs';
 import { test as base, expect, Page } from '@playwright/test';
+
+const SYSTEM_CHROMIUM_CANDIDATES = [
+  process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,
+  'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+  'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+].filter((candidate): candidate is string => Boolean(candidate));
+
+const systemChromiumExecutablePath = SYSTEM_CHROMIUM_CANDIDATES.find((candidate) => existsSync(candidate));
 
 const API_BASE = process.env.E2E_API_URL;
 if (!API_BASE) {
@@ -56,6 +65,23 @@ export const test = base.extend<{
   testUser: TestUser;
   authenticatedPage: Page;
 }>({
+  browser: async ({ browser, playwright }, use) => {
+    if (!systemChromiumExecutablePath) {
+      await use(browser);
+      return;
+    }
+
+    const launchedBrowser = await playwright.chromium.launch({
+      executablePath: systemChromiumExecutablePath,
+      headless: true,
+    });
+
+    try {
+      await use(launchedBrowser);
+    } finally {
+      await launchedBrowser.close();
+    }
+  },
   testUser: async ({ page }, use) => {
     const user = await registerUser(page, 'auto');
     await use(user);

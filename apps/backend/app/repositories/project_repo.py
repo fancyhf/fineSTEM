@@ -20,6 +20,12 @@ STAGES = [
 ]
 
 
+def _normalize_initial_data(raw: object) -> dict:
+    if isinstance(raw, dict):
+        return raw
+    return json_loads(raw, {})
+
+
 def _to_project(model: ProjectModel) -> Project:
     return Project(
         id=model.id,
@@ -28,7 +34,7 @@ def _to_project(model: ProjectModel) -> Project:
         mode=model.mode,  # type: ignore[arg-type]
         current_stage=model.current_stage,
         from_demo_id=model.from_demo_id,
-        initial_data=json_loads(model.initial_data, {}),
+        initial_data=_normalize_initial_data(model.initial_data),
         created_at=model.created_at,
         created_by=model.created_by,
         updated_at=model.updated_at,
@@ -63,6 +69,42 @@ def _to_skill_state(model: SkillStateModel) -> SkillState:
 
 
 class ProjectRepo(BaseRepository):
+    @staticmethod
+    def _extract_workspace(initial_data: dict) -> dict:
+        workspace = initial_data.get("workspace")
+        if not isinstance(workspace, dict):
+            workspace = {}
+        # Backward compatibility for older projects that stored fields at root level.
+        if "code" in initial_data and "code" not in workspace:
+            workspace["code"] = initial_data.get("code", "")
+        if "language" in initial_data and "language" not in workspace:
+            workspace["language"] = initial_data.get("language", "python")
+        if "filename" in initial_data and "filename" not in workspace:
+            workspace["filename"] = initial_data.get("filename")
+        if "saved_at" in initial_data and "saved_at" not in workspace:
+            workspace["saved_at"] = initial_data.get("saved_at")
+        if "preview_html" in initial_data and "preview_html" not in workspace:
+            workspace["preview_html"] = initial_data.get("preview_html", "")
+        if "chat_messages" in initial_data and "chat_messages" not in workspace:
+            workspace["chat_messages"] = initial_data.get("chat_messages", [])
+        if "chat_saved_at" in initial_data and "chat_saved_at" not in workspace:
+            workspace["chat_saved_at"] = initial_data.get("chat_saved_at")
+        workspace.setdefault("code", "")
+        workspace.setdefault("language", "python")
+        workspace.setdefault("filename", None)
+        workspace.setdefault("preview_html", "")
+        workspace.setdefault("chat_messages", [])
+        workspace.setdefault("saved_at", None)
+        workspace.setdefault("chat_saved_at", None)
+        return workspace
+
+    def _save_project_row(self, row: ProjectModel, *, updated_by: str | None = None) -> None:
+        row.updated_at = datetime.utcnow()
+        if updated_by:
+            row.updated_by = updated_by
+        self.db.commit()
+        self.db.refresh(row)
+
     def get_project(self, project_id: str) -> Project | None:
         model = self.db.get(ProjectModel, project_id)
         if not model or model.is_deleted:
@@ -138,11 +180,30 @@ class ProjectRepo(BaseRepository):
         for key, value in project_data.items():
             if value is None:
                 continue
-            setattr(row, key, value)
-        row.updated_at = datetime.utcnow()
-        self.db.commit()
-        self.db.refresh(row)
+            if key == "initial_data":
+                row.initial_data = json_dumps(value, "{}")
+            else:
+                setattr(row, key, value)
+        self._save_project_row(row)
         return _to_project(row)
+
+    def get_project_workspace(self, project_id: str) -> dict | None:
+        row = self.db.get(ProjectModel, project_id)
+        if not row or row.is_deleted:
+            return None
+        return self._extract_workspace(_normalize_initial_data(row.initial_data))
+
+    def save_project_workspace(self, project_id: str, workspace_data: dict, updated_by: str | None = None) -> dict | None:
+        row = self.db.get(ProjectModel, project_id)
+        if not row or row.is_deleted:
+            return None
+        initial_data = _normalize_initial_data(row.initial_data)
+        workspace = self._extract_workspace(initial_data)
+        workspace.update({key: value for key, value in workspace_data.items() if value is not None})
+        initial_data["workspace"] = workspace
+        row.initial_data = json_dumps(initial_data, "{}")
+        self._save_project_row(row, updated_by=updated_by)
+        return workspace
 
     def delete_project(self, project_id: str, deleted_by: str) -> bool:
         row = self.db.get(ProjectModel, project_id)

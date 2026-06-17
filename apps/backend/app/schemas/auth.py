@@ -19,7 +19,7 @@ class UserBase(BaseModel):
     name: str = Field(..., description="用户昵称")
     email: str = Field(..., description="邮箱")
     role: Literal['student'] = Field(default='student', description="角色")
-    level: Literal[1, 2, 3] = Field(default=1, description="用户等级")
+    level: int = Field(default=1, ge=1, le=5, description="用户等级")
     capability_tags: Optional[list[str]] = Field(default_factory=list, description="能力标签")
 
 

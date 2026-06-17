@@ -5,7 +5,7 @@
 import { test, expect } from '@playwright/test';
 
 test('简单测试: 页面加载', async ({ page }) => {
-  await page.goto('http://localhost:5174/finestem');
+  await page.goto('http://localhost:5284/create');
   await page.waitForLoadState('networkidle');
   
   const title = await page.title();

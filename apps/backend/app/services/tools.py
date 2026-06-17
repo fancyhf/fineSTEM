@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from app.repositories.runtime_db import db
+from app.services.pbl_engine import advance_with_gate, save_artifact
 
 
 class ToolResult:
@@ -149,7 +150,7 @@ class SkillStateWriterTool(BaseTool):
                 history_list = json.loads(history_raw) if isinstance(history_raw, str) else history_raw
                 history_entry.setdefault("timestamp", datetime.now(timezone.utc).isoformat())
                 history_list.append(history_entry)
-                updates["stage_history"] = json.dumps(history_list, ensure_ascii=False)
+                updates["stage_history"] = history_list
 
         updated = db.update_skill_state(project_id, updates)
         if not updated:
@@ -239,7 +240,7 @@ class StageAdvancerTool(BaseTool):
                         )
                     updates = {"light_step": str(next_light)}
                     if evidence:
-                        updates["light_step_data"] = json.dumps({**light_data, **evidence}, default=str)
+                        updates["light_step_data"] = {**light_data, **evidence}
                     db.update_skill_state(project_id, updates)
 
                     hints = {
@@ -258,9 +259,10 @@ class StageAdvancerTool(BaseTool):
                         "next_hint": "使用 achievement_card 工具生成成果档案卡",
                     })
             else:
-                advanced = db.advance_skill_state(project_id)
-                if advanced:
-                    new_stage = getattr(advanced, "current_stage", "unknown")
+                # 标准轨：通过 pbl_engine 带门禁推进
+                result = advance_with_gate(project_id, db)
+                if result["success"]:
+                    new_stage = result.get("new_stage") or "unknown"
                     stage_hints = {
                         "stage_01_brainstorm": "现在来脑爆选题吧！想 5 个你觉得有趣的项目方向",
                         "stage_02_brief": "来写开题立项书，定义你的项目目标和成功标准",
@@ -277,6 +279,12 @@ class StageAdvancerTool(BaseTool):
                         "message": f"已从「{current_stage}」推进到「{new_stage}」",
                         "next_hint": stage_hints.get(new_stage, "继续推进当前阶段"),
                     })
+                else:
+                    return ToolResult(
+                        False,
+                        error="门禁检查未通过：当前阶段完成条件尚未满足",
+                        data={"missing_requirements": result.get("missing", [])},
+                    )
 
         return ToolResult(False, error="无法自动确定下一阶段")
 
@@ -656,6 +664,18 @@ class ProjectCreatorTool(BaseTool):
             initial_data=initial_data,
         )
         created = db.create_project(project)
+        if created.mode == "light":
+            step_seed = {
+                "project_name": created.name,
+                "one_liner": description or f"{created.name} 的首个可运行版本",
+                "core_features": [description] if description else ["生成首个可运行版本"],
+            }
+            db.update_skill_state(
+                created.id,
+                {
+                    "light_step_data": step_seed,
+                },
+            )
 
         suggestions = []
         if demo:
@@ -675,6 +695,7 @@ class ProjectCreatorTool(BaseTool):
             "project_id": created.id,
             "name": created.name,
             "mode": created.mode,
+            "current_stage": created.current_stage,
             "initial_code": getattr(demo, "minimal_replica", "") if demo else "",
             "suggestions": suggestions,
         })

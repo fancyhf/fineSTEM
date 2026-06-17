@@ -117,9 +117,11 @@ async def ws_chat(websocket: WebSocket):
                 continue
             request = AgentChatRequest(
                 message=message,
+                messages=incoming.get("messages", []),
                 context=incoming.get("context", {}),
                 project_id=incoming.get("project_id"),
                 session_id=incoming.get("session_id"),
+                skill_id=incoming.get("skill_id"),
                 stream=True,
                 enable_tools=True,
             )
