@@ -494,7 +494,7 @@ export function Create() {
   const [projectContext, setProjectContext] = useState<ProjectContext>({
     projectId: null, projectName: '', mode: null, currentStage: '', stageProgress: 0, evidenceCount: 0, teachingMode: 'guided',
   });
-  const [userProjects, setUserProjects] = useState<Array<{id: string; name: string; mode: string; current_stage?: string}>>([]);
+  const [userProjects, setUserProjects] = useState<Array<{id: string; name: string; mode: string; current_stage?: string; created_at?: string}>>([]);
 
   const [editorCode, setEditorCode] = useState(DEFAULT_CODE);
   const [editorLanguage, setEditorLanguage] = useState('html');
@@ -688,6 +688,7 @@ export function Create() {
           name: p.name,
           mode: p.mode,
           current_stage: p.current_stage,
+          created_at: p.created_at,
         })));
         console.log('[loadUserProjects] 已加载', res.data.items.length, '个项目');
       }
