@@ -1,6 +1,7 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card';
 import { Badge } from './ui/Badge';
+import { MarkdownText } from './MarkdownText';
 import { AchievementCard } from '../types';
 import { Award, Calendar } from 'lucide-react';
 
@@ -34,18 +35,22 @@ export function AchievementCardView({ achievement, showShareButton = false, onSh
         <div className="space-y-6">
           <section>
             <h3 className="text-lg font-semibold text-gray-900 mb-2">一句话介绍</h3>
-            <p className="text-gray-700">{achievement.one_liner}</p>
+            <MarkdownText content={achievement.one_liner} projectId={achievement.project_id} />
           </section>
 
           <section>
             <h3 className="text-lg font-semibold text-gray-900 mb-2">解决的问题</h3>
-            <p className="text-gray-700">{achievement.problem_solved}</p>
+            <MarkdownText content={achievement.problem_solved} projectId={achievement.project_id} />
           </section>
 
           <section>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">使用的方法与反思</h3>
-            <p className="text-gray-700">{achievement.method_used}</p>
-            <p className="text-gray-700 mt-2">{achievement.reflection}</p>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">使用的方法</h3>
+            <MarkdownText content={achievement.method_used} projectId={achievement.project_id} />
+          </section>
+
+          <section>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">反思</h3>
+            <MarkdownText content={achievement.reflection} projectId={achievement.project_id} />
           </section>
 
           <div className="flex items-center justify-between pt-4 border-t border-gray-100">

@@ -11,7 +11,7 @@ export function Stage05Design({ value, onChange }: StageComponentProps<Stage05Pa
   return (
     <div className="space-y-3">
       <div>
-        <label className="block text-sm text-gray-700 mb-1">Modules (one per line)</label>
+        <label className="block text-sm text-gray-700 mb-1">功能模块（每行一个）</label>
         <textarea
           value={joinLines(value.module_list)}
           onChange={(e) => updateField(value, 'module_list', splitLines(e.target.value), onChange)}
@@ -19,7 +19,7 @@ export function Stage05Design({ value, onChange }: StageComponentProps<Stage05Pa
         />
       </div>
       <div>
-        <label className="block text-sm text-gray-700 mb-1">Data Flow</label>
+        <label className="block text-sm text-gray-700 mb-1">数据流说明</label>
         <textarea
           value={value.data_flow}
           onChange={(e) => updateField(value, 'data_flow', e.target.value, onChange)}
@@ -27,7 +27,7 @@ export function Stage05Design({ value, onChange }: StageComponentProps<Stage05Pa
         />
       </div>
       <div>
-        <label className="block text-sm text-gray-700 mb-1">Acceptance Criteria (one per line)</label>
+        <label className="block text-sm text-gray-700 mb-1">验收条件（每行一个）</label>
         <textarea
           value={joinLines(value.acceptance_criteria)}
           onChange={(e) => updateField(value, 'acceptance_criteria', splitLines(e.target.value), onChange)}

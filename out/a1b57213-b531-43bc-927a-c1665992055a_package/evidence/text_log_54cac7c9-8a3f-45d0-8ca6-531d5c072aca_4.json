@@ -1,0 +1,17 @@
+{
+  "created_at": "2026-06-17T04:04:15.070161",
+  "created_by": "27fb2e88-bf95-4c98-b33b-688891d40f43",
+  "updated_at": "2026-06-17T04:04:15.070161",
+  "updated_by": null,
+  "deleted_at": null,
+  "deleted_by": null,
+  "is_deleted": false,
+  "type": "text_log",
+  "title": "stage_01_brainstorm",
+  "content": "好的！初中生，没问题，我会用更简单易懂的方式来引导你。💪\n接下来告诉我：",
+  "content_url": null,
+  "related_step": "stage_01_brainstorm",
+  "id": "54cac7c9-8a3f-45d0-8ca6-531d5c072aca",
+  "project_id": "a1b57213-b531-43bc-927a-c1665992055a",
+  "author_id": "27fb2e88-bf95-4c98-b33b-688891d40f43"
+}

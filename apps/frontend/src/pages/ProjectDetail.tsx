@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
-import { ArrowLeft, Download, FileText, Sparkles, Trash2, Award, TrendingUp, Code } from 'lucide-react';
+import { ArrowLeft, Download, FileText, Sparkles, Trash2, Award, TrendingUp, Code, X, FolderOpen } from 'lucide-react';
 import { projectsApi, achievementCardsApi, documentsApi, capabilityTagsApi } from '../services/api';
 import { Project, ProjectProgress, AchievementCard } from '../types';
 import { ProjectStageBar } from '../components/ProjectStageBar';
@@ -18,33 +17,48 @@ import { GrowthTimeline } from '../components/GrowthTimeline';
 export default function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
   const [project, setProject] = useState<Project | null>(null);
   const [progress, setProgress] = useState<ProjectProgress | null>(null);
   const [achievement, setAchievement] = useState<AchievementCard | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [showAchievementForm, setShowAchievementForm] = useState(false);
   const [capabilityTags, setCapabilityTags] = useState<string[]>([]);
   const [downloading, setDownloading] = useState<string>('');
   const [upgrading, setUpgrading] = useState(false);
+  const [searchParams] = useSearchParams();
+  const referredFile = searchParams.get('file');
+  const [workspaceFilename, setWorkspaceFilename] = useState<string | null>(null);
+  const [fileBannerDismissed, setFileBannerDismissed] = useState(
+    () => sessionStorage.getItem('finestem_filedismiss') === referredFile
+  );
 
+  // 当从聊天页带着 ?file= 参数跳入时，取 workspace 确认是否就是当前编辑的代码文件
   useEffect(() => {
-    if (!id) return;
-    loadProjectData(id);
-  }, [id]);
+    if (!referredFile || !id) return;
+    projectsApi.getWorkspace(id).then((res) => {
+      if (res.data?.workspace?.filename) {
+        setWorkspaceFilename(res.data.workspace.filename);
+      }
+    }).catch(() => { /* workspace 获取失败不影响主线 */ });
+  }, [referredFile, id]);
 
   const loadProjectData = async (projectId: string) => {
     try {
       setLoading(true);
-      const [projectRes, progressRes, achievementRes] = await Promise.allSettled([
+      const [projectRes, progressRes, achievementRes, tagsRes] = await Promise.allSettled([
         projectsApi.get(projectId),
         projectsApi.getProgress(projectId),
         achievementCardsApi.getByProject(projectId),
+        capabilityTagsApi.get(projectId),
       ]);
 
       if (projectRes.status === 'fulfilled' && projectRes.value.data) {
         setProject(projectRes.value.data);
+      } else if (projectRes.status === 'rejected') {
+        // 项目获取失败（404/403 等），设置错误信息
+        const err = projectRes.reason;
+        setError(err instanceof Error ? err.message : '项目不存在或无权访问');
+        return;
       }
       if (progressRes.status === 'fulfilled' && progressRes.value.data) {
         setProgress(progressRes.value.data);
@@ -52,28 +66,63 @@ export default function ProjectDetail() {
       if (achievementRes.status === 'fulfilled' && achievementRes.value.data) {
         setAchievement(achievementRes.value.data);
       }
-      const tagsRes = await capabilityTagsApi.get(projectId);
-      setCapabilityTags(tagsRes.data ?? []);
-    } catch (err: any) {
-      setError(err.message || '加载失败');
+      if (tagsRes.status === 'fulfilled' && tagsRes.value.data) {
+        setCapabilityTags(tagsRes.value.data);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : '加载失败';
+      setError(msg);
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!id) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 异步加载项目数据
+    loadProjectData(id);
+  }, [id]);
 
   const handleDelete = async () => {
     if (!id || !confirm('确定要删除这个项目吗？')) return;
     
     try {
       await projectsApi.delete(id);
-      navigate('/dashboard');
-    } catch (err: any) {
-      alert('删除失败：' + err.message);
+      navigate('/research');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : '删除失败';
+      alert('删除失败：' + msg);
     }
   };
 
-  const handleCreateAchievement = () => {
-    setShowAchievementForm(true);
+  /**
+   * 跳转到 AI 工作台，由 stem-pbl-guide 引导生成成果档案卡
+   * 复用 workspace 恢复机制，附加 scene 标记
+   */
+  const handleCreateAchievement = async () => {
+    if (!project?.id) return;
+    try {
+      const workspaceRes = await projectsApi.getWorkspace(project.id);
+      const restoreData: Record<string, unknown> = {
+        projectId: project.id,
+        projectName: project.name,
+        mode: project.mode,
+        currentStage: workspaceRes.data?.progress.current_stage || project.current_stage,
+        scene: 'generate_achievement',
+      };
+      if (workspaceRes.data?.workspace) {
+        restoreData.code = workspaceRes.data.workspace.code;
+        restoreData.language = workspaceRes.data.workspace.language || 'python';
+        restoreData.messages = workspaceRes.data.workspace.chat_messages || [];
+      }
+
+      sessionStorage.setItem('finestem_restore_project', JSON.stringify(restoreData));
+      navigate('/create');
+    } catch (error) {
+      console.error('[project_detail:generate_achievement] 恢复项目失败:', error);
+      // 降级：仍然跳转工作台，AI 会尝试重新获取项目信息
+      navigate('/create');
+    }
   };
 
   const downloadBlob = (blob: Blob, fileName: string) => {
@@ -138,7 +187,7 @@ export default function ProjectDetail() {
     if (!project?.id) return;
     try {
       const workspaceRes = await projectsApi.getWorkspace(project.id);
-      const restoreData: Record<string, any> = {
+      const restoreData: Record<string, unknown> = {
         projectId: project.id,
         projectName: project.name,
         mode: project.mode,
@@ -182,26 +231,13 @@ export default function ProjectDetail() {
           <p className="text-red-600">{error || '项目不存在'}</p>
           <Button
             className="mt-4"
-            onClick={() => navigate('/dashboard')}
+            onClick={() => navigate('/research')}
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
             返回首页
           </Button>
         </div>
       </div>
-    );
-  }
-
-  if (showAchievementForm) {
-    return (
-      <ProjectAchievement 
-        project={project}
-        onBack={() => setShowAchievementForm(false)}
-        onCreated={(card) => {
-          setAchievement(card);
-          setShowAchievementForm(false);
-        }}
-      />
     );
   }
 
@@ -212,7 +248,7 @@ export default function ProjectDetail() {
         <div className="flex items-center gap-4 mb-6">
           <Button
             variant="secondary"
-            onClick={() => navigate('/dashboard')}
+            onClick={() => navigate('/research')}
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
             返回
@@ -240,6 +276,60 @@ export default function ProjectDetail() {
             </Button>
           </div>
         </div>
+
+        {/* 来自聊天页的文件引用提示 */}
+        {referredFile && !fileBannerDismissed && (
+          <div className="mb-6 rounded-lg border border-teal-200 bg-teal-50 p-4 flex items-start gap-3">
+            <FolderOpen className="h-5 w-5 text-teal-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-teal-800">
+                AI 提到了文件「<span className="font-mono text-teal-900">{referredFile}</span>」
+              </p>
+              <p className="text-xs text-teal-600 mt-1">
+                {workspaceFilename && (
+                  workspaceFilename === referredFile ||
+                  workspaceFilename.endsWith('/' + referredFile) ||
+                  referredFile.endsWith('/' + workspaceFilename)
+                ) ? (
+                  '该文件是当前项目保存的代码文件，可进入编辑器查看。'
+                ) : (
+                  '项目完整资料（含代码、文档、证据）请在下方导出 ZIP 包获取。'
+                )}
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {workspaceFilename && (
+                  workspaceFilename === referredFile ||
+                  workspaceFilename.endsWith('/' + referredFile) ||
+                  referredFile.endsWith('/' + workspaceFilename)
+                ) && (
+                  <Button size="sm" onClick={handleEnterCodeEditor}>
+                    <Code className="mr-1.5 h-3.5 w-3.5" />
+                    进入代码编辑器
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => void handleExportProject('zip')}
+                  disabled={!!downloading}
+                >
+                  <Download className="mr-1.5 h-3.5 w-3.5" />
+                  导出 ZIP 资料包
+                </Button>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                setFileBannerDismissed(true);
+                sessionStorage.setItem('finestem_filedismiss', referredFile);
+              }}
+              className="flex-shrink-0 p-1 rounded hover:bg-teal-100 text-teal-500 hover:text-teal-700 transition-colors"
+              title="关闭提示"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
 
         {/* 项目描述 */}
         <Card className="mb-6">
@@ -276,10 +366,19 @@ export default function ProjectDetail() {
             ) : (
               <Card>
                 <CardHeader>
-                  <CardTitle>标准项目流程</CardTitle>
+                  <CardTitle>{project.mode === 'light' ? '轻量项目流程' : '标准项目流程'}</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-gray-600">标准项目流程开发中，敬请期待...</p>
+                  <p className="text-gray-600">
+                    项目阶段数据尚未初始化。你可以前往工作台开始项目，或点击下方"进入代码编辑器"继续编辑代码。
+                  </p>
+                  <Button
+                    className="mt-4"
+                    onClick={handleEnterCodeEditor}
+                  >
+                    <Code className="mr-2 h-4 w-4" />
+                    进入代码编辑器
+                  </Button>
                 </CardContent>
               </Card>
             )}
@@ -414,162 +513,6 @@ export default function ProjectDetail() {
             )}
           </div>
         </div>
-      </div>
-    </div>
-  );
-}
-
-// 成就卡片创建组件
-function ProjectAchievement({
-  project,
-  onBack,
-  onCreated,
-}: {
-  project: Project;
-  onBack: () => void;
-  onCreated: (achievement: AchievementCard) => void;
-}) {
-  const [title, setTitle] = useState(project.name);
-  const [oneLiner, setOneLiner] = useState(project.description || '');
-  const [problemSolved, setProblemSolved] = useState('');
-  const [methodUsed, setMethodUsed] = useState('');
-  const [reflection, setReflection] = useState('');
-  const [tags, setTags] = useState<string[]>(project.tech_stack || []);
-  const [newTag, setNewTag] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  const handleAddTag = () => {
-    if (newTag.trim() && !tags.includes(newTag.trim())) {
-      setTags([...tags, newTag.trim()]);
-      setNewTag('');
-    }
-  };
-
-  const handleRemoveTag = (tag: string) => {
-    setTags(tags.filter(t => t !== tag));
-  };
-
-  const handleCreate = async () => {
-    try {
-      setLoading(true);
-      const response = await achievementCardsApi.create(project.id, {
-        title,
-        one_liner: oneLiner,
-        problem_solved: problemSolved,
-        method_used: methodUsed,
-        screenshots: [],
-        reflection,
-        capability_tags: tags,
-        project_mode: project.mode,
-      });
-      if (response.data) {
-        onCreated(response.data);
-      }
-    } catch (err: any) {
-      alert('创建失败：' + err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-3xl mx-auto px-4">
-        <Button variant="secondary" className="mb-6" onClick={onBack}>
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          返回项目
-        </Button>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>生成成果档案卡</CardTitle>
-            <p className="text-gray-600 text-sm">填写信息，生成你的项目成果档案卡</p>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">项目名称</label>
-              <input
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">一句话介绍</label>
-              <textarea
-                value={oneLiner}
-                onChange={(e) => setOneLiner(e.target.value)}
-                className="w-full h-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">我解决了什么问题</label>
-              <textarea
-                value={problemSolved}
-                onChange={(e) => setProblemSolved(e.target.value)}
-                placeholder="描述你最终完成了什么..."
-                className="w-full h-32 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">我用了什么方法</label>
-              <textarea
-                value={methodUsed}
-                onChange={(e) => setMethodUsed(e.target.value)}
-                placeholder="描述你采用的方法和实现思路..."
-                className="w-full h-32 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">我的反思</label>
-              <textarea
-                value={reflection}
-                onChange={(e) => setReflection(e.target.value)}
-                placeholder="这个项目中你学到的关键点和改进想法..."
-                className="w-full h-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">标签</label>
-              <div className="flex flex-wrap gap-2 mb-2">
-                {tags.map((tag, idx) => (
-                  <Badge key={idx} variant="secondary" className="flex items-center gap-1">
-                    {tag}
-                    <button onClick={() => handleRemoveTag(tag)} className="ml-1 hover:text-red-500">×</button>
-                  </Badge>
-                ))}
-              </div>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={newTag}
-                  onChange={(e) => setNewTag(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddTag())}
-                  placeholder="添加标签..."
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                />
-                <Button variant="secondary" onClick={handleAddTag}>添加</Button>
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-3 pt-4">
-              <Button variant="secondary" onClick={onBack}>取消</Button>
-              <Button
-                className="bg-teal-600 hover:bg-teal-700"
-                onClick={handleCreate}
-                disabled={loading || !title || !oneLiner || !problemSolved || !methodUsed || !reflection}
-              >
-                {loading ? '创建中...' : '生成档案卡'}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
       </div>
     </div>
   );

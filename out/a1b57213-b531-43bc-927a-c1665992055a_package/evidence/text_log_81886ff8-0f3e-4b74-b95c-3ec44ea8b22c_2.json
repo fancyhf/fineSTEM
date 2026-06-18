@@ -1,0 +1,17 @@
+{
+  "created_at": "2026-06-17T04:04:41.721135",
+  "created_by": "27fb2e88-bf95-4c98-b33b-688891d40f43",
+  "updated_at": "2026-06-17T04:04:41.721135",
+  "updated_by": null,
+  "deleted_at": null,
+  "deleted_by": null,
+  "is_deleted": false,
+  "type": "text_log",
+  "title": "stage_01_brainstorm",
+  "content": "好的！2小时的时间，非常适合做一个*Web小应用*——不需要安装任何环境，用浏览器就能运行和展示，而且成就感满！\n结合你初中生的背景，我推荐这几个方向，你看哪个感兴趣：",
+  "content_url": null,
+  "related_step": "stage_01_brainstorm",
+  "id": "81886ff8-0f3e-4b74-b95c-3ec44ea8b22c",
+  "project_id": "a1b57213-b531-43bc-927a-c1665992055a",
+  "author_id": "27fb2e88-bf95-4c98-b33b-688891d40f43"
+}

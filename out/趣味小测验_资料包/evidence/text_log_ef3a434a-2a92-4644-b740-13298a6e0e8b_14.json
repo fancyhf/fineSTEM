@@ -1,0 +1,17 @@
+{
+  "created_at": "2026-06-17T04:07:45.518707",
+  "created_by": "27fb2e88-bf95-4c98-b33b-688891d40f43",
+  "updated_at": "2026-06-17T04:07:45.518707",
+  "updated_by": null,
+  "deleted_at": null,
+  "deleted_by": null,
+  "is_deleted": false,
+  "type": "text_log",
+  "title": "stage_01_brainstorm",
+  "content": "好的！范围已确认，我马上生成*范围约束文档*并保存。\n*✅ 范围已锁定*\n| 必须做 (Must Have) | 可以做 (Nice to Have) | 暂时不做 (Won't Do) |\n|---|---|---|\n| ① 选择题4选项 | ① 倒计时 | ① 登录/注册 |\n| ② 即时判断对错 | ② 排行榜 | ② 高分联网 |\n| ③ 最后总分 | ③ 动画效果 | ③ 多人对战 |\n现在进入*技术轨道选择*环节！你想用什么工具来做这个测验？基本选项是：\n- *纯代码*：直接用HTML/CSS/JavaScript写（推荐，2小时刚好）\n- *AI辅助*：让我帮写大部分代码，你主要负责填空和修改\n用纯代码还是我来带你写大部分？",
+  "content_url": null,
+  "related_step": "stage_01_brainstorm",
+  "id": "ef3a434a-2a92-4644-b740-13298a6e0e8b",
+  "project_id": "f2a11545-2b53-488d-8c38-7048f3adc801",
+  "author_id": "27fb2e88-bf95-4c98-b33b-688891d40f43"
+}

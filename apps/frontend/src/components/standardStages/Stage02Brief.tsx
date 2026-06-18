@@ -11,7 +11,7 @@ export function Stage02Brief({ value, onChange }: StageComponentProps<Stage02Pay
   return (
     <div className="space-y-3">
       <div>
-        <label className="block text-sm text-gray-700 mb-1">Problem Statement</label>
+        <label className="block text-sm text-gray-700 mb-1">问题陈述</label>
         <textarea
           value={value.problem_statement}
           onChange={(e) => updateField(value, 'problem_statement', e.target.value, onChange)}
@@ -19,7 +19,7 @@ export function Stage02Brief({ value, onChange }: StageComponentProps<Stage02Pay
         />
       </div>
       <div>
-        <label className="block text-sm text-gray-700 mb-1">Target User</label>
+        <label className="block text-sm text-gray-700 mb-1">目标用户</label>
         <input
           value={value.target_user}
           onChange={(e) => updateField(value, 'target_user', e.target.value, onChange)}
@@ -27,7 +27,7 @@ export function Stage02Brief({ value, onChange }: StageComponentProps<Stage02Pay
         />
       </div>
       <div>
-        <label className="block text-sm text-gray-700 mb-1">Success Criteria (one per line)</label>
+        <label className="block text-sm text-gray-700 mb-1">成功标准（每行一个）</label>
         <textarea
           value={joinLines(value.success_criteria)}
           onChange={(e) => updateField(value, 'success_criteria', splitLines(e.target.value), onChange)}

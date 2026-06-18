@@ -1,0 +1,17 @@
+{
+  "created_at": "2026-06-17T04:05:21.181107",
+  "created_by": "27fb2e88-bf95-4c98-b33b-688891d40f43",
+  "updated_at": "2026-06-17T04:05:21.181107",
+  "updated_by": null,
+  "deleted_at": null,
+  "deleted_by": null,
+  "is_deleted": false,
+  "type": "text_log",
+  "title": "stage_00_bootstrap",
+  "content": "科学百科主题，太酷了！🔬\n再来问你，这个测验你想怎么设计？",
+  "content_url": null,
+  "related_step": "stage_00_bootstrap",
+  "id": "7064c1dd-2d61-47ba-a878-9738c46e2c5a",
+  "project_id": "f2a11545-2b53-488d-8c38-7048f3adc801",
+  "author_id": "27fb2e88-bf95-4c98-b33b-688891d40f43"
+}

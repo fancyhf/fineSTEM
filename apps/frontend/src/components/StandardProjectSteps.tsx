@@ -42,15 +42,15 @@ interface StandardStageConfig {
 }
 
 const STANDARD_STAGES: StandardStageConfig[] = [
-  { step: 0, stageId: 'stage_00_bootstrap', label: 'Stage 0: Bootstrap', gain: 'Define context and boundaries.', minimumDone: 'Goal, resources, and constraints are clear.', aiSupport: 'AI drafts checklist and risk list.' },
-  { step: 1, stageId: 'stage_01_brainstorm', label: 'Stage 1: Brainstorm', gain: 'Pick the most valuable topic.', minimumDone: 'Candidate list and final topic selected.', aiSupport: 'AI expands options and compares trade-offs.' },
-  { step: 2, stageId: 'stage_02_brief', label: 'Stage 2: Brief', gain: 'Build an executable project brief.', minimumDone: 'Problem, users, and success criteria defined.', aiSupport: 'AI refines scope and acceptance criteria.' },
-  { step: 3, stageId: 'stage_03_constraints', label: 'Stage 3: Scope Matrix', gain: 'Lock MVP scope.', minimumDone: 'Must-have / nice-to-have / won\'t-do are complete.', aiSupport: 'AI warns about over-scope risk.' },
-  { step: 4, stageId: 'stage_04_track', label: 'Stage 4: Track Selection', gain: 'Choose route and stack.', minimumDone: 'Track, tools, and dependencies are confirmed.', aiSupport: 'AI provides route cost comparison.' },
-  { step: 5, stageId: 'stage_05_design', label: 'Stage 5: Design', gain: 'Finalize module plan and acceptance checks.', minimumDone: 'Modules, data flow, and criteria are complete.', aiSupport: 'AI suggests architecture and interfaces.' },
-  { step: 6, stageId: 'stage_06_step_plan', label: 'Stage 6: Step Plan', gain: 'Create actionable sequence.', minimumDone: 'Execution steps, checks, and rollback are clear.', aiSupport: 'AI decomposes tasks into small steps.' },
-  { step: 7, stageId: 'stage_07_execute', label: 'Stage 7: Execute', gain: 'Deliver implementation with evidence.', minimumDone: 'Milestones, issues, and evidence are logged.', aiSupport: 'AI helps debug and unblock.' },
-  { step: 8, stageId: 'stage_08_evaluate', label: 'Stage 8: Evaluate', gain: 'Close with review and next iteration plan.', minimumDone: 'Acceptance summary and reflection completed.', aiSupport: 'AI drafts presentation and retrospective.' },
+  { step: 0, stageId: 'stage_00_bootstrap', label: '阶段 0：准备阶段', gain: '明确项目背景、目标和边界。', minimumDone: '目标、资源与限制条件已经写清楚。', aiSupport: 'AI 可以帮你生成检查清单和风险提示。' },
+  { step: 1, stageId: 'stage_01_brainstorm', label: '阶段 1：脑暴选题', gain: '选出最值得投入的项目方向。', minimumDone: '已有候选主题，并确定最终选题。', aiSupport: 'AI 可以扩展选项并比较取舍。' },
+  { step: 2, stageId: 'stage_02_brief', label: '阶段 2：开题立项', gain: '形成可执行的项目简述。', minimumDone: '问题、用户和成功标准已经定义。', aiSupport: 'AI 可以收敛范围并完善验收标准。' },
+  { step: 3, stageId: 'stage_03_constraints', label: '阶段 3：范围裁剪', gain: '锁定 MVP 范围。', minimumDone: '必做、选做、不做事项已经明确。', aiSupport: 'AI 可以提醒过度设计和延期风险。' },
+  { step: 4, stageId: 'stage_04_track', label: '阶段 4：轨道选择', gain: '确定实现路线和技术栈。', minimumDone: '轨道、工具链和依赖已经确认。', aiSupport: 'AI 可以给出路线成本对比。' },
+  { step: 5, stageId: 'stage_05_design', label: '阶段 5：设计蓝图', gain: '完成模块计划和验收检查。', minimumDone: '模块、数据流和验收条件已经完整。', aiSupport: 'AI 可以建议架构、接口和页面结构。' },
+  { step: 6, stageId: 'stage_06_step_plan', label: '阶段 6：分步计划', gain: '拆出可执行的任务序列。', minimumDone: '执行步骤、检查点和回退方案清楚。', aiSupport: 'AI 可以把任务拆成更小的步骤。' },
+  { step: 7, stageId: 'stage_07_execute', label: '阶段 7：执行开发', gain: '交付实现并留下证据。', minimumDone: '里程碑、问题记录和证据链接已经整理。', aiSupport: 'AI 可以协助调试、生成代码和排障。' },
+  { step: 8, stageId: 'stage_08_evaluate', label: '阶段 8：评估展示', gain: '完成验收总结和下一轮迭代计划。', minimumDone: '验收总结和反思已经完成。', aiSupport: 'AI 可以帮你整理展示稿和复盘。' },
 ];
 
 function resolveActiveStep(currentStage: string): number {
@@ -174,11 +174,17 @@ function isReady(step: number, payload: Record<string, unknown>): boolean {
 
 export function StandardProjectSteps({ projectId, progress, onProgressUpdate }: StandardProjectStepsProps) {
   const navigate = useNavigate();
-  const [activeStep, setActiveStep] = useState<number>(0);
+  const [activeStep, setActiveStep] = useState<number>(resolveActiveStep(progress.current_stage));
   const [saving, setSaving] = useState(false);
   const [advancing, setAdvancing] = useState(false);
   const [savedMessage, setSavedMessage] = useState('');
   const [contents, setContents] = useState<Record<number, StandardProjectStepData>>({});
+
+  // 同步 activeStep：progress 变化时更新当前阶段，同时保留用户手动切换 tab 的能力
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 将外部 progress 同步到本地 UI 状态
+    setActiveStep(resolveActiveStep(progress.current_stage));
+  }, [progress.current_stage]);
 
   const stageMap = useMemo(() => {
     const mapped: Record<number, StandardProjectStepData> = {};
@@ -189,13 +195,11 @@ export function StandardProjectSteps({ projectId, progress, onProgressUpdate }: 
     return mapped;
   }, [progress.standard_step_data]);
 
+  // 同步 contents：stageMap 变化时（切换项目等），重置本地编辑副本
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 将外部数据同步到本地表单 state 是受控组件的必要模式
     setContents(stageMap);
   }, [stageMap]);
-
-  useEffect(() => {
-    setActiveStep(resolveActiveStep(progress.current_stage));
-  }, [progress.current_stage]);
 
   const activeStage = STANDARD_STAGES.find((stage) => stage.step === activeStep) ?? STANDARD_STAGES[0];
   const isFinalStage = progress.current_stage === 'stage_08_evaluate';
@@ -231,9 +235,9 @@ export function StandardProjectSteps({ projectId, progress, onProgressUpdate }: 
       if (response.data) {
         onProgressUpdate?.(response.data);
       }
-      setSavedMessage('Saved current stage data.');
+      setSavedMessage('当前阶段已保存。');
     } catch {
-      setSavedMessage('Save failed. Please retry.');
+      setSavedMessage('保存失败，请重试。');
     } finally {
       setSaving(false);
     }
@@ -244,7 +248,7 @@ export function StandardProjectSteps({ projectId, progress, onProgressUpdate }: 
       return;
     }
     if (!isReady(activeStage.step, (activeData.payload ?? {}) as Record<string, unknown>)) {
-      setSavedMessage('Please complete required fields before advancing.');
+      setSavedMessage('请先补全当前阶段的必填内容，再推进到下一阶段。');
       return;
     }
     try {
@@ -258,9 +262,9 @@ export function StandardProjectSteps({ projectId, progress, onProgressUpdate }: 
       if (response.data) {
         onProgressUpdate?.(response.data);
       }
-      setSavedMessage('Moved to next stage.');
+      setSavedMessage('已推进到下一阶段。');
     } catch {
-      setSavedMessage('Advance failed. Please retry.');
+      setSavedMessage('推进失败，请重试。');
     } finally {
       setAdvancing(false);
     }
@@ -294,7 +298,7 @@ export function StandardProjectSteps({ projectId, progress, onProgressUpdate }: 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Standard Learning Workflow</CardTitle>
+        <CardTitle>标准研学流程</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex flex-wrap gap-2">
@@ -304,7 +308,7 @@ export function StandardProjectSteps({ projectId, progress, onProgressUpdate }: 
             return (
               <button key={stage.stageId} type="button" onClick={() => setActiveStep(stage.step)} className="text-left">
                 <Badge variant={isCurrent ? 'primary' : isDone ? 'success' : 'secondary'}>
-                  {stage.step}. {stage.label.replace(/^Stage \d+: /, '')}
+                  {stage.step}. {stage.label.replace(/^阶段 \d+：/, '')}
                 </Badge>
               </button>
             );
@@ -314,31 +318,31 @@ export function StandardProjectSteps({ projectId, progress, onProgressUpdate }: 
         <div className="rounded-lg border border-gray-200 p-4 space-y-3">
           <div>
             <h3 className="text-base font-semibold text-gray-900">{activeStage.label}</h3>
-            <p className="text-sm text-gray-600 mt-1">Outcome: {activeStage.gain}</p>
-            <p className="text-sm text-gray-600 mt-1">Minimum done: {activeStage.minimumDone}</p>
-            <p className="text-sm text-gray-600 mt-1">AI support: {activeStage.aiSupport}</p>
+            <p className="text-sm text-gray-600 mt-1">本阶段目标：{activeStage.gain}</p>
+            <p className="text-sm text-gray-600 mt-1">最低完成标准：{activeStage.minimumDone}</p>
+            <p className="text-sm text-gray-600 mt-1">AI 支持：{activeStage.aiSupport}</p>
           </div>
 
           {renderStageForm(activeStage.step, (activeData.payload ?? createDefaultPayload(activeStage.step)) as Record<string, unknown>)}
 
           <div className="flex flex-wrap gap-3">
             <Button variant="secondary" onClick={handleSaveCurrent} disabled={saving}>
-              {saving ? 'Saving...' : 'Save Stage'}
+              {saving ? '保存中...' : '保存阶段'}
             </Button>
             <Button onClick={handleAdvance} disabled={advancing || isFinalStage}>
-              {advancing ? 'Advancing...' : isFinalStage ? 'Final Stage Reached' : 'Advance'}
+              {advancing ? '推进中...' : isFinalStage ? '已到最终阶段' : '推进下一阶段'}
             </Button>
             <Button
               variant="secondary"
               onClick={() =>
                 navigate(
-                  `/create?scene=${encodeURIComponent('Start Project')}&projectId=${encodeURIComponent(projectId)}&stage=${encodeURIComponent(
+                  `/create?scene=${encodeURIComponent('开始项目')}&projectId=${encodeURIComponent(projectId)}&stage=${encodeURIComponent(
                     activeStage.stageId
                   )}`
                 )
               }
             >
-              AI Assistant For This Stage
+              让 AI 协助本阶段
             </Button>
           </div>
 

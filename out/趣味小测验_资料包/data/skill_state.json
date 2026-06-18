@@ -1,0 +1,38 @@
+{
+  "version": "1.0.0",
+  "project_id": "f2a11545-2b53-488d-8c38-7048f3adc801",
+  "mode": "standard",
+  "current_stage": "stage_08_evaluate",
+  "light_step": null,
+  "stages": {},
+  "metadata": {},
+  "light_to_standard_mapping": null,
+  "stage_history": [
+    {
+      "stage": "stage_00_bootstrap",
+      "started_at": "2026-06-17T04:04:59.084259"
+    },
+    {
+      "stage": "stage_01_brainstorm",
+      "started_at": "2026-06-17T04:07:15.050359"
+    },
+    {
+      "action": "next",
+      "from_stage": "stage_01_brainstorm",
+      "to_stage": "stage_02_brief",
+      "note": "脑爆完成，进入开题阶段",
+      "timestamp": "2026-06-17T04:08:29.668849+00:00"
+    },
+    {
+      "action": "complete",
+      "from_stage": "stage_08_evaluate",
+      "to_stage": "stage_08_evaluate",
+      "note": "项目验收完成，正式报告已生成",
+      "timestamp": "2026-06-17T04:41:33.106513+00:00"
+    }
+  ],
+  "light_step_data": {},
+  "standard_step_data": {},
+  "created_at": "2026-06-17T04:04:59.085259",
+  "updated_at": "2026-06-17T04:41:33.106513"
+}

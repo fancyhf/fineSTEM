@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { MessageSquare, Code, Rocket, FileText, ChevronUp, Paperclip, Link2, FolderOpen, Plus, Sparkles, User, Settings, Zap, ClipboardList, FileCode, Image, Play, Copy, Check, ArrowRight, BookOpen, PanelLeftClose, PanelLeftOpen, Terminal, Eye, Pencil, MoreHorizontal } from 'lucide-react';
+import { MessageSquare, Code, Rocket, FileText, ChevronUp, Paperclip, Link2, FolderOpen, Plus, Sparkles, User, Zap, Play, Copy, Check, ArrowRight, BookOpen, PanelLeftClose, PanelLeftOpen, Terminal, Eye, Pencil, MoreHorizontal } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { useStreamingChat } from '../hooks/useStreamingChat';
 import { MarkdownText } from '../components/MarkdownText';
@@ -381,20 +381,30 @@ function parseQuestionFromText(text: string): QuestionData | null {
   return { id: `q-fallback-${Date.now()}`, title, options };
 }
 
-function EnhancedMarkdownText({ content, onWriteCode, onRunCode }: { content: string; onWriteCode: (code: string, lang: string) => void; onRunCode: (code: string, lang: string) => void }) {
+function EnhancedMarkdownText({
+  content,
+  projectId,
+  onWriteCode,
+  onRunCode,
+}: {
+  content: string;
+  projectId?: string | null;
+  onWriteCode: (code: string, lang: string) => void;
+  onRunCode: (code: string, lang: string) => void;
+}) {
   const parts: React.ReactNode[] = [];
   const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/g;
   let lastIndex = 0;
   let match;
   let key = 0;
   while ((match = codeBlockRegex.exec(content)) !== null) {
-    if (match.index > lastIndex) parts.push(<MarkdownText key={key++} content={content.slice(lastIndex, match.index)} />);
+    if (match.index > lastIndex) parts.push(<MarkdownText key={key++} content={content.slice(lastIndex, match.index)} projectId={projectId} />);
     const language = match[1] || 'text';
     const code = match[2].trim();
     parts.push(<CodeBlock key={key++} code={code} language={language} onWriteToEditor={() => onWriteCode(code, language)} onRun={() => onRunCode(code, language)} />);
     lastIndex = match.index + match[0].length;
   }
-  if (lastIndex < content.length) parts.push(<MarkdownText key={key++} content={content.slice(lastIndex)} />);
+  if (lastIndex < content.length) parts.push(<MarkdownText key={key++} content={content.slice(lastIndex)} projectId={projectId} />);
   return <>{parts}</>;
 }
 
@@ -438,7 +448,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;p
   }
   function _escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
 })();
-<\/script></body></html>`;
+</script></body></html>`;
   }
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body{font-family:monospace;padding:20px;background:#f9fafb}pre{background:#1f2937;color:#e5e7eb;padding:16px;border-radius:8px;overflow-x:auto;white-space:pre-wrap}</style></head><body><pre>${_escHtml(code)}</pre></body></html>`;
 }
@@ -528,14 +538,37 @@ export function Create() {
     skipChatAutosave: false,
   });
 
+  const loadUserProjects = useCallback(async () => {
+    try {
+      console.log('[loadUserProjects] 正在加载项目列表...');
+      const res = await projectsApi.list({ page: 1, page_size: 20 });
+      console.log('[loadUserProjects] API响应:', res);
+      if (res.data?.items) {
+        setUserProjects(res.data.items.map(p => ({
+          id: p.id,
+          name: p.name,
+          mode: p.mode,
+          current_stage: p.current_stage,
+          created_at: p.created_at,
+        })));
+        console.log('[loadUserProjects] 已加载', res.data.items.length, '个项目');
+      }
+    } catch (error) {
+      console.error('[loadUserProjects] 加载项目列表失败:', error);
+    }
+  }, []);
+
   useEffect(() => {
     if (user) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- 这是异步数据加载的合法副作用
       loadUserProjects();
     }
-  }, [user]);
+  }, [user, loadUserProjects]);
 
   const [_restoreDone, setRestoreDone] = useState(false);
   const restoreRef = useRef(false);
+  /** 恢复后的场景标识（如 'generate_achievement' 表示需要 AI 引导生成成果卡） */
+  const restoreSceneRef = useRef<string | undefined>(undefined);
   const consumeRestoreAutosaveGuard = useCallback((kind: 'code' | 'chat', projectId: string) => {
     const guard = restoreAutosaveGuardRef.current;
     if (guard.projectId !== projectId) {
@@ -601,7 +634,9 @@ export function Create() {
     sessionStorage.removeItem('finestem_restore_project');
     try {
       const data = JSON.parse(restore);
-      console.log('[restore] 恢复数据:', { projectId: data.projectId, hasCode: !!data.code, msgCount: data.messages?.length });
+      console.log('[restore] 恢复数据:', { projectId: data.projectId, hasCode: !!data.code, msgCount: data.messages?.length, scene: data.scene });
+      // 存储场景标识，待恢复完成后由 useEffect 触发对应动作
+      restoreSceneRef.current = data.scene || undefined;
       if (data.projectId) {
         projectsApi.getWorkspace(data.projectId)
           .then((res) => {
@@ -639,7 +674,24 @@ export function Create() {
     }
   }, [applyWorkspaceRestore]);
 
-  useEffect(() => { const q = searchParams.get('q'); if (q && messages.length === 0) handleSend(q); }, [searchParams]);
+  useEffect(() => { const q = searchParams.get('q'); if (q && messages.length === 0) handleSendRef.current?.(q); }, [searchParams]);
+
+  /** 场景驱动：从 sessionStorage 恢复后，根据 scene 标识触发对应 AI 引导 */
+  useEffect(() => {
+    if (!_restoreDone || !projectContext.projectId) return;
+    const scene = restoreSceneRef.current;
+    if (!scene) return;
+    restoreSceneRef.current = undefined; // 一次性消费，防止重复触发
+
+    if (scene === 'generate_achievement') {
+      // 延迟确保 chat UI 已渲染完毕
+      setTimeout(() => {
+        handleSendRef.current?.(
+          '请帮我为当前项目生成一份成果档案卡。请根据项目的阶段文档（开题卡、设计方案、评估结果等）自动整理关键信息，生成一个完整的成果卡。如果某些信息缺失，请引导我补充。',
+        );
+      }, 600);
+    }
+  }, [_restoreDone, projectContext.projectId]);
   useEffect(() => { if (messagesEndRef.current) messagesEndRef.current.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
   useEffect(() => { if (textareaRef.current) { textareaRef.current.style.height = 'auto'; textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 200) + 'px'; } }, [inputValue]);
 
@@ -676,26 +728,6 @@ export function Create() {
     }
     return () => { if (chatSaveTimerRef.current) clearTimeout(chatSaveTimerRef.current); };
   }, [consumeRestoreAutosaveGuard, messages, projectContext.projectId]);
-
-  const loadUserProjects = useCallback(async () => {
-    try {
-      console.log('[loadUserProjects] 正在加载项目列表...');
-      const res = await projectsApi.list({ page: 1, page_size: 20 });
-      console.log('[loadUserProjects] API响应:', res);
-      if (res.data?.items) {
-        setUserProjects(res.data.items.map(p => ({
-          id: p.id,
-          name: p.name,
-          mode: p.mode,
-          current_stage: p.current_stage,
-          created_at: p.created_at,
-        })));
-        console.log('[loadUserProjects] 已加载', res.data.items.length, '个项目');
-      }
-    } catch (error) {
-      console.error('[loadUserProjects] 加载项目列表失败:', error);
-    }
-  }, []);
 
   const ensureActiveProjectForAdvance = useCallback(async () => {
     if (projectContext.projectId && !projectContext.projectId.startsWith('local-')) {
@@ -804,10 +836,9 @@ export function Create() {
 
   const nextMessageId = () => { messageSeqRef.current += 1; return String(messageSeqRef.current); };
 
-  const startEditProject = useCallback((projId: string, currentName: string) => {
-    setEditingProjectId(projId);
-    setEditProjectName(currentName);
-    setTimeout(() => editInputRef.current?.focus(), 50);
+  const cancelEditProject = useCallback(() => {
+    setEditingProjectId(null);
+    setEditProjectName('');
   }, []);
 
   const saveEditProject = useCallback(async () => {
@@ -831,11 +862,12 @@ export function Create() {
     }
     setEditingProjectId(null);
     setEditProjectName('');
-  }, [editingProjectId, editProjectName, user]);
+  }, [editingProjectId, editProjectName, user, cancelEditProject]);
 
-  const cancelEditProject = useCallback(() => {
-    setEditingProjectId(null);
-    setEditProjectName('');
+  const startEditProject = useCallback((projId: string, currentName: string) => {
+    setEditingProjectId(projId);
+    setEditProjectName(currentName);
+    setTimeout(() => editInputRef.current?.focus(), 50);
   }, []);
 
   const handleStartNewProject = useCallback(() => {
@@ -1313,7 +1345,10 @@ export function Create() {
       setIsLoading(false);
     }
   };
-  handleSendRef.current = handleSend;
+  // handleSendRef 更新放在 useEffect 中，避免 render 期间修改 ref
+  useEffect(() => {
+    handleSendRef.current = handleSend;
+  });
 
   // Listen for code-error messages from preview iframe (Ask AI button)
   useEffect(() => {
@@ -1392,6 +1427,17 @@ export function Create() {
             <FolderOpen className="w-3.5 h-3.5 text-gray-500" />
             <h3 className="font-semibold text-gray-800 text-xs">项目</h3>
           </div>
+          {projectContext.projectId && !projectContext.projectId.startsWith('local-') && (
+            <div className="px-2 pt-2">
+              <Link
+                to={`/research/projects/${projectContext.projectId}`}
+                className="flex items-center justify-center gap-1.5 rounded-lg border border-teal-200 bg-teal-50 px-2 py-1.5 text-xs font-medium text-teal-700 hover:bg-teal-100"
+              >
+                <FolderOpen className="w-3.5 h-3.5" />
+                打开项目主页
+              </Link>
+            </div>
+          )}
           <div className="p-2 space-y-1 max-h-[200px] overflow-y-auto">
             {userProjects.length > 0 && userProjects.map((proj) => (
               <div key={proj.id} className={`group rounded-lg transition-colors ${
@@ -1588,7 +1634,12 @@ export function Create() {
                         <span>{msg.role === 'user' ? '你' : 'fineSTEM AI'}</span>
                       </div>
                       {msg.role === 'assistant' ? (
-                        <EnhancedMarkdownText content={msg.content} onWriteCode={handleWriteCodeToEditor} onRunCode={handleRunCode} />
+                        <EnhancedMarkdownText
+                          content={msg.content}
+                          projectId={projectContext.projectId?.startsWith('local-') ? null : projectContext.projectId}
+                          onWriteCode={handleWriteCodeToEditor}
+                          onRunCode={handleRunCode}
+                        />
                       ) : (
                         <div className="text-sm whitespace-pre-wrap">{msg.content}</div>
                       )}

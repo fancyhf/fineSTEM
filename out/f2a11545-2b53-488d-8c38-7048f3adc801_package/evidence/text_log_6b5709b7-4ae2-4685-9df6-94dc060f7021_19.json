@@ -1,0 +1,17 @@
+{
+  "created_at": "2026-06-17T04:06:18.944607",
+  "created_by": "27fb2e88-bf95-4c98-b33b-688891d40f43",
+  "updated_at": "2026-06-17T04:06:18.944607",
+  "updated_by": null,
+  "deleted_at": null,
+  "deleted_by": null,
+  "is_deleted": false,
+  "type": "text_log",
+  "title": "stage_00_bootstrap",
+  "content": "好，接下来我们一起定一下*成功标准*和*风险*，这是项目立项书里最重要的两部分。\n-\n*你觉得这个科学百科小测验做到什么程度，就算“做好了”？*\n（可以多选）",
+  "content_url": null,
+  "related_step": "stage_00_bootstrap",
+  "id": "6b5709b7-4ae2-4685-9df6-94dc060f7021",
+  "project_id": "f2a11545-2b53-488d-8c38-7048f3adc801",
+  "author_id": "27fb2e88-bf95-4c98-b33b-688891d40f43"
+}

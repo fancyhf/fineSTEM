@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>科学百科小测验</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, "Microsoft YaHei", sans-serif;
+            background: #e3f2fd;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .card {
+            background: white;
+            border-radius: 24px;
+            padding: 32px;
+            width: 420px;
+            max-width: 90vw;
+            box-shadow: 0 8px 32px rgba(33, 150, 243, 0.15);
+        }
+        h1 {
+            font-size: 24px;
+            color: #1565c0;
+            text-align: center;
+            margin-bottom: 8px;
+        }
+        .progress {
+            text-align: center;
+            color: #90a4ae;
+            font-size: 14px;
+            margin-bottom: 24px;
+        }
+        .question-text {
+            font-size: 18px;
+            color: #263238;
+            line-height: 1.6;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .options {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .option-btn {
+            padding: 14px 20px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            background: white;
+            font-size: 16px;
+            color: #37474f;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: left;
+        }
+        .option-btn:hover {
+            border-color: #2196f3;
+            background: #f5faff;
+        }
+        .option-btn.correct {
+            border-color: #4caf50;
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+        .option-btn.wrong {
+            border-color: #f44336;
+            background: #ffebee;
+            color: #c62828;
+        }
+        .option-btn:disabled {
+            cursor: default;
+            opacity: 0.9;
+        }
+        .feedback {
+            text-align: center;
+            font-size: 48px;
+            margin: 16px 0;
+        }
+        .explanation {
+            background: #f5faff;
+            border-radius: 12px;
+            padding: 12px 16px;
+            font-size: 14px;
+            color: #546e7a;
+            margin-bottom: 16px;
+            display: none;
+        }
+        .next-btn {
+            display: block;
+            margin: 0 auto;
+            padding: 12px 40px;
+            background: #2196f3;
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .next-btn:hover { background: #1976d2; }
+        .next-btn:disabled { background: #bdbdbd; cursor: default; }
+        .result-card {
+            text-align: center;
+        }
+        .result-score {
+            font-size: 64px;
+            font-weight: bold;
+            color: #1565c0;
+            margin: 16px 0;
+        }
+        .result-message {
+            font-size: 18px;
+            color: #546e7a;
+            margin-bottom: 24px;
+        }
+        .restart-btn {
+            padding: 12px 40px;
+            background: #ff9800;
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+    <div class="card" id="app">
+        <!-- 答题界面 -->
+        <div id="quizView">
+            <h1>🔬 科学百科大挑战</h1>
+            <div class="progress" id="progress">第 1 / 6 题</div>
+            <div class="question-text" id="questionText">加载中...</div>
+            <div class="options" id="optionsContainer"></div>
+            <div class="feedback" id="feedbackIcon"></div>
+            <div class="explanation" id="explanationBox"></div>
+            <button class="next-btn" id="nextBtn" disabled>下一题 →</button>
+        </div>
+        <!-- 结果界面 -->
+        <div id="resultView" class="hidden result-card">
+            <h1>🎉 测验完成！</h1>
+            <div class="result-score" id="finalScore">0 / 6</div>
+            <div class="result-message" id="resultMessage">继续加油！</div>
+            <button class="restart-btn" onclick="initQuiz()">🔄 再玩一次</button>
+        </div>
+    </div>
+
+    <script>
+        // 题库
+        const QUESTIONS = [
+            {
+                q: "地球大气中含量最多的气体是？",
+                options: ["氧气", "氮气", "二氧化碳", "氢气"],
+                answer: 1,
+                explain: "氮气约占空气体积的78%"
+            },
+            {
+                q: "光在真空中的传播速度约为？",
+                options: ["3×10⁶ m/s", "3×10⁷ m/s", "3×10⁸ m/s", "3×10⁹ m/s"],
+                answer: 2,
+                explain: "光速约为每秒30万公里"
+            },
+            {
+                q: "人体最大的器官是什么？",
+                options: ["心脏", "肝脏", "皮肤", "大脑"],
+                answer: 2,
+                explain: "皮肤面积约1.5-2平方米"
+            },
+            {
+                q: "水的化学式是？",
+                options: ["CO₂", "H₂O", "NaCl", "O₂"],
+                answer: 1,
+                explain: "水由两个氢原子和一个氧原子组成"
+            },
+            {
+                q: "太阳系中最大的行星是？",
+                options: ["地球", "土星", "木星", "天王星"],
+                answer: 2,
+                explain: "木星的直径是地球的11倍"
+            },
+            {
+                q: "以下哪个是哺乳动物？",
+                options: ["企鹅", "海豚", "鳄鱼", "青蛙"],
+                answer: 1,
+                explain: "海豚用肺呼吸，胎生哺乳"
+            }
+        ];
+
+        let currentIndex = 0;
+        let score = 0;
+        let answered = false;
+        let shuffledQuestions = [];
+
+        function shuffle(arr) {
+            const a = [...arr];
+            for (let i = a.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [a[i], a[j]] = [a[j], a[i]];
+            }
+            return a;
+        }
+
+        function initQuiz() {
+            shuffledQuestions = shuffle(QUESTIONS);
+            currentIndex = 0;
+            score = 0;
+            answered = false;
+            document.getElementById('quizView').classList.remove('hidden');
+            document.getElementById('resultView').classList.add('hidden');
+            showQuestion();
+        }
+
+        function showQuestion() {
+            const q = shuffledQuestions[currentIndex];
+            document.getElementById('progress').textContent = `第 ${currentIndex + 1} / ${shuffledQuestions.length} 题`;
+            document.getElementById('questionText').textContent = q.q;
+            document.getElementById('feedbackIcon').textContent = '';
+            document.getElementById('explanationBox').style.display = 'none';
+            document.getElementById('nextBtn').disabled = true;
+            answered = false;
+
+            const container = document.getElementById('optionsContainer');
+            container.innerHTML = '';
+            q.options.forEach((opt, idx) => {
+                const btn = document.createElement('button');
+                btn.className = 'option-btn';
+                btn.textContent = `${String.fromCharCode(65 + idx)}. ${opt}`;
+                btn.dataset.index = idx;
+                btn.addEventListener('click', () => handleAnswer(idx));
+                container.appendChild(btn);
+            });
+        }
+
+        function handleAnswer(selected) {
+            if (answered) return;
+            answered = true;
+            const q = shuffledQuestions[currentIndex];
+            const buttons = document.querySelectorAll('.option-btn');
+
+            buttons.forEach((btn, idx) => {
+                btn.disabled = true;
+                if (idx === q.answer) btn.classList.add('correct');
+                if (idx === selected && selected !== q.answer) btn.classList.add('wrong');
+            });
+
+            if (selected === q.answer) {
+                score++;
+                document.getElementById('feedbackIcon').textContent = '✅ 答对了！';
+            } else {
+                document.getElementById('feedbackIcon').textContent = '❌ 答错了';
+            }
+
+            const explainBox = document.getElementById('explanationBox');
+            explainBox.textContent = '💡 ' + q.explain;
+            explainBox.style.display = 'block';
+
+            document.getElementById('nextBtn').disabled = false;
+        }
+
+        function nextQuestion() {
+            currentIndex++;
+            if (currentIndex < shuffledQuestions.length) {
+                showQuestion();
+            } else {
+                showResult();
+            }
+        }
+
+        function showResult() {
+            document.getElementById('quizView').classList.add('hidden');
+            document.getElementById('resultView').classList.remove('hidden');
+            document.getElementById('finalScore').textContent = `${score} / ${shuffledQuestions.length}`;
+
+            let msg = '继续加油！💪';
+            if (score === shuffledQuestions.length) msg = '太棒了！全部答对！🏆🌟';
+            else if (score >= shuffledQuestions.length * 0.7) msg = '不错哦，再练练就能满分！😊';
+            document.getElementById('resultMessage').textContent = msg;
+        }
+
+        document.getElementById('nextBtn').addEventListener('click', nextQuestion);
+        initQuiz();
+    </script>
+</body>
+</html>

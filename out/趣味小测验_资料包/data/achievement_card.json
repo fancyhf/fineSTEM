@@ -1,0 +1,23 @@
+{
+  "is_public": false,
+  "submitted_at": null,
+  "created_at": "2026-06-17T15:44:46.498246",
+  "created_by": null,
+  "updated_at": "2026-06-17T15:44:46.497238",
+  "updated_by": null,
+  "deleted_at": null,
+  "deleted_by": null,
+  "is_deleted": false,
+  "title": "科学百科小测验",
+  "one_liner": "一个趣味科学问答Web应用，涵盖天文、生物、物理等知识",
+  "problem_solved": "| 功能 | 状态 | 说明 |\n|------|------|------|\n| 📚 随机出题 | ✅ | 6道科学题随机打乱 |\n| 🖱️ 选项交互 | ✅ | 点击即显示✅或❌ |\n| 📊 自动计分 | ✅ | 答对+1分，显示总分 |\n| 🧠 知识解析 | ✅ | 每题答案附带解析 |\n| 🔄 再玩一次 | ✅ | 题库随机重排 |\n| 🎨 界面美观 | ✅ | 蓝白卡片、圆角设计 |",
+  "method_used": "HTML + CSS + JavaScript，零配置运行",
+  "screenshots": [],
+  "reflection": "项目已完成全部阶段。建议回顾各阶段的学习记录，补充具体的收获和反思。",
+  "capability_tags": [],
+  "project_mode": "standard",
+  "id": "544215f5-bc2d-4832-8c48-7fa2c9ee934c",
+  "project_id": "f2a11545-2b53-488d-8c38-7048f3adc801",
+  "author_id": "27fb2e88-bf95-4c98-b33b-688891d40f43",
+  "share_token": null
+}

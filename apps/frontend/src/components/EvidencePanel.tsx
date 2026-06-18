@@ -28,6 +28,34 @@ const TYPE_LABELS: Record<Evidence['type'], string> = {
   video_record: '视频记录',
 };
 
+// 阶段 key → 中文标签映射
+const STAGE_LABELS: Record<string, string> = {
+  stage_00_bootstrap: '阶段 0：准备启动',
+  stage_01_brainstorm: '阶段 1：脑暴选题',
+  stage_02_brief: '阶段 2：开题立项',
+  stage_03_constraints: '阶段 3：范围裁剪',
+  stage_04_track: '阶段 4：轨道选择',
+  stage_05_design: '阶段 5：设计蓝图',
+  stage_06_step_plan: '阶段 6：分步计划',
+  stage_07_execute: '阶段 7：执行开发',
+  stage_08_evaluate: '阶段 8：评估展示',
+  step_1: '步骤 1：想法与方向',
+  step_2: '步骤 2：设计与实现',
+  step_3: '步骤 3：展示与反思',
+};
+
+// 将文本中的 stage key 替换为中文标签
+function translateStageKeys(text: string): string {
+  const keys = Object.keys(STAGE_LABELS).sort((a, b) => b.length - a.length);
+  let result = text;
+  for (const key of keys) {
+    // 使用全局替换，匹配独立出现的 key
+    const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    result = result.replace(new RegExp(escaped, 'g'), STAGE_LABELS[key]);
+  }
+  return result;
+}
+
 function formatTime(iso: string) {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return iso;
@@ -71,6 +99,7 @@ export function EvidencePanel({ projectId, className }: EvidencePanelProps) {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 异步加载证据数据
     void loadEvidence();
   }, [projectId]);
 
@@ -214,7 +243,7 @@ export function EvidencePanel({ projectId, className }: EvidencePanelProps) {
                     </Badge>
                     <span className="text-xs text-gray-500">{formatTime(item.created_at)}</span>
                   </div>
-                  <p className="text-sm text-gray-700 whitespace-pre-wrap break-words">{item.content}</p>
+                  <p className="text-sm text-gray-700 whitespace-pre-wrap break-words">{translateStageKeys(item.content)}</p>
                   {link && (
                     <a
                       href={link}

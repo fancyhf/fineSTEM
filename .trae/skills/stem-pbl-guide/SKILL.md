@@ -2119,6 +2119,117 @@ def analyze_image(image):
 
 ---
 
+## 成果档案卡生成（Achievement Card）
+
+### 触发条件
+
+当用户说以下话语时，进入成果卡生成流程：
+- "生成成果档案卡" / "生成成果卡"
+- "帮我总结这个项目"
+- "请帮我为当前项目生成一份成果档案卡"
+- 从 Research 页面点击"AI引导生成成果卡"按钮（系统自动发送消息）
+
+### 前置要求
+
+- 项目必须处于 `stage_08_evaluate` 且 `stage_passed.stage_08_evaluate === true`
+- 如果项目未完成验收，先引导学生完成 stage_08_evaluate
+
+### 生成流程（对话式引导）
+
+#### 步骤 1: 从阶段文档自动提取信息
+
+读取项目的阶段文档，自动填充成果卡核心字段：
+
+| 成果卡字段 | 来源文档 | 提取方式 |
+|-----------|---------|---------|
+| `title`（项目名称） | `docs/01_project_brief.json` → `project_name` | 直接使用 |
+| `one_liner`（一句话介绍） | `docs/01_project_brief.json` → `one_liner` | 直接使用 |
+| `problem_solved`（解决了什么问题） | `docs/01_project_brief.json` → `problem_statement` + `docs/07_evaluation.json` → `features_completed` | 拼接：问题陈述 + 实际完成的功能 |
+| `method_used`（用了什么方法） | `docs/03_track_plan.json` → `tech_stack` + `docs/04_design.json` → `data_flow` | 拼接：技术栈 + 数据处理流程 |
+| `reflection`（反思） | `docs/07_evaluation.json` → `learned` | 转换为反思文字 |
+| `capability_tags`（能力标签） | `docs/03_track_plan.json` → `tech_stack.libraries` + `docs/04_design.json` → 提取关键词 | 汇总技能标签 |
+| `project_mode`（项目模式） | `SKILL_STATE.json` → 从 `current_stage` 推断 | `light` 或 `standard` |
+
+**如果来源文档缺失（如 `missing` 状态）**，对应字段留空并通过对话向学生收集。
+
+#### 步骤 2: 向学生展示提取结果并确认
+
+```markdown
+📋 我已经从你的项目文档中整理出以下成果卡信息：
+
+| 字段 | 内容 |
+|------|------|
+| 项目名称 | {title} |
+| 一句话介绍 | {one_liner} |
+| 解决的问题 | {problem_solved} |
+| 使用的方法 | {method_used} |
+| 反思收获 | {reflection} |
+| 能力标签 | {tags} |
+
+请确认以上内容是否准确？你可以说"确认生成"来创建成果卡，或告诉我需要修改的部分。
+```
+
+#### 步骤 3: 确认后调用 API 创建
+
+学生说"确认生成"或"没问题"后，调用后端 API 创建成果卡：
+
+```json
+{
+  "tool": "api_call",
+  "endpoint": "POST /api/v1/projects/{project_id}/achievement-cards",
+  "body": {
+    "title": "从 01_project_brief.json 提取",
+    "one_liner": "从 01_project_brief.json 提取",
+    "problem_solved": "拼接自 brief + evaluation",
+    "method_used": "拼接自 track_plan + design",
+    "screenshots": [],
+    "reflection": "从 evaluation.learned 转换",
+    "capability_tags": ["标签1", "标签2"],
+    "project_mode": "standard"
+  }
+}
+```
+
+#### 步骤 4: 创建成功后展示成果卡
+
+```
+🎉 成果档案卡已生成！
+
+[展示成果卡内容摘要]
+
+💡 你现在可以：
+- 在研究页面（/research）"已完成"标签中查看你的成果卡
+- 将成果卡分享到灵感墙
+- 导出成果卡为图片分享给朋友
+```
+
+### 对话示例
+
+**学生**: "请帮我为当前项目生成一份成果档案卡"
+
+**AI 导师**:
+> 📋 我已经从你的项目文档中整理出以下成果卡信息：
+> 
+> | 字段 | 内容 |
+> |------|------|
+> | 项目名称 | 智能植物浇水系统 |
+> | 一句话介绍 | 用Pico板做自动浇水，再也不怕忘浇水了 |
+> | ... | ... |
+>
+> 请确认以上内容是否准确？你可以说"确认生成"来创建成果卡。
+
+**学生**: "确认生成"
+
+**AI 导师**: 
+> 🎉 成果档案卡已生成！你现在可以在研究页面的"已完成"标签中查看。
+
+### 降级处理
+
+如果 API 调用失败，告知学生具体错误原因并提供重试或手动填表的替代方案：
+> "成果卡生成遇到问题：{错误信息}。你可以稍后重试，或者告诉我需要调整的内容。"
+
+---
+
 ## 导航命令
 
 学生可以说以下命令进行导航：

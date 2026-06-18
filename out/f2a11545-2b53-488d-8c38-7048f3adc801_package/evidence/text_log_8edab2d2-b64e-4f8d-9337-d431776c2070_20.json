@@ -1,0 +1,17 @@
+{
+  "created_at": "2026-06-17T04:06:06.196633",
+  "created_by": "27fb2e88-bf95-4c98-b33b-688891d40f43",
+  "updated_at": "2026-06-17T04:06:06.196633",
+  "updated_by": null,
+  "deleted_at": null,
+  "deleted_by": null,
+  "is_deleted": false,
+  "type": "text_log",
+  "title": "stage_00_bootstrap",
+  "content": "好！那我帮你总结一下项目信息，你看对不对：\n*项目名称*: 科学百科小测验\n*项目类型*: Web趣味问答工具\n*主要目标*: 设计一个轻松有趣的科学知识测验，让同学边玩边学到新知识。\n*目标用户*: 初中同学\n另外，要判断这个项目做得好不好，我们得定几条标准。你觉得下面哪几条最重要？(可多选)",
+  "content_url": null,
+  "related_step": "stage_00_bootstrap",
+  "id": "8edab2d2-b64e-4f8d-9337-d431776c2070",
+  "project_id": "f2a11545-2b53-488d-8c38-7048f3adc801",
+  "author_id": "27fb2e88-bf95-4c98-b33b-688891d40f43"
+}

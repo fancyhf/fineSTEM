@@ -1,0 +1,20 @@
+{
+  "version": "1.0.0",
+  "project_id": "a1b57213-b531-43bc-927a-c1665992055a",
+  "mode": "standard",
+  "current_stage": "stage_01_brainstorm",
+  "light_step": null,
+  "stages": {},
+  "metadata": {},
+  "light_to_standard_mapping": null,
+  "stage_history": [
+    {
+      "stage": "stage_01_brainstorm",
+      "started_at": "2026-06-17T04:04:06.009022"
+    }
+  ],
+  "light_step_data": {},
+  "standard_step_data": {},
+  "created_at": "2026-06-17T04:04:06.012021",
+  "updated_at": "2026-06-17T04:04:06.012021"
+}

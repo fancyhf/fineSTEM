@@ -9,7 +9,9 @@ links: .trae/documents/testing/
 from fastapi.testclient import TestClient
 import pytest
 import asyncio
+import io
 import json
+import zipfile
 from pathlib import Path
 from app.core.config import settings
 from app.schemas.agent import AgentChatRequest
@@ -235,6 +237,67 @@ class TestProjectExport:
         resp = client.get(f"/api/v1/projects/{created_project['id']}/export?format=zip", headers=auth_headers)
         assert resp.status_code == 200
         assert resp.headers.get("content-type") == "application/zip"
+
+    def test_export_zip_contains_code_and_documents(self, client: TestClient, auth_headers: dict):
+        create_resp = client.post(
+            "/api/v1/projects",
+            json={"name": "ZIP 完整资料包测试", "mode": "standard"},
+            headers=auth_headers,
+        )
+        assert create_resp.status_code == 200
+        project_id = create_resp.json()["data"]["id"]
+        code_marker = "zip-package-code-marker"
+
+        code_resp = client.post(
+            f"/api/v1/projects/{project_id}/code",
+            json={"code": f"<h1>{code_marker}</h1>", "language": "html", "filename": "src/index.html"},
+            headers=auth_headers,
+        )
+        assert code_resp.status_code == 200
+
+        chat_resp = client.post(
+            f"/api/v1/projects/{project_id}/chat",
+            json={"messages": [{"role": "assistant", "content": "报告在 `docs/reports/final.md`"}]},
+            headers=auth_headers,
+        )
+        assert chat_resp.status_code == 200
+
+        resp = client.get(f"/api/v1/projects/{project_id}/export?format=zip", headers=auth_headers)
+        assert resp.status_code == 200
+
+        # 验证文件名包含项目名
+        cd = resp.headers.get("content-disposition", "")
+        assert "ZIP 完整资料包测试" in cd or "filename*=UTF-8" in cd
+
+        with zipfile.ZipFile(io.BytesIO(resp.content)) as package:
+            names = set(package.namelist())
+            assert "manifest.json" in names
+            assert "README.md" in names
+            assert "index.html" in names
+            assert ".gitignore" in names
+            assert "src/index.html" in names
+            assert "docs/chat_messages.json" in names
+            assert any(name.startswith("docs/final/") and name.endswith(".md") for name in names)
+            assert any(name.startswith("docs/technical/") and name.endswith(".docx") for name in names)
+            assert code_marker in package.read("src/index.html").decode("utf-8")
+
+            # 验证 README.md 内容
+            readme = package.read("README.md").decode("utf-8")
+            assert "ZIP 完整资料包测试" in readme
+            assert "fineSTEM" in readme
+            assert "IDE" in readme
+
+            # 验证 index.html 内容
+            index_html = package.read("index.html").decode("utf-8")
+            assert "ZIP 完整资料包测试" in index_html
+            assert "fineSTEM" in index_html
+            assert "资料包" in index_html
+            assert "IDE 就绪" in index_html
+
+            # 验证 .gitignore 内容
+            gitignore = package.read(".gitignore").decode("utf-8")
+            assert "node_modules" in gitignore
+            assert "__pycache__" in gitignore
 
     def test_export_pdf(self, client: TestClient, auth_headers: dict, created_project: dict):
         resp = client.get(f"/api/v1/projects/{created_project['id']}/export?format=pdf", headers=auth_headers)
@@ -483,4 +546,3 @@ class TestPBLFullLoop:
         assert "missing_requirements" in detail
         assert isinstance(detail["missing_requirements"], list)
         assert len(detail["missing_requirements"]) > 0
-

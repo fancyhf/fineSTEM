@@ -1,0 +1,17 @@
+{
+  "created_at": "2026-06-17T04:06:46.532300",
+  "created_by": "27fb2e88-bf95-4c98-b33b-688891d40f43",
+  "updated_at": "2026-06-17T04:06:46.532300",
+  "updated_by": null,
+  "deleted_at": null,
+  "deleted_by": null,
+  "is_deleted": false,
+  "type": "text_log",
+  "title": "stage_00_bootstrap",
+  "content": "好的！那我们总结一下，开始写项目立项书。\n*项目立项书草稿：*\n| 项目名 | 科学百科小测验 |\n|-|--|\n| 技术栈 | HTML + CSS + JavaScript (纯前端) |\n| 用户 | 初中同学 |\n| 核心价值 | 好玩，让同学边玩边学 |\n| 成功标准 | ①答完每题立刻判断对错 ②题库6-8道题，覆盖不同科学领域 |\n| 风险 | ①题目太少或太简单，玩不过瘾 → 准备12道备选题 ②同学嫌不好看 → 统一用蓝白清爽风格 |\n你觉得这些写得对吗？有没有要补充或修改的？",
+  "content_url": null,
+  "related_step": "stage_00_bootstrap",
+  "id": "3e2669d6-b703-48c3-8903-90c7a794cc3e",
+  "project_id": "f2a11545-2b53-488d-8c38-7048f3adc801",
+  "author_id": "27fb2e88-bf95-4c98-b33b-688891d40f43"
+}

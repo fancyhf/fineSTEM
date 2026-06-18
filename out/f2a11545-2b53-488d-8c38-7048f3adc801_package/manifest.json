@@ -1,0 +1,14 @@
+{
+  "project_id": "f2a11545-2b53-488d-8c38-7048f3adc801",
+  "project_name": "趣味小测验",
+  "generated_at": "2026-06-18T00:11:39.988744",
+  "includes": [
+    "generated_documents",
+    "workspace",
+    "skill_state",
+    "steps",
+    "evidence",
+    "achievement_card",
+    "disk_project_files"
+  ]
+}

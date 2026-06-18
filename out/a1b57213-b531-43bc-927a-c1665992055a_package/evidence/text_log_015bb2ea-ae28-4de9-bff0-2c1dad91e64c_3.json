@@ -1,0 +1,17 @@
+{
+  "created_at": "2026-06-17T04:04:21.928590",
+  "created_by": "27fb2e88-bf95-4c98-b33b-688891d40f43",
+  "updated_at": "2026-06-17T04:04:21.928590",
+  "updated_by": null,
+  "deleted_at": null,
+  "deleted_by": null,
+  "is_deleted": false,
+  "type": "text_log",
+  "title": "stage_01_brainstorm",
+  "content": "2小时！那我们就做一个超简单但完整的MVP（最小可行产品），让你快速体验从想法到实现的整个过程！🚀\n最后一个问题：",
+  "content_url": null,
+  "related_step": "stage_01_brainstorm",
+  "id": "015bb2ea-ae28-4de9-bff0-2c1dad91e64c",
+  "project_id": "a1b57213-b531-43bc-927a-c1665992055a",
+  "author_id": "27fb2e88-bf95-4c98-b33b-688891d40f43"
+}

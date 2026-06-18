@@ -62,7 +62,8 @@ export const authStorage = {
 
 async function request<T>(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  silent = false
 ): Promise<ApiResponse<T>> {
   const url = `${API_BASE_URL}${endpoint}`;
   const headers: Record<string, string> = {
@@ -83,6 +84,7 @@ async function request<T>(
     headers,
   });
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- API 边界层需要动态解析 JSON 结构
   let result: any;
   const contentType = response.headers.get('content-type') || '';
   if (contentType.includes('application/json')) {
@@ -94,10 +96,19 @@ async function request<T>(
     }
   }
 
-  // 处理 401 未认证
-  if (response.status === 401) {
+  // 处理 401 未认证：silent 模式（后台 autosave 等）不跳转，仅抛错由调用方静默处理
+  if (response.status === 401 && !silent) {
     authStorage.clear();
     window.location.href = '/login';
+  }
+
+  // 非 2xx 响应抛出异常，让调用方能正确处理错误（401 silent 模式也抛出）
+  if (!response.ok) {
+    const errorDetail = result?.detail || result?.message || `请求失败(${response.status})`;
+    const error = new Error(errorDetail) as Error & { status: number; body: unknown };
+    error.status = response.status;
+    error.body = result;
+    throw error;
   }
 
   return result;
@@ -157,17 +168,25 @@ async function requestBlob(
     throw new Error('文件下载失败');
   }
   const disposition = response.headers.get('Content-Disposition') || '';
-  const match = disposition.match(/filename="?([^"]+)"?/);
-  return { blob: await response.blob(), fileName: match?.[1] };
+  // 优先解析 RFC 5987 filename*=UTF-8''... 编码名称
+  const utf8Match = disposition.match(/filename\*=UTF-8''([^;]+)/);
+  let fileName: string | undefined;
+  if (utf8Match) {
+    fileName = decodeURIComponent(utf8Match[1]);
+  } else {
+    const match = disposition.match(/filename="?([^";]+)"?/);
+    fileName = match?.[1];
+  }
+  return { blob: await response.blob(), fileName };
 }
 
 export const api = {
   get: <T>(endpoint: string) => request<T>(endpoint, { method: 'GET' }),
-  post: <T>(endpoint: string, body: unknown) =>
+  post: <T>(endpoint: string, body: unknown, silent = false) =>
     request<T>(endpoint, {
       method: 'POST',
       body: JSON.stringify(body),
-    }),
+    }, silent),
   patch: <T>(endpoint: string, body: unknown) =>
     request<T>(endpoint, {
       method: 'PATCH',
@@ -261,9 +280,9 @@ export const projectsApi = {
     requestText(`/projects/${id}/export?format=${format}`, { method: 'GET' }),
   exportFile: (id: string, format: 'json' | 'md' | 'zip' | 'pdf' | 'docx') =>
     requestBlob(`/projects/${id}/export?format=${format}`, { method: 'GET' }),
-  // 代码持久化
+  // 代码持久化（autosave：静默模式，401 不跳转）
   saveCode: (id: string, data: { code: string; language?: string; filename?: string }) =>
-    api.post<{ saved: boolean; project_id: string }>(`/projects/${id}/code`, data).then((res) => {
+    api.post<{ saved: boolean; project_id: string }>(`/projects/${id}/code`, data, true).then((res) => {
       if (!res.data?.saved) {
         throw new Error(res.message || '代码保存失败');
       }
@@ -271,16 +290,16 @@ export const projectsApi = {
     }),
   getCode: (id: string) =>
     api.get<{ code: string; language: string; filename?: string; has_code: boolean }>(`/projects/${id}/code`),
-  // 聊天记录持久化
-  saveChatHistory: (id: string, data: { messages: any[] }) =>
-    api.post<{ saved: boolean; message_count: number; project_id: string }>(`/projects/${id}/chat`, data).then((res) => {
+  // 聊天记录持久化（autosave：静默模式，401 不跳转）
+  saveChatHistory: (id: string, data: { messages: unknown[] }) =>
+    api.post<{ saved: boolean; message_count: number; project_id: string }>(`/projects/${id}/chat`, data, true).then((res) => {
       if (!res.data?.saved) {
         throw new Error(res.message || '聊天记录保存失败');
       }
       return res;
     }),
   getChatHistory: (id: string) =>
-    api.get<{ messages: any[]; message_count: number; has_messages: boolean; saved_at?: string }>(`/projects/${id}/chat`),
+    api.get<{ messages: unknown[]; message_count: number; has_messages: boolean; saved_at?: string }>(`/projects/${id}/chat`),
 };
 
 // 成就卡片 API
@@ -289,6 +308,9 @@ export const achievementCardsApi = {
     api.post<AchievementCard>(`/achievement-cards/projects/${projectId}`, data),
   getByProject: (projectId: string) =>
     api.get<AchievementCard>(`/achievement-cards/projects/${projectId}`),
+  /** 读取 AI 生成的成果卡草稿（Markdown 文件 → 结构化数据桥梁） */
+  getDraft: (projectId: string) =>
+    api.get<Record<string, unknown> | null>(`/projects/${projectId}/achievement-draft`),
   update: (id: string, data: AchievementCardUpdate) =>
     api.patch<AchievementCard>(`/achievement-cards/${id}`, data),
   createShareLink: (id: string) =>

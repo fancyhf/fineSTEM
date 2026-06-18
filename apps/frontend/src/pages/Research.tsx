@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, Trophy } from 'lucide-react';
+import { ArrowRight, Eye, FileText, Play, Plus, Trophy } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
@@ -13,22 +13,24 @@ export function Research() {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
-  const loadProjects = async () => {
-    setLoading(true);
-    try {
-      const res = await projectsApi.list({ page: 1, page_size: 200 });
-      setItems(res.data?.items ?? []);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    void loadProjects();
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const res = await projectsApi.list({ page: 1, page_size: 200 });
+        if (!cancelled) setItems(res.data?.items ?? []);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   const displayed = useMemo(() => {
-    const isDone = (stage?: string) => stage === 'stage_08_evaluate';
+    // 判断项目是否已完成：标准项目到 stage_08_evaluate，轻量项目到 step_3
+    const isDone = (stage?: string) =>
+      stage === 'stage_08_evaluate' || stage === 'step_3';
     if (activeTab === 'completed') {
       return items.filter((item) => isDone(item.current_stage));
     }
@@ -131,6 +133,33 @@ function ProjectCard({ item, completed }: ProjectCardProps) {
     }
   };
 
+  /**
+   * 跳转到 AI 工作台生成成果卡
+   * 与 handleContinue 相同的恢复机制，附加 scene 标记让 AI 知道要引导成果卡生成
+   */
+  const handleGenerateAchievement = async () => {
+    try {
+      const workspaceRes = await projectsApi.getWorkspace(item.id);
+      const restoreData: Record<string, unknown> = {
+        projectId: item.id,
+        projectName: item.name,
+        mode: item.mode,
+        currentStage: workspaceRes.data?.progress.current_stage || item.current_stage,
+        scene: 'generate_achievement',
+      };
+      if (workspaceRes.data?.workspace) {
+        restoreData.code = workspaceRes.data.workspace.code;
+        restoreData.language = workspaceRes.data.workspace.language || 'python';
+        restoreData.messages = workspaceRes.data.workspace.chat_messages || [];
+      }
+      sessionStorage.setItem('finestem_restore_project', JSON.stringify(restoreData));
+      navigate('/create');
+    } catch (error) {
+      console.error('[research:generate_achievement] 恢复项目失败:', error);
+      navigate(`/research/projects/${item.id}`);
+    }
+  };
+
   return (
     <Card hoverable>
       <CardContent className="p-6">
@@ -161,20 +190,26 @@ function ProjectCard({ item, completed }: ProjectCardProps) {
               更新于 {new Date(item.updated_at).toLocaleString('zh-CN')}
             </p>
           </div>
-          <div className="flex flex-col gap-2 ml-6">
-            <Button onClick={() => void handleContinue()}>
-              {completed ? '查看' : '继续'}
+          <div className="flex flex-col gap-2 ml-6 min-w-44 shrink-0">
+            <Button className="w-full justify-center whitespace-nowrap" onClick={() => void handleContinue()}>
+              <Play className="w-4 h-4 mr-1.5 shrink-0" />
+              {completed ? '回到工作台' : '继续'}
             </Button>
-            {!completed && (
-              <Button variant="secondary" onClick={() => navigate(`/research/projects/${item.id}`)}>进入项目详情</Button>
-            )}
+            <Button variant="secondary" className="w-full justify-center whitespace-nowrap" onClick={() => navigate(`/research/projects/${item.id}`)}>
+              <Eye className="w-4 h-4 mr-1.5 shrink-0" />
+              项目详情
+            </Button>
             {completed && (
-              <Link to={`/research/projects/${item.id}/achievement`}>
-                <Button variant="ghost">
-                  <Trophy className="w-4 h-4 mr-2" />
-                  成就卡片
+              <>
+                <Button variant="ghost" className="w-full justify-center whitespace-nowrap" onClick={() => void handleGenerateAchievement()}>
+                  <Trophy className="w-4 h-4 mr-1.5 shrink-0" />
+                  AI引导生成成果卡
                 </Button>
-              </Link>
+                <Button variant="ghost" className="w-full justify-center whitespace-nowrap text-gray-400" onClick={() => navigate(`/research/projects/${item.id}/achievement`)}>
+                  <FileText className="w-4 h-4 mr-1.5 shrink-0" />
+                  查看已有成果卡
+                </Button>
+              </>
             )}
           </div>
         </div>

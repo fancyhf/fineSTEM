@@ -8,6 +8,7 @@
 
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { Layout } from './components/layout/Layout';
 import { Home } from './pages/Home';
 import { Explore } from './pages/Explore';
@@ -64,7 +65,8 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 export default function App() {
   return (
     <BrowserRouter>
-      <Routes>
+      <ErrorBoundary>
+        <Routes>
         <Route path="/share/:token" element={<SharedAchievement />} />
 
         <Route path="/" element={<Layout />}>
@@ -100,7 +102,8 @@ export default function App() {
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
-      </Routes>
+        </Routes>
+      </ErrorBoundary>
     </BrowserRouter>
   );
 }

@@ -11,7 +11,7 @@ export function Stage08Evaluate({ value, onChange }: StageComponentProps<Stage08
   return (
     <div className="space-y-3">
       <div>
-        <label className="block text-sm text-gray-700 mb-1">Acceptance Summary</label>
+        <label className="block text-sm text-gray-700 mb-1">验收总结</label>
         <textarea
           value={value.acceptance_summary}
           onChange={(e) => updateField(value, 'acceptance_summary', e.target.value, onChange)}
@@ -19,7 +19,7 @@ export function Stage08Evaluate({ value, onChange }: StageComponentProps<Stage08
         />
       </div>
       <div>
-        <label className="block text-sm text-gray-700 mb-1">Reflection</label>
+        <label className="block text-sm text-gray-700 mb-1">学习反思</label>
         <textarea
           value={value.reflection}
           onChange={(e) => updateField(value, 'reflection', e.target.value, onChange)}
@@ -27,7 +27,7 @@ export function Stage08Evaluate({ value, onChange }: StageComponentProps<Stage08
         />
       </div>
       <div>
-        <label className="block text-sm text-gray-700 mb-1">Next Iteration</label>
+        <label className="block text-sm text-gray-700 mb-1">下一轮迭代</label>
         <textarea
           value={value.next_iteration}
           onChange={(e) => updateField(value, 'next_iteration', e.target.value, onChange)}
