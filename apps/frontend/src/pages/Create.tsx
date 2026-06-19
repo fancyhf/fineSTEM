@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { MessageSquare, Code, Rocket, FileText, ChevronUp, Paperclip, Link2, FolderOpen, Plus, Sparkles, User, Zap, Play, Copy, Check, ArrowRight, BookOpen, PanelLeftClose, PanelLeftOpen, Terminal, Eye, Pencil, MoreHorizontal } from 'lucide-react';
+import { MessageSquare, Code, Rocket, FileText, ChevronUp, Paperclip, Link2, FolderOpen, Plus, Sparkles, User, Zap, Play, Copy, Check, ArrowRight, BookOpen, PanelLeftClose, PanelLeftOpen, Terminal, Eye, Pencil, MoreHorizontal, Maximize2, Minimize2 } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { useStreamingChat } from '../hooks/useStreamingChat';
 import { MarkdownText } from '../components/MarkdownText';
@@ -52,14 +52,44 @@ function collapseRepeatedFragments(content: string): string {
 
 function sanitizeAssistantNarration(content: string): string {
   let cleaned = content;
-  cleaned = cleaned.replace(/<｜｜DSML｜｜[\s\S]*?tool_calls>/gi, '');
-  cleaned = cleaned.replace(/<\|[\s\S]*?\|>/g, '');
-  cleaned = cleaned.replace(/<option\s+id=["'][^"']*["'][^>]*>[\s\S]*?<\/option>/gi, '');
-  cleaned = cleaned.replace(/^\s*(tool_calls|invoke name=|parameter name=|artifact_writer|artifact_reader).*$\n?/gim, '');
+  const originalLength = cleaned.length;
+
+  // ── 策略 0：核弹级广谱清理 —— 移除任何包含 DSML 标记特征的行 ──
+  // 关键：DSML 标签中的 | 是全角字符 U+FF5C（｜），不是半角 U+007C（|）
+  // 用 [|\uff5c] 同时匹配两种竖线
+  const vBar = '[|\uff5c]'; // | 或 ｜
+  const vBarNot = '[^|\uff5c]';
+  cleaned = cleaned.replace(new RegExp(`^.*${vBar}${vBarNot}*DSML${vBarNot}*${vBar}.*$`, 'gim'), '');
+  cleaned = cleaned.replace(new RegExp(`^.*${vBar}${vBarNot}*invoke\\s+name=.*$`, 'gim'), '');
+  cleaned = cleaned.replace(new RegExp(`^.*${vBar}${vBarNot}*parameter\\s+name=.*$`, 'gim'), '');
+  cleaned = cleaned.replace(/^.*tool_calls.*$/gim, '');
+
+  // ── 策略 1：移除完整的 DSML 工具调用块（多行）──
+  cleaned = cleaned.replace(/<[^\n]*[|\uff5c][^\n]*DSML[^\n]*>[ \t\r\n\S]*?<\/[^\n]*[|\uff5c][^\n]*>/gi, '');
+
+  // ── 策略 2：广谱移除所有残留 DSML 标签行 ──
+  cleaned = cleaned.replace(/^.*?<[^\n]*[|\uff5c][^\n]*DSML[^\n]*>.*$/gim, '');
+  cleaned = cleaned.replace(/^.*?<\/[^\n]*[|\uff5c][^\n]*.*$/gim, '');
+  cleaned = cleaned.replace(/^\s*(tool_calls|invoke name=|parameter name=|artifact_writer|artifact_reader).*$/gim, '');
+
+  // ── 策略 3：移除 question/option 结构化标签 ──
+  cleaned = cleaned.replace(/<question\s+[^>]*>/gi, '');
+  cleaned = cleaned.replace(/<\/question>/gi, '');
+  cleaned = cleaned.replace(/<option\s+[^>]*>[\s\S]*?<\/option>/gi, '');
+  cleaned = cleaned.replace(/^\s*<\/?(?:option|label|desc)[^>]*>\s*$/gim, '');
+
+  // ── 策略 4：清理复制提示等杂项 ──
   cleaned = cleaned.replace(/^\s*```(?:markdown|md)?\s*复制\s*$/gim, '```');
   cleaned = cleaned.replace(/^\s*<[^>\n]*calls[^>\n]*>\s*$/gim, '');
-  cleaned = cleaned.replace(/^\s*<\/?(?:option|label|desc)[^>]*>\s*$/gim, '');
-  cleaned = cleaned.replace(/^\s*<\/?question[^>]*>\s*$/gim, '');
+
+  // 调试日志（上线前移除）
+  if (cleaned.length !== originalLength || cleaned.includes('DSML') || cleaned.includes('< |') || cleaned.includes('</|')) {
+    console.log('[sanitize] 输入长度:', originalLength, '输出长度:', cleaned.length, '移除:', originalLength - cleaned.length);
+    if (cleaned.includes('DSML') || cleaned.includes('< |') || cleaned.includes('</|')) {
+      console.warn('[sanitize] ⚠️ 仍有残留! 前200字:', cleaned.slice(0, 200));
+    }
+  }
+
   cleaned = collapseRepeatedFragments(cleaned);
   return cleaned;
 }
@@ -467,7 +497,7 @@ function buildExecutionResultHtml(result: { success: boolean; output: string; er
       </div>
       ${result.output ? `
       <div style="margin-bottom: 12px;">
-        <div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">输出结果：</div>
+        <div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">📤 输出结果：</div>
         <pre style="background: #fafafa; border: 1px solid #e5e7eb; border-radius: 6px; padding: 12px; font-size: 12px; line-height: 1.5; white-space: pre-wrap; word-break: break-all; overflow-x: auto;">${escapedOutput}</pre>
       </div>` : ''}
       ${hasError ? `
@@ -476,7 +506,21 @@ function buildExecutionResultHtml(result: { success: boolean; output: string; er
         <pre style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 12px; font-size: 12px; line-height: 1.5; white-space: pre-wrap; word-break: break-all; overflow-x: auto; color: #dc2626;">${escapedError}</pre>
         <button id="__ask_ai_btn" style="display:inline-block;margin-top:8px;padding:8px 16px;background:#0ea5e9;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;" onclick="(function(){window.parent.postMessage({type:'code-error',msg:${JSON.stringify(result.error)}},'*');this.textContent='已发送给AI...';this.disabled=true;this.style.background='#94a3b8';})()">Ask AI to fix this error</button>
       </div>` : ''}
-      ${!result.output && !hasError ? '<div style="font-size:12px;color:#9ca3af;padding:8px 0;">(无输出)</div>' : ''}
+      ${!result.output && !hasError ? `<div style="font-size:12px;color:#9ca3af;margin-bottom:12px;">(无标准输出)</div>
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px;">
+        <div style="font-size:12px;font-weight:600;color:#475569;margin-bottom:8px;">📋 代码分析</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">
+          <span style="padding:2px 8px;background:#e0e7ff;color:#4338ca;border-radius:4px;font-size:11px;">${code.split('\n').filter(function(l){return l.trim();}).length} 行代码</span>
+          ${/^\s*import\s|^\s*from\s/.test(code) ? '<span style="padding:2px 8px;background:#dbeafe;color:#1d4ed8;border-radius:4px;font-size:11px;">📦 有导入</span>' : ''}
+          ${/\bdef\s+\w+\s*\(/.test(code) ? '<span style="padding:2px 8px;background:#dcfce7;color:#16a34a;border-radius:4px;font-size:11px;">⚡ 有函数</span>' : ''}
+          ${code.includes('print(') ? '<span style="padding:2px 8px;background:#d1fae5;color:#059669;border-radius:4px;font-size:11px;">🖨️ 有打印</span>' : '<span style="padding:2px 8px;background:#fef9c3;color:#a16207;border-radius:4px;font-size:11px;">💡 无打印语句</span>'}
+        </div>
+        <details open style="cursor:pointer;">
+          <summary style="font-size:12px;color:#64748b;outline:none;">📄 查看完整代码 ▼</summary>
+          <pre style="margin-top:8px;background:#1e293b;color:#e2e8f0;padding:12px;border-radius:6px;font-size:11px;line-height:1.5;overflow-x:auto;max-height:300px;">${escapedCode}</pre>
+        </details>
+        ${!code.includes('print(') ? '<div style="margin-top:10px;padding:10px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;font-size:11px;color:#1e40af;">💡 <strong>提示：</strong>此代码没有 print() 输出语句。如需查看运行效果，请在代码中添加 print(变量名) 来输出变量的值。</div>' : ''}
+      </div>` : ''}
     </div>
   `;
 }
@@ -488,6 +532,31 @@ function buildErrorHtml(message: string): string {
         ⚠ ${message}
       </div>
     </div>
+  `;
+}
+
+function buildStreamlitIframeHtml(url: string, statusMsg: string): string {
+  // Streamlit 模式：嵌入 iframe 真实预览 UI
+  // 使用宽高 100% 让 Streamlit 自适应容器，并禁用其默认的 max-width
+  return `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; height: 100%; display: flex; flex-direction: column;">
+      <div style="padding: 6px 10px; background: #ecfdf5; border-bottom: 1px solid #d1fae5; display: flex; align-items: center; justify-content: space-between; font-size: 12px;">
+        <span style="color: #065f46; font-weight: 500;">${statusMsg || '🚀 Streamlit 服务已启动'}</span>
+        <a href="${url}" target="_blank" rel="noopener noreferrer" style="color: #059669; text-decoration: none; font-size: 11px; padding: 2px 8px; background: white; border: 1px solid #d1fae5; border-radius: 4px;">
+          🔗 新窗口打开
+        </a>
+      </div>
+      <iframe
+        src="${url}"
+        style="flex: 1 1 auto; width: 100%; min-height: 0; height: 100%; border: none; background: white; display: block;"
+        title="Streamlit App Preview"
+        sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-modals"
+      ></iframe>
+    </div>
+    <style>
+      /* Streamlit 内部主容器使用 100% 宽度 */
+      [data-testid="stAppViewContainer"] > .main { max-width: 100% !important; padding-left: 1rem !important; padding-right: 1rem !important; }
+    </style>
   `;
 }
 
@@ -512,6 +581,14 @@ export function Create() {
   const [showEditor, setShowEditor] = useState(false);
   const [editorTab, setEditorTab] = useState<'code' | 'preview'>('code');
   const [runningCode, setRunningCode] = useState(false);
+  const [showRunResultModal, setShowRunResultModal] = useState(false);
+  const [runResultHtml, setRunResultHtml] = useState('');
+  const [runResultUrl, setRunResultUrl] = useState<string | null>(null); // Streamlit 等直接 URL 预览
+  const [editorWidth, setEditorWidth] = useState(() => {
+    const saved = localStorage.getItem('finestem_editor_width');
+    return saved ? Number(saved) : 480;
+  });
+  const [isResizing, setIsResizing] = useState(false);
   const [activeSkill, setActiveSkill] = useState<SkillOption>(SKILL_OPTIONS[0]);
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [editProjectName, setEditProjectName] = useState('');
@@ -942,24 +1019,45 @@ export function Create() {
     setEditorCode(code);
     setEditorLanguage(toEditorLanguage(language));
     setShowEditor(true);
-    
+
     if (language === 'python' || language === 'py') {
       setRunningCode(true);
       try {
         const result = await codeExecutionApi.execute(code, 'python');
-        const outputHtml = buildExecutionResultHtml(result.data ?? { success: false, output: '', error: '执行结果为空' }, code);
-        setPreviewHtml(outputHtml);
+        const data = result.data ?? { success: false, output: '', error: '执行结果为空' };
+        // Streamlit 模式：直接 URL 预览
+        if (data.mode === 'streamlit' && data.preview_url) {
+          setRunResultUrl(data.preview_url);
+          setRunResultHtml('');
+        } else {
+          setRunResultUrl(null);
+          setRunResultHtml(buildExecutionResultHtml(data, code));
+        }
+        // 同时更新编辑器预览标签
+        setPreviewHtml(data.mode === 'streamlit' && data.preview_url
+          ? buildStreamlitIframeHtml(data.preview_url, data.output)
+          : buildExecutionResultHtml(data, code));
+        setEditorTab('preview');
+        // 弹出运行结果模态框
+        setShowRunResultModal(true);
       } catch (error) {
         console.error('代码执行失败:', error);
-        setPreviewHtml(buildErrorHtml('连接服务器失败，请稍后重试'));
+        const errHtml = buildErrorHtml('连接服务器失败，请稍后重试');
+        setRunResultUrl(null);
+        setRunResultHtml(errHtml);
+        setPreviewHtml(errHtml);
+        setShowRunResultModal(true);
       } finally {
         setRunningCode(false);
       }
-      setEditorTab('preview');
     } else {
       const html = buildHtmlFromCode(code, language);
+      setRunResultUrl(null);
+      setRunResultHtml(html);
       setPreviewHtml(html);
       setEditorTab('preview');
+      // HTML/JS 也弹出预览
+      setShowRunResultModal(true);
     }
   }, []);
 
@@ -968,23 +1066,155 @@ export function Create() {
       setRunningCode(true);
       try {
         const result = await codeExecutionApi.execute(editorCode, 'python');
-        const outputHtml = buildExecutionResultHtml(result.data ?? { success: false, output: '', error: '执行结果为空' }, editorCode);
-        setPreviewHtml(outputHtml);
+        const data = result.data ?? { success: false, output: '', error: '执行结果为空' };
+        // Streamlit 模式：直接 URL 预览
+        if (data.mode === 'streamlit' && data.preview_url) {
+          setRunResultUrl(data.preview_url);
+          setRunResultHtml('');
+        } else {
+          setRunResultUrl(null);
+          setRunResultHtml(buildExecutionResultHtml(data, editorCode));
+        }
+        // 同时更新编辑器预览标签
+        setPreviewHtml(data.mode === 'streamlit' && data.preview_url
+          ? buildStreamlitIframeHtml(data.preview_url, data.output)
+          : buildExecutionResultHtml(data, editorCode));
+        setEditorTab('preview');
+        // 弹出运行结果模态框
+        setShowRunResultModal(true);
       } catch (error) {
         console.error('代码执行失败:', error);
-        setPreviewHtml(buildErrorHtml('连接服务器失败，请稍后重试'));
+        const errHtml = buildErrorHtml('连接服务器失败，请稍后重试');
+        setRunResultUrl(null);
+        setRunResultHtml(errHtml);
+        setPreviewHtml(errHtml);
+        setShowRunResultModal(true);
       } finally {
         setRunningCode(false);
       }
-      setEditorTab('preview');
     } else {
       const html = buildHtmlFromCode(editorCode, editorLanguage);
+      setRunResultUrl(null);
+      setRunResultHtml(html);
       setPreviewHtml(html);
       setEditorTab('preview');
+      // HTML/JS 也弹出预览
+      setShowRunResultModal(true);
     }
   }, [editorCode, editorLanguage]);
 
+  /** 拖拽分割线：调整聊天区与代码区的宽度比例 */
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+    const startX = e.clientX;
+    const startWidth = editorWidth;
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const delta = startX - moveEvent.clientX; // 向左拖 = 编辑器变宽
+      const newWidth = Math.max(280, Math.min(800, startWidth + delta));
+      setEditorWidth(newWidth);
+    };
+
+    const onMouseUp = () => {
+      setIsResizing(false);
+      localStorage.setItem('finestem_editor_width', String(editorWidth));
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  }, [editorWidth]);
+
+  /** ESC 键关闭运行结果模态框 */
+  useEffect(() => {
+    if (!showRunResultModal) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setShowRunResultModal(false);
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [showRunResultModal]);
+
+  /** 从 DSML tool_call 参数标签中提取代码和语言 */
+  const extractCodeFromDsmlTags = useCallback((content: string): { code: string; language: string } | null => {
+    // 关键：DSML 标签中的 | 是全角字符 U+FF5C（｜），不是半角 U+007C（|）
+    const vb = '[|\uff5c]';
+    const vbn = '[^|\uff5c]';
+
+    // 策略 A：精确匹配 parameter 标签
+    const codeParamRegex = new RegExp(`<[^\\n]*${vb}${vbn}*parameter\\s+name=["']code["'][^>]*string=["']true["'][^>]*>([\\s\\S]*?)<\\/[^\\n]*${vb}${vbn}*parameter>`, 'gi');
+    const langParamRegex = new RegExp(`<[^\\n]*${vb}${vbn}*parameter\\s+name=["']language["'][^>]*string=["'][^"']*?["'][^>]*>([\\s\\S]*?)<\\/[^\\n]*${vb}${vbn}*parameter>`, 'gi');
+
+    // 策略 B：广谱特征匹配
+    const broadCodeRegex = new RegExp(`${vb}${vbn}*parameter\\s+name=["']code["']${vbn}*${vb}([\\s\\S]*?)(?=${vb}${vbn}*parameter|${vb}${vbn}*invoke|$)`, 'gi');
+    const broadLangRegex = new RegExp(`${vb}${vbn}*parameter\\s+name=["']language["']${vbn}*${vb}([^${vb}]*?)(?=${vb}${vbn}*parameter|${vb}${vbn}*invoke|$)`, 'gi');
+
+    let codeMatch: RegExpExecArray | null;
+    let extractedCode = '';
+    let extractedLang = '';
+
+    // 策略 A：精确匹配 parameter 标签
+    while ((codeMatch = codeParamRegex.exec(content)) !== null) {
+      const candidate = (codeMatch[1] || '').trim();
+      if (candidate.length > extractedCode.length) {
+        extractedCode = candidate;
+      }
+    }
+
+    // 策略 B：如果精确匹配失败，尝试广谱特征匹配
+    if (!extractedCode || extractedCode.length < 10) {
+      while ((codeMatch = broadCodeRegex.exec(content)) !== null) {
+        const candidate = (codeMatch[1] || '').trim();
+        // 过滤掉非代码内容（如 JSON 字符串）
+        if (candidate.length > extractedCode.length && (candidate.includes('\n') || candidate.includes('def ') || candidate.includes('import ') || candidate.includes('function ') || candidate.includes('const ') || candidate.includes('<html') || candidate.includes('# '))) {
+          extractedCode = candidate;
+        }
+      }
+    }
+
+    if (!extractedCode || extractedCode.length < 10) return null;
+
+    // 尝试从 language 参数获取语言标识
+    let langMatch: RegExpExecArray | null;
+    while ((langMatch = langParamRegex.exec(content)) !== null) {
+      const lang = (langMatch[1] || '').trim();
+      if (lang) {
+        extractedLang = normalizeCodeLanguage(lang);
+        break;
+      }
+    }
+
+    // 策略 B 语言回退：广谱特征匹配
+    if (!extractedLang) {
+      while ((langMatch = broadLangRegex.exec(content)) !== null) {
+        const lang = (langMatch[1] || '').trim();
+        if (lang && lang.length < 20) {  // 合理的语言名长度
+          extractedLang = normalizeCodeLanguage(lang);
+          break;
+        }
+      }
+    }
+
+    // fallback: 根据 code 参数标签中的语言推断
+    if (!extractedLang && extractedCode) {
+      if (extractedCode.includes('def ') || extractedCode.includes('import ')) extractedLang = 'python';
+      else if (extractedCode.includes('function ') || extractedCode.includes('const ')) extractedLang = 'javascript';
+      else if (extractedCode.includes('<html') || extractedCode.includes('<div') || extractedCode.includes('<style')) extractedLang = 'html';
+    }
+
+    return extractedCode.length > 10 ? { code: extractedCode, language: extractedLang || 'text' } : null;
+  }, []);
+
   const extractCodeFromResponse = useCallback((content: string): { code: string; language: string } | null => {
+    // 优先从 markdown 代码块提取
     const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/g;
     const matches: Array<{ code: string; language: string }> = [];
     let match;
@@ -996,7 +1226,8 @@ export function Create() {
       }
     }
     if (matches.length === 0) {
-      return null;
+      // markdown 代码块未找到时，尝试从 DSML tool_call 标签中提取代码
+      return extractCodeFromDsmlTags(content);
     }
     const htmlBlock = matches.find((item) => item.language === 'html');
     const cssBlocks = matches.filter((item) => item.language === 'css');
@@ -1186,6 +1417,10 @@ export function Create() {
     setIsLoading(true);
     let rawAssistantContent = '';
     let assistantContent = '';
+    // 追踪 content_update 事件是否可能导致内容丢失
+    let receivedContentUpdate = false;
+    // 保存 content_update 之前累积的最大可见内容，防止被清空
+    let maxVisibleContent = '';
     setMessages((prev) => [...prev, { id: nextMessageId(), role: 'assistant', content: '' }]);
 
     try {
@@ -1200,6 +1435,10 @@ export function Create() {
         (token) => {
           rawAssistantContent += token;
           assistantContent = cleanAssistantMessageContent(rawAssistantContent);
+          // 持续追踪最大的可见内容（防止后续 content_update 清空）
+          if (assistantContent.length > maxVisibleContent.length) {
+            maxVisibleContent = assistantContent;
+          }
           setMessages((prev) => {
             const copy = [...prev];
             const last = copy[copy.length - 1];
@@ -1257,24 +1496,45 @@ export function Create() {
             }
           },
           onContentUpdate: (dedupedContent) => {
-            assistantContent = cleanAssistantMessageContent(dedupedContent);
+            receivedContentUpdate = true;
+            const cleanedDeduped = cleanAssistantMessageContent(dedupedContent);
+            // 智能合并：只有当 content_update 的内容比当前累积的内容更有价值时才使用
+            // 防止 content_update 发送纯工具标记（清理后变空）导致可见内容被清空
+            if (cleanedDeduped.length >= maxVisibleContent.length) {
+              assistantContent = cleanedDeduped;
+              if (assistantContent.length > maxVisibleContent.length) {
+                maxVisibleContent = assistantContent;
+              }
+            } else if (cleanedDeduped.length === 0 && maxVisibleContent.length > 0) {
+              // content_update 内容被清理为空时，保留已有的最大可见内容
+              console.warn('[handleSend] content_update 内容被清理为空，保留已有内容 (长度:', maxVisibleContent.length, ')');
+              return; // 不更新 UI，保留当前显示的内容
+            }
             setMessages(prev => {
               const updated = [...prev];
               const lastIdx = updated.length - 1;
               if (lastIdx >= 0 && updated[lastIdx].role === 'assistant') {
-                updated[lastIdx] = { ...updated[lastIdx], content: assistantContent };
+                updated[lastIdx] = { ...updated[lastIdx], content: assistantContent || maxVisibleContent };
               }
               return updated;
             });
             if (!requestOverrides?.suppressQuestionCard && !pendingQuestion) {
-              const fallback = parseQuestionFromText(assistantContent);
+              const fallback = parseQuestionFromText(assistantContent || maxVisibleContent);
               if (fallback) setPendingQuestion(fallback);
             }
           },
         },
       );
 
-      assistantContent = cleanAssistantMessageContent(streamResult.content || assistantContent || rawAssistantContent);
+      // 最终内容：优先使用 streamResult.content，fallback 到 token 累积的内容，再 fallback 到 maxVisibleContent
+      const rawFinal = streamResult.content || assistantContent || rawAssistantContent;
+      const finalCleaned = cleanAssistantMessageContent(rawFinal);
+      // 如果最终清理后的内容比之前追踪的最大可见内容还短，使用较长的那个
+      assistantContent = finalCleaned.length >= maxVisibleContent.length ? finalCleaned : maxVisibleContent;
+      if (receivedContentUpdate && assistantContent.length === 0 && maxVisibleContent.length > 0) {
+        console.warn('[handleSend] 最终内容为空但存在历史可见内容，恢复历史内容');
+        assistantContent = maxVisibleContent;
+      }
       setMessages(prev => {
         const updated = [...prev];
         const lastIdx = updated.length - 1;
@@ -1289,7 +1549,9 @@ export function Create() {
         if (finalFallback) setPendingQuestion(finalFallback);
       }
 
-      const codeResult = extractCodeFromResponse(assistantContent);
+      // 代码提取必须基于原始内容（rawFinal），因为代码可能被包裹在 DSML 标签中
+      // 清理后的内容（assistantContent）已移除 DSML 标签，会导致代码丢失
+      const codeResult = extractCodeFromResponse(rawFinal);
       if (codeResult) {
         handleWriteCodeToEditor(codeResult.code, codeResult.language);
         if (effectiveProjectId) {
@@ -1377,7 +1639,7 @@ export function Create() {
   };
 
   return (
-    <div className="h-[calc(100vh-88px)] flex gap-3">
+    <div className="h-[calc(100vh-88px)] flex">
       <div className="w-48 flex-shrink-0 space-y-2">
         <Card className="p-0 overflow-hidden">
           <div className="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
@@ -1719,43 +1981,78 @@ export function Create() {
         </Card>
       </div>
 
-      <div className={`flex-shrink-0 flex flex-col gap-2 transition-all duration-300 ${showEditor ? 'w-[480px]' : 'w-10'}`}>
+      {/* 拖拽分割线：仅在编辑器展开时显示 */}
+      {showEditor && (
+        <div
+          onMouseDown={handleResizeStart}
+          className={`w-1 flex-shrink-0 cursor-col-resize transition-colors duration-150 ${isResizing ? 'bg-teal-400' : 'bg-gray-200 hover:bg-teal-300'}`}
+          title="拖拽调整宽度"
+        />
+      )}
+
+      {/* 代码编辑器区 */}
+      <div
+        className={`flex-shrink-0 transition-all duration-300 ${showEditor ? 'h-full' : 'w-10'}`}
+        style={showEditor ? { width: editorWidth, display: 'grid', gridTemplateRows: 'auto 1fr' } : undefined}
+      >
         {showEditor ? (
           <>
-            <Card className="flex-1 flex flex-col p-0 overflow-hidden">
-              <div className="flex items-center justify-between px-3 py-2 border-b border-gray-100 bg-gray-100">
-                <div className="flex items-center gap-2">
-                  <button onClick={() => setEditorTab('code')} className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors ${editorTab === 'code' ? 'bg-gray-700 text-white' : 'text-gray-500 hover:bg-gray-200'}`}>
-                    <Terminal className="w-3 h-3" /> 代码
-                  </button>
-                  <button onClick={() => setEditorTab('preview')} className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors ${editorTab === 'preview' ? 'bg-gray-700 text-white' : 'text-gray-500 hover:bg-gray-200'}`}>
-                    <Eye className="w-3 h-3" /> 预览
-                  </button>
-                </div>
-                <div className="flex items-center gap-1">
-                  <select value={editorLanguage} onChange={(e) => setEditorLanguage(e.target.value)}
-                    className="text-xs border border-gray-300 rounded px-1.5 py-0.5 bg-white text-gray-600 outline-none">
-                    <option value="python">Python</option>
-                    <option value="javascript">JavaScript</option>
-                    <option value="html">HTML</option>
-                    <option value="css">CSS</option>
-                  </select>
-                  <button onClick={handleRunEditorCode} className="flex items-center gap-1 px-2 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-xs font-medium transition-colors">
-                    <Play className="w-3 h-3" /> 运行
-                  </button>
-                  <button onClick={() => setShowEditor(false)} className="p-1 hover:bg-gray-200 rounded text-gray-400 transition-colors">
-                    <PanelLeftClose className="w-4 h-4" />
-                  </button>
-                </div>
+            {/* 工具栏 - grid auto 行，高度由内容决定，Monaco 无法影响 */}
+            <div className="flex items-center justify-between px-3 py-2 border-b border-gray-100 bg-gray-100 rounded-t-xl border-x border-t border-gray-200">
+              <div className="flex items-center gap-2">
+                <button onClick={() => setEditorTab('code')} className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors ${editorTab === 'code' ? 'bg-gray-700 text-white' : 'text-gray-500 hover:bg-gray-200'}`}>
+                  <Terminal className="w-3 h-3" /> 代码
+                </button>
+                <button onClick={() => setEditorTab('preview')} className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors ${editorTab === 'preview' ? 'bg-gray-700 text-white' : 'text-gray-500 hover:bg-gray-200'}`}>
+                  <Eye className="w-3 h-3" /> 预览
+                </button>
               </div>
-              <div className={`flex-1 min-h-0 ${editorTab === 'code' ? 'bg-[#1e1e1e]' : 'bg-white'}`}>
-                {editorTab === 'code' ? (
-                  <CodeEditor code={editorCode} language={editorLanguage} onChange={(v) => setEditorCode(v)} />
-                ) : (
-                  <CodePreview htmlContent={previewHtml} title="运行结果" />
+              <div className="flex items-center gap-1">
+                <select value={editorLanguage} onChange={(e) => setEditorLanguage(e.target.value)}
+                  className="text-xs border border-gray-300 rounded px-1.5 py-0.5 bg-white text-gray-600 outline-none">
+                  <option value="python">Python</option>
+                  <option value="javascript">JavaScript</option>
+                  <option value="html">HTML</option>
+                  <option value="css">CSS</option>
+                </select>
+                <button onClick={handleRunEditorCode} disabled={runningCode} className="flex items-center gap-1 px-2 py-1 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white rounded text-xs font-medium transition-colors">
+                  {runningCode ? (
+                    <><span className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin inline-block" /> 运行中</>
+                  ) : (
+                    <><Play className="w-3 h-3" /> 运行</>
+                  )}
+                </button>
+                {editorTab === 'preview' && previewHtml && (
+                  <button
+                    onClick={() => {
+                      // 找到当前预览的 iframe 并请求全屏
+                      const iframe = document.querySelector('iframe[title="运行结果"]') as HTMLIFrameElement | null;
+                      const target = iframe?.contentDocument?.documentElement;
+                      if (target?.requestFullscreen) {
+                        target.requestFullscreen().catch(() => {});
+                      } else if (iframe?.requestFullscreen) {
+                        iframe.requestFullscreen().catch(() => {});
+                      }
+                    }}
+                    className="p-1 hover:bg-gray-200 rounded text-gray-400 transition-colors"
+                    title="全屏预览"
+                  >
+                    <Maximize2 className="w-4 h-4" />
+                  </button>
                 )}
+                <button onClick={() => setShowEditor(false)} className="p-1 hover:bg-gray-200 rounded text-gray-400 transition-colors" title="收起编辑器">
+                  <PanelLeftClose className="w-4 h-4" />
+                </button>
               </div>
-            </Card>
+            </div>
+            {/* 内容区 - grid 1fr 行，填满剩余空间，与工具栏行完全独立 */}
+            <div className={`min-h-[500px] overflow-hidden ${editorTab === 'code' ? 'bg-[#1e1e1e]' : 'bg-white'} rounded-b-xl border-x border-b border-gray-200`}>
+              {editorTab === 'code' ? (
+                <CodeEditor code={editorCode} language={editorLanguage} onChange={(v) => setEditorCode(v)} />
+              ) : (
+                <CodePreview htmlContent={previewHtml} title="运行结果" />
+              )}
+            </div>
           </>
         ) : (
           <button onClick={() => setShowEditor(true)}
@@ -1765,6 +2062,62 @@ export function Create() {
           </button>
         )}
       </div>
+
+      {/* 运行结果全屏模态框 */}
+      {showRunResultModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+          onClick={(e) => { if (e.target === e.currentTarget) setShowRunResultModal(false); }}
+        >
+          <div className="relative w-[95vw] h-[92vh] bg-white rounded-xl shadow-2xl overflow-hidden flex flex-col">
+            {/* 模态框顶栏 */}
+            <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-200 flex-shrink-0">
+              <div className="flex items-center gap-2">
+                <Play className="w-4 h-4 text-green-600" />
+                <span className="text-sm font-medium text-gray-700">运行结果</span>
+                {runResultUrl && (
+                  <a
+                    href={runResultUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-blue-500 hover:text-blue-700 ml-2 underline"
+                  >
+                    新窗口打开
+                  </a>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowRunResultModal(false)}
+                  className="px-3 py-1 text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded transition-colors"
+                >
+                  关闭 (ESC)
+                </button>
+              </div>
+            </div>
+            {/* 模态框内容区 */}
+            <div className="flex-1 min-h-0 bg-white">
+              {runResultUrl ? (
+                // Streamlit 等服务：直接 iframe 嵌入真实 URL
+                <iframe
+                  src={runResultUrl}
+                  className="w-full h-full border-0 block"
+                  title="应用预览"
+                  sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-modals"
+                />
+              ) : (
+                // 普通输出：srcDoc 渲染
+                <iframe
+                  srcDoc={runResultHtml}
+                  className="w-full h-full border-0 block"
+                  title="运行结果"
+                  sandbox="allow-scripts allow-modals allow-same-origin allow-forms allow-popups"
+                />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <LightRegisterPrompt open={showRegisterPrompt} onClose={() => setShowRegisterPrompt(false)} />
     </div>

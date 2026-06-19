@@ -22,6 +22,7 @@ from app.schemas.auth import (
     UserUpdate,
     UserResponse,
     AuthResponse,
+    ChangePasswordRequest,
 )
 from app.schemas.common import ApiResponse
 from app.repositories.runtime_db import db
@@ -297,3 +298,40 @@ async def update_current_user_info(
         ),
         message="更新成功",
     )
+
+
+@router.post("/change-password", response_model=ApiResponse[None])
+async def change_password(
+    request: ChangePasswordRequest,
+    current_user: UserResponse = Depends(get_current_user),
+):
+    """
+    修改当前用户密码
+    """
+    # 获取完整用户信息（含密码哈希）
+    user = db.get_user(current_user.id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="用户不存在",
+        )
+
+    # 验证当前密码
+    if not verify_password(request.current_password, user.password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="当前密码错误",
+        )
+
+    # 新密码不能与当前密码相同
+    if verify_password(request.new_password, user.password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="新密码不能与当前密码相同",
+        )
+
+    # 更新密码
+    hashed_password = get_password_hash(request.new_password)
+    db.update_user(current_user.id, {"password": hashed_password})
+
+    return ApiResponse(data=None, message="密码修改成功")

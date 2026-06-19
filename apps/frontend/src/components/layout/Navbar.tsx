@@ -11,6 +11,7 @@ import {
   Lightbulb,
   ClipboardList,
   Link2,
+  UserCircle,
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -93,6 +94,14 @@ export function Navbar({ title, children }: NavbarProps) {
                       <p className="text-sm text-gray-600">{user.email}</p>
                     </div>
                     <div className="p-2">
+                      <Link
+                        to="/profile"
+                        onClick={() => setShowMenu(false)}
+                        className="flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg w-full"
+                      >
+                        <UserCircle className="h-4 w-4" />
+                        个人资料
+                      </Link>
                       <button
                         onClick={handleLogout}
                         className="flex items-center gap-3 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg w-full"

@@ -38,6 +38,14 @@ class UserLogin(BaseModel):
     password: str = Field(..., description="密码")
 
 
+class ChangePasswordRequest(BaseModel):
+    """
+    修改密码请求
+    """
+    current_password: str = Field(..., min_length=6, description="当前密码")
+    new_password: str = Field(..., min_length=6, description="新密码")
+
+
 class UserUpdate(BaseModel):
     """
     用户信息更新请求

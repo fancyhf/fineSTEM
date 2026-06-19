@@ -33,7 +33,7 @@ export default function Register() {
     setLoading(true);
     try {
       await register(name, email, password);
-      navigate('/dashboard');
+      navigate('/');
     } catch (err: any) {
       setError(err.message || '注册失败');
     } finally {

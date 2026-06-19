@@ -26,19 +26,23 @@ export const CodePreview: React.FC<CodePreviewProps> = ({
     <div className={`h-full flex flex-col ${isFullscreen ? 'fixed inset-0 z-50 bg-white' : ''}`}>
       <div className="flex items-center justify-between px-3 py-1.5 bg-gray-100 border-b border-gray-200">
         <span className="text-xs text-gray-500 font-medium">{title}</span>
-        <button
-          onClick={() => setIsFullscreen(!isFullscreen)}
-          className="p-1 hover:bg-gray-200 rounded text-gray-400 transition-colors"
-        >
-          {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setIsFullscreen(!isFullscreen)}
+            className="p-1 hover:bg-gray-200 rounded text-gray-400 transition-colors"
+            title={isFullscreen ? '退出全屏' : '全屏预览'}
+          >
+            {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+          </button>
+        </div>
       </div>
-      <div className="flex-1 bg-white">
+      <div className="flex-1 min-h-[500px] bg-white overflow-auto">
         <iframe
           srcDoc={htmlContent}
           title={title}
-          className="w-full h-full border-0"
-          sandbox="allow-scripts allow-modals allow-same-origin"
+          className="w-full h-full min-h-[500px] border-0 block"
+          style={{ minHeight: 500, height: '100%' }}
+          sandbox="allow-scripts allow-modals allow-same-origin allow-forms allow-popups"
           loading="lazy"
         />
       </div>

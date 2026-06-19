@@ -51,6 +51,11 @@ export interface UserUpdate {
   capability_tags?: string[];
 }
 
+export interface ChangePasswordRequest {
+  current_password: string;
+  new_password: string;
+}
+
 export interface AuthResponse {
   user: UserResponse;
   access_token: string;

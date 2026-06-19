@@ -1,14 +1,23 @@
 import sqlite3
-conn = sqlite3.connect(r"D:\data\finestem\finestem.db")
-conn.row_factory = sqlite3.Row
+
+conn = sqlite3.connect('apps/backend/data/fine_stem.db')
 cur = conn.cursor()
-cur.execute("SELECT id, email, name FROM users WHERE id='27fb2e88-bf95-4c98-b33b-688891d40f43'")
-r = cur.fetchone()
-if r:
-    print(f"User: id={r['id']}, email={r['email']}, name={r['name']}")
+
+# 查看用户信息
+cur.execute('SELECT id, email, name, substr(password_hash, 1, 30) FROM users WHERE email = "21749959@qq.com"')
+row = cur.fetchone()
+if row:
+    print(f'用户ID: {row[0]}')
+    print(f'邮箱: {row[1]}')
+    print(f'姓名: {row[2]}')
+    print(f'密码哈希前缀: {row[3]}...')
 else:
-    print("User not found by id")
-    cur.execute("SELECT id, email, name FROM users LIMIT 10")
-    for r in cur.fetchall():
-        print(f"  {r['id'][:12]}... | {r['email']} | {r['name']}")
+    print('用户 21749959@qq.com 不存在！')
+
+# 列出所有用户
+print('\n--- 所有用户列表 ---')
+cur.execute('SELECT id, email, name FROM users ORDER BY id')
+for row in cur.fetchall():
+    print(f'  ID={row[0]}  Email={row[1]}  Name={row[2]}')
+
 conn.close()

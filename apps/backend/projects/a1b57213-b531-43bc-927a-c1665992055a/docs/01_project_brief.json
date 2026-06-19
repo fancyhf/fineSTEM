@@ -1,0 +1,52 @@
+{
+  "schema_version": "1.0",
+  "project_name": "趣味知识大挑战",
+  "one_liner": "一个10道题的跨领域选择题游戏，做完就知道自己有多聪明！",
+  "problem_statement": "想测试知识面但没有好玩的方式，做题太枯燥",
+  "target_users": "10-15岁学生",
+  "tech_stack_initial": "Python Web应用",
+  "success_criteria": [
+    {
+      "id": "sc_1",
+      "description": "10道题正常展示和选择，题目和选项显示正确",
+      "measure": "点击选项能响应，显示正确/错误反馈"
+    },
+    {
+      "id": "sc_2",
+      "description": "即时反馈正确/错误，选对显示绿色✓，选错显示红色✗并显示正确答案",
+      "measure": "用户选择后立即看到颜色反馈"
+    },
+    {
+      "id": "sc_3",
+      "description": "结束时显示得分，如'8/10'",
+      "measure": "10题完成后展示总分"
+    }
+  ],
+  "risks": [
+    {
+      "risk": "题库太大，写代码太累",
+      "fallback": "先内置10道题，不搞外部数据文件",
+      "severity": "低"
+    },
+    {
+      "risk": "排行榜数据保存失败",
+      "fallback": "不做持久化，每次启动从零开始，仅记录当次得分",
+      "severity": "中"
+    },
+    {
+      "risk": "界面做不好看",
+      "fallback": "只用基础HTML/CSS，不搞复杂UI框架",
+      "severity": "低"
+    }
+  ],
+  "milestones": [
+    {
+      "name": "核心游戏功能",
+      "description": "完成10道题的展示、选择、反馈和得分计算"
+    },
+    {
+      "name": "界面美化",
+      "description": "让界面看起来整洁舒服"
+    }
+  ]
+}

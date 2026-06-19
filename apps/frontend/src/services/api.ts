@@ -4,6 +4,7 @@ import {
   UserResponse,
   UserCreate,
   UserUpdate,
+  ChangePasswordRequest,
   AuthResponse,
   Demo,
   ForkTemplate,
@@ -215,10 +216,20 @@ export const authApi = {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: formData,
-    }).then(res => res.json() as Promise<ApiResponse<AuthResponse>>);
+    }).then(async (res) => {
+      const data = await res.json() as ApiResponse<AuthResponse>;
+      // 后端返回的错误格式是 { detail: "错误信息" }，需要转换为前端期望的 { message: "错误信息" }
+      if (!res.ok && !data.message && (data as any).detail) {
+        data.message = (data as any).detail;
+      } else if (!res.ok && !data.message) {
+        data.message = `登录失败 (${res.status})`;
+      }
+      return data;
+    });
   },
   getMe: () => api.get<UserResponse>('/auth/me'),
   updateMe: (data: UserUpdate) => api.patch<UserResponse>('/auth/me', data),
+  changePassword: (data: ChangePasswordRequest) => api.post<null>('/auth/change-password', data),
 };
 
 // Demo API

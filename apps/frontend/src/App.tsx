@@ -19,6 +19,7 @@ import { Research } from './pages/Research';
 import { Connect } from './pages/Connect';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import UserProfile from './pages/UserProfile';
 import ProjectDetail from './pages/ProjectDetail';
 import ProjectAchievement from './pages/ProjectAchievement';
 import SharedAchievement from './pages/SharedAchievement';
@@ -87,6 +88,9 @@ export default function App() {
           } />
           <Route path="register" element={
             <PublicRoute><Register /></PublicRoute>
+          } />
+          <Route path="profile" element={
+            <ProtectedRoute><UserProfile /></ProtectedRoute>
           } />
 
           <Route path="research" element={
