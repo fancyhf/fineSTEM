@@ -8,7 +8,7 @@ export type EventCategory = 'general' | 'project' | 'skill' | 'code';
 export interface AnalyticsEvent {
   event_name: string;
   category: EventCategory;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export const useAnalytics = () => {

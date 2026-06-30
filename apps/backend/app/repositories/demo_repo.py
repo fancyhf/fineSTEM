@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from datetime import datetime
 import json
 
+from app.core.time_utils import utc_now
 from app.db.models import DemoModel
 from app.repositories.base import BaseRepository
 from app.repositories.utils import json_dumps, json_loads
@@ -138,7 +138,7 @@ class DemoRepo(BaseRepository):
         }
         seed_ids = {str(item["id"]) for item in SEED_DEMOS}
         stale_ids = existing_ids - seed_ids
-        now = datetime.utcnow()
+        now = utc_now()
         if stale_ids:
             self.db.query(DemoModel).filter(
                 DemoModel.id.in_(stale_ids),
@@ -271,7 +271,7 @@ class DemoRepo(BaseRepository):
             else:
                 setattr(model, key, value)
 
-        model.updated_at = datetime.utcnow()
+        model.updated_at = utc_now()
         self.db.commit()
         self.db.refresh(model)
         return _to_schema(model)

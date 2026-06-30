@@ -124,10 +124,10 @@ test.describe('创造页设计开发与运行预览', () => {
       })
       .toContain(previewMarker);
 
-    await authenticatedPage.getByRole('button', { name: '运行' }).click();
-    await expect(authenticatedPage.getByRole('button', { name: '预览' })).toBeVisible();
+    await authenticatedPage.getByRole('button', { name: '运行', exact: true }).click();
+    await expect(authenticatedPage.getByRole('button', { name: '预览', exact: true })).toBeVisible();
 
-    const previewFrame = authenticatedPage.frameLocator('iframe[title="运行结果"]');
+    const previewFrame = authenticatedPage.locator('iframe[title="运行结果"]').first().contentFrame();
     await expect(previewFrame.locator('body')).toContainText(previewMarker, { timeout: PREVIEW_TIMEOUT_MS });
     await expect(previewFrame.locator('body')).toContainText('这是设计开发阶段的可运行作品预览。', {
       timeout: PREVIEW_TIMEOUT_MS,

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from datetime import datetime
 import uuid
 
+from app.core.time_utils import utc_now
 from app.db.models import EvidenceModel
 from app.repositories.base import BaseRepository
 from app.schemas.evidence import Evidence
@@ -108,7 +108,7 @@ class EvidenceRepo(BaseRepository):
                     row.content_url = value
                 else:
                     setattr(row, key, value)
-        row.updated_at = datetime.utcnow()
+        row.updated_at = utc_now()
         self.db.commit()
         self.db.refresh(row)
         return _to_schema(row)
@@ -118,7 +118,7 @@ class EvidenceRepo(BaseRepository):
         if not row or row.is_deleted:
             return False
         row.is_deleted = True
-        row.deleted_at = datetime.utcnow()
+        row.deleted_at = utc_now()
         row.deleted_by = deleted_by
         self.db.commit()
         return True

@@ -62,7 +62,8 @@ export default function ExploreDemoDetail() {
   };
 
   useEffect(() => {
-    loadDemo();
+    void loadDemo();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 只随 demoId 变化重新加载详情
   }, [demoId]);
 
   useEffect(() => {
@@ -75,6 +76,7 @@ export default function ExploreDemoDetail() {
     if (action === 'save' && user && demo) {
       void handleSaveProject();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- URL 动作只随查询参数、登录态和 demo 加载状态触发
   }, [location.search, user, demo]);
 
   const createProjectFromDemo = async (): Promise<string | null> => {
@@ -158,6 +160,7 @@ export default function ExploreDemoDetail() {
       if (action === 'fork') void handleFork();
       else if (action === 'save') void handleSaveProject();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 注册弹窗回调只消费 pendingAction
   }, [user, pendingAction]);
 
   if (loading) {

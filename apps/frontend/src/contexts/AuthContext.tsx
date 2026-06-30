@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { UserResponse } from '../types';
 import { authApi, authStorage } from '../services/api';
 
@@ -17,18 +17,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [user, setUser] = useState<UserResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    // 初始化时检查本地存储的用户
-    const storedUser = authStorage.getUser();
-    const token = authStorage.getToken();
-    if (storedUser && token) {
-      setUser(storedUser);
-      refreshUser();
-    }
-    setIsLoading(false);
+  const logout = useCallback(() => {
+    authStorage.clear();
+    setUser(null);
   }, []);
 
-  const refreshUser = async () => {
+  const refreshUser = useCallback(async () => {
     try {
       const response = await authApi.getMe();
       if (response.data) {
@@ -39,7 +33,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.error('Failed to refresh user:', error);
       logout();
     }
-  };
+  }, [logout]);
+
+  useEffect(() => {
+    // 初始化时检查本地存储的用户
+    const storedUser = authStorage.getUser();
+    const token = authStorage.getToken();
+    if (storedUser && token) {
+      setUser(storedUser);
+      void refreshUser();
+    }
+    setIsLoading(false);
+  }, [refreshUser]);
 
   const login = async (email: string, password: string) => {
     setIsLoading(true);
@@ -78,11 +83,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const logout = () => {
-    authStorage.clear();
-    setUser(null);
   };
 
   return (

@@ -9,7 +9,6 @@ links: .trae/documents/api-specs/v1/spec.json
 import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-from datetime import datetime
 import uuid
 from app.schemas.demos import Demo
 from app.schemas.projects import Project, SkillState
@@ -19,6 +18,7 @@ from app.schemas.auth import User
 from app.schemas.skills import SkillRecord
 from app.schemas.course_library import Course
 from app.core.config import settings
+from app.core.time_utils import utc_now, utc_now_iso
 from app.db.sqlite_db import SQLiteDatabase
 
 
@@ -156,8 +156,8 @@ class MemoryDatabase:
             download_url="https://github.com/",
             created_by="system",
             is_public=True,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=utc_now(),
+            updated_at=utc_now(),
         )
         self.demos[demo1.id] = demo1
 
@@ -179,8 +179,8 @@ class MemoryDatabase:
             download_url="https://github.com/",
             created_by="system",
             is_public=True,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=utc_now(),
+            updated_at=utc_now(),
         )
         self.demos[demo2.id] = demo2
 
@@ -202,8 +202,8 @@ class MemoryDatabase:
             download_url="https://github.com/",
             created_by="system",
             is_public=True,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=utc_now(),
+            updated_at=utc_now(),
         )
         self.demos[demo3.id] = demo3
 
@@ -219,8 +219,8 @@ class MemoryDatabase:
 
     def create_user(self, user: User) -> User:
         user.id = str(uuid.uuid4())
-        user.created_at = datetime.utcnow()
-        user.updated_at = datetime.utcnow()
+        user.created_at = utc_now()
+        user.updated_at = utc_now()
         self.users[user.id] = user
         self.user_email_index[user.email] = user.id
         return user
@@ -232,7 +232,7 @@ class MemoryDatabase:
         for key, value in user_data.items():
             if value is not None:
                 setattr(user, key, value)
-        user.updated_at = datetime.utcnow()
+        user.updated_at = utc_now()
         return user
 
     # =========================================================================
@@ -278,8 +278,8 @@ class MemoryDatabase:
 
     def create_demo(self, demo: Demo) -> Demo:
         demo.id = str(uuid.uuid4())
-        demo.created_at = datetime.utcnow()
-        demo.updated_at = datetime.utcnow()
+        demo.created_at = utc_now()
+        demo.updated_at = utc_now()
         self.demos[demo.id] = demo
         return demo
 
@@ -290,7 +290,7 @@ class MemoryDatabase:
         for key, value in demo_data.items():
             if value is not None:
                 setattr(demo, key, value)
-        demo.updated_at = datetime.utcnow()
+        demo.updated_at = utc_now()
         return demo
 
     # =========================================================================
@@ -312,14 +312,14 @@ class MemoryDatabase:
 
     def create_project(self, project: Project) -> Project:
         project.id = str(uuid.uuid4())
-        project.created_at = datetime.utcnow()
-        project.updated_at = datetime.utcnow()
+        project.created_at = utc_now()
+        project.updated_at = utc_now()
         self.projects[project.id] = project
         self.skill_states[project.id] = SkillState(
             project_id=project.id,
             mode=project.mode,
             current_stage=project.current_stage,
-            stage_history=[{"stage": project.current_stage, "started_at": datetime.utcnow().isoformat()}],
+            stage_history=[{"stage": project.current_stage, "started_at": utc_now_iso()}],
             light_step_data={},
             standard_step_data={},
         )
@@ -355,7 +355,7 @@ class MemoryDatabase:
         for key, value in project_data.items():
             if value is not None:
                 setattr(project, key, value)
-        project.updated_at = datetime.utcnow()
+        project.updated_at = utc_now()
         return project
 
     def delete_project(self, project_id: str, deleted_by: str) -> bool:
@@ -363,7 +363,7 @@ class MemoryDatabase:
             return False
         project = self.projects[project_id]
         project.is_deleted = True
-        project.deleted_at = datetime.utcnow()
+        project.deleted_at = utc_now()
         project.deleted_by = deleted_by
         return True
 
@@ -374,8 +374,8 @@ class MemoryDatabase:
         return self.skill_states.get(project_id)
 
     def create_skill_state(self, skill_state: SkillState) -> SkillState:
-        skill_state.created_at = datetime.utcnow()
-        skill_state.updated_at = datetime.utcnow()
+        skill_state.created_at = utc_now()
+        skill_state.updated_at = utc_now()
         self.skill_states[skill_state.project_id] = skill_state
         return skill_state
 
@@ -386,7 +386,7 @@ class MemoryDatabase:
         for key, value in dict_data.items():
             if value is not None and hasattr(skill_state, key):
                 setattr(skill_state, key, value)
-        skill_state.updated_at = datetime.utcnow()
+        skill_state.updated_at = utc_now()
         self.skill_states[project_id] = skill_state
         return skill_state
 
@@ -413,14 +413,14 @@ class MemoryDatabase:
             next_stage = stages[idx + 1]
             skill_state.current_stage = next_stage
             skill_state.stage_history.append(
-                {"stage": next_stage, "started_at": datetime.utcnow().isoformat()}
+                {"stage": next_stage, "started_at": utc_now_iso()}
             )
-        skill_state.updated_at = datetime.utcnow()
+        skill_state.updated_at = utc_now()
         self.skill_states[project_id] = skill_state
         project = self.projects.get(project_id)
         if project:
             project.current_stage = skill_state.current_stage
-            project.updated_at = datetime.utcnow()
+            project.updated_at = utc_now()
         return skill_state
 
     # =========================================================================
@@ -464,8 +464,8 @@ class MemoryDatabase:
 
     def create_achievement_card(self, card: AchievementCard) -> AchievementCard:
         card.id = str(uuid.uuid4())
-        card.created_at = datetime.utcnow()
-        card.updated_at = datetime.utcnow()
+        card.created_at = utc_now()
+        card.updated_at = utc_now()
         self.achievement_cards[card.id] = card
         return card
 
@@ -476,7 +476,7 @@ class MemoryDatabase:
         for key, value in card_data.items():
             if value is not None:
                 setattr(card, key, value)
-        card.updated_at = datetime.utcnow()
+        card.updated_at = utc_now()
         return card
 
     def create_share_token(self, card_id: str) -> str:
@@ -517,8 +517,8 @@ class MemoryDatabase:
 
     def create_evidence(self, evidence_item: Evidence) -> Evidence:
         evidence_item.id = str(uuid.uuid4())
-        evidence_item.created_at = datetime.utcnow()
-        evidence_item.updated_at = datetime.utcnow()
+        evidence_item.created_at = utc_now()
+        evidence_item.updated_at = utc_now()
         self.evidence[evidence_item.id] = evidence_item
         return evidence_item
 
@@ -529,7 +529,7 @@ class MemoryDatabase:
         for key, value in evidence_data.items():
             if value is not None and hasattr(evidence_item, key):
                 setattr(evidence_item, key, value)
-        evidence_item.updated_at = datetime.utcnow()
+        evidence_item.updated_at = utc_now()
         self.evidence[evidence_id] = evidence_item
         return evidence_item
 
@@ -538,7 +538,7 @@ class MemoryDatabase:
             return False
         e = self.evidence[evidence_id]
         e.is_deleted = True
-        e.deleted_at = datetime.utcnow()
+        e.deleted_at = utc_now()
         e.deleted_by = deleted_by
         return True
 
@@ -554,7 +554,7 @@ class MemoryDatabase:
     def upsert_installed_skill(self, owner_id: str, record: SkillRecord) -> SkillRecord:
         if owner_id not in self.installed_skills:
             self.installed_skills[owner_id] = {}
-        record.updated_at = datetime.utcnow()
+        record.updated_at = utc_now()
         self.installed_skills[owner_id][record.manifest.skill_id] = record
         return record
 
@@ -574,8 +574,8 @@ class MemoryDatabase:
 
     def create_course(self, item: Course) -> Course:
         item.id = str(uuid.uuid4())
-        item.created_at = datetime.utcnow()
-        item.updated_at = datetime.utcnow()
+        item.created_at = utc_now()
+        item.updated_at = utc_now()
         self.courses[item.id] = item
         return item
 

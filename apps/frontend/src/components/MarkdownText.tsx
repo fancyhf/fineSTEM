@@ -135,7 +135,6 @@ export function MarkdownText({ content, projectId }: { content: string; projectI
 
   const flushTable = (key: string) => {
     if (!tableHeader) return null;
-    const allRows = [tableHeader, ...tableRows];
     const rendered = (
       <div key={key} className="overflow-x-auto my-2">
         <table className="min-w-full border-collapse text-sm">

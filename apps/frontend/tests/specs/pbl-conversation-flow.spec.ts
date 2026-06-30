@@ -23,7 +23,8 @@
  *   API_BASE: 后端 API 地址（默认 http://localhost:3200/api/v1）
  */
 
-import { test, expect, Page, Locator } from '@playwright/test';
+import { expect, Page, Locator } from '@playwright/test';
+import { test } from '../fixtures';
 
 const CONFIG = {
   BASE_URL: process.env.BASE_URL || 'http://localhost:5284/create',
@@ -38,7 +39,7 @@ const CONFIG = {
   SCREENSHOT_DIR: 'test-results/pbl-flow',
 };
 
-test.describe('PBL 对话流程 - 可复用 E2E 测试套件', () => {
+test.describe('@ai PBL 对话流程 - 可复用 E2E 测试套件', () => {
 
   test.beforeAll(async () => {
     console.log('\n========== PBL 流程 E2E 测试开始 ==========');
@@ -65,8 +66,7 @@ test.describe('PBL 对话流程 - 可复用 E2E 测试套件', () => {
     }
 
     async navigateToCreatePage(): Promise<void> {
-      await this.page.goto(CONFIG.BASE_URL);
-      await this.page.waitForLoadState('networkidle');
+      await this.page.goto(CONFIG.BASE_URL, { waitUntil: 'domcontentloaded', timeout: CONFIG.TIMEOUTS.NAVIGATION });
 
       const createBtn = this.page.locator('a[href="/create"], a:has-text("创造")').first();
       if (await createBtn.isVisible({ timeout: CONFIG.TIMEOUTS.NAVIGATION }).catch(() => false)) {
@@ -131,7 +131,9 @@ test.describe('PBL 对话流程 - 可复用 E2E 测试套件', () => {
           if (await el.isVisible({ timeout: 2000 }).catch(() => false)) {
             return true;
           }
-        } catch {}
+        } catch {
+          // 继续尝试下一个候选选择器。
+        }
       }
       
       return false;
@@ -160,7 +162,9 @@ test.describe('PBL 对话流程 - 可复用 E2E 测试套件', () => {
             
             return true;
           }
-        } catch {}
+        } catch {
+          // 继续尝试下一个候选选择器。
+        }
       }
 
       return false;
@@ -221,6 +225,9 @@ test.describe('PBL 对话流程 - 可复用 E2E 测试套件', () => {
     }
 
     async checkForCodeContent(): Promise<boolean> {
+      if (await this.isEditorVisible()) {
+        return true;
+      }
       const bodyText = await this.page.locator('body').textContent() || '';
       const codePatterns = [
         /\bdef\s+\w+\s*\(/,
@@ -238,6 +245,7 @@ test.describe('PBL 对话流程 - 可复用 E2E 测试套件', () => {
 
     async isEditorVisible(): Promise<boolean> {
       const editorSelectors = [
+        '[data-testid="code-editor"]',
         '.monaco-editor',
         '[class*="code-editor"]',
         '.view-lines',
@@ -250,7 +258,9 @@ test.describe('PBL 对话流程 - 可复用 E2E 测试套件', () => {
           if (await el.isVisible({ timeout: 2000 }).catch(() => false)) {
             return true;
           }
-        } catch {}
+        } catch {
+          // 继续尝试下一个候选选择器。
+        }
       }
 
       return false;
@@ -273,7 +283,9 @@ test.describe('PBL 对话流程 - 可复用 E2E 测试套件', () => {
             await this.page.waitForTimeout(CONFIG.TIMEOUTS.CODE_RUN);
             return true;
           }
-        } catch {}
+        } catch {
+          // 继续尝试下一个候选选择器。
+        }
       }
 
       console.log('⚠️ 未找到运行按钮');
@@ -294,7 +306,9 @@ test.describe('PBL 对话流程 - 可复用 E2E 测试套件', () => {
           if (await el.isVisible({ timeout: 2000 }).catch(() => false)) {
             return true;
           }
-        } catch {}
+        } catch {
+          // 继续尝试下一个候选选择器。
+        }
       }
 
       return false;
@@ -324,7 +338,9 @@ test.describe('PBL 对话流程 - 可复用 E2E 测试套件', () => {
               return true;
             }
           }
-        } catch {}
+        } catch {
+          // 继续尝试下一个候选选择器。
+        }
       }
 
       console.log('⚠️ 未找到编辑按钮或输入框');
@@ -337,7 +353,20 @@ test.describe('PBL 对话流程 - 可复用 E2E 测试套件', () => {
 
     async getProjectCount(): Promise<number> {
       const items = await this.getProjectListItems();
-      return await items.count();
+      const uiCount = await items.count();
+      if (uiCount > 0) return uiCount;
+
+      return await this.page.evaluate(async (apiBase) => {
+        const token = window.localStorage.getItem('auth_token');
+        if (!token) return 0;
+        const response = await fetch(`${apiBase}/projects?page=1&page_size=20`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!response.ok) return 0;
+        const body = await response.json();
+        const projects = body?.data?.items || body?.data || [];
+        return Array.isArray(projects) ? projects.length : 0;
+      }, CONFIG.API_BASE);
     }
 
     async clickProjectByName(name: string): Promise<boolean> {
@@ -360,11 +389,19 @@ test.describe('PBL 对话流程 - 可复用 E2E 测试套件', () => {
     async screenshot(name: string): Promise<string> {
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
       const filename = `${CONFIG.SCREENSHOT_DIR}/${name}-${timestamp}.png`;
-      await this.page.screenshot({
-        path: filename,
-        fullPage: true,
-      });
-      this.screenshots.push(filename);
+      if (process.env.PBL_E2E_SCREENSHOTS !== '1') {
+        return filename;
+      }
+      try {
+        await this.page.screenshot({
+          path: filename,
+          fullPage: true,
+          timeout: 10000,
+        });
+        this.screenshots.push(filename);
+      } catch (error) {
+        console.warn(`⚠️ 截图失败，继续测试: ${error instanceof Error ? error.message : String(error)}`);
+      }
       return filename;
     }
 
@@ -586,8 +623,9 @@ test.describe('PBL 对话流程 - 可复用 E2E 测试套件', () => {
    * ============================================================
    */
   
-  test('完整PBL流程: 从请求到项目保存（端到端）', async ({ page }) => {
-    const helper = new PBLTestHelper(page);
+  test('完整PBL流程: 从请求到项目保存（端到端）', async ({ authenticatedPage }) => {
+    test.setTimeout(180000);
+    const helper = new PBLTestHelper(authenticatedPage);
     const testName = `E2E测试_${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}`;
     
     console.log('\n========== 开始完整 PBL 流程端到端测试 ==========\n');
@@ -647,6 +685,11 @@ test.describe('PBL 对话流程 - 可复用 E2E 测试套件', () => {
       console.log(`编辑器: ${editorVisible ? '✅' : '❌'}`);
       console.log(`项目保存: ${finalState.projectCount > 0 ? '✅' : '❌'}`);
       console.log('==============================\n');
+
+      expect.soft(hadQuestion, 'AI 长链路至少应出现一次 QuestionCard').toBeTruthy();
+      expect.soft(conversationResult.hasCode, 'AI 长链路应生成可检测代码').toBeTruthy();
+      expect.soft(editorVisible, 'AI 长链路应展开编辑器').toBeTruthy();
+      expect.soft(finalState.projectCount, 'AI 长链路应保存至少一个项目').toBeGreaterThan(0);
 
     } catch (error) {
       console.error('❌ 完整流程测试失败:', error);

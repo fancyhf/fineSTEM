@@ -21,8 +21,8 @@ export default function Login() {
     try {
       await login(email, password);
       navigate('/');
-    } catch (err: any) {
-      setError(err.message || '登录失败');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : '登录失败，请重试');
     } finally {
       setLoading(false);
     }

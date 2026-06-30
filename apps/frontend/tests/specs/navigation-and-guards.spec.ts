@@ -19,8 +19,8 @@ test.describe('路由守卫与导航', () => {
     expect(url).toContain('/login');
   });
 
-  test('未登录访问 Dashboard 重定向', async ({ page }) => {
-    await page.goto('/dashboard');
+  test('未登录访问个人中心重定向', async ({ page }) => {
+    await page.goto('/profile');
     await page.waitForLoadState('domcontentloaded');
     await page.waitForURL(/\/login/, { timeout: 5000 }).catch(() => {});
 

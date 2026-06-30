@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from datetime import datetime
+from pydantic import BaseModel
 
 from app.db.models import ProjectCapabilityTagModel, ProjectModel, SkillStateModel
+from app.core.time_utils import utc_now, utc_now_iso
 from app.repositories.base import BaseRepository
 from app.repositories.utils import json_dumps, json_loads
 from app.schemas.projects import Project, SkillState
@@ -18,6 +19,27 @@ STAGES = [
     "stage_07_execute",
     "stage_08_evaluate",
 ]
+
+
+def _normalize_stage_statuses(stages: dict) -> dict:
+    """兼容清洗历史写入的非法阶段状态。"""
+    if not isinstance(stages, dict):
+        return {}
+    normalized: dict = {}
+    for stage_key, stage_value in stages.items():
+        if isinstance(stage_value, BaseModel):
+            stage_value = stage_value.model_dump(mode="json")
+        if isinstance(stage_value, dict):
+            if stage_value.get("status") == "valid":
+                stage_value["status"] = "completed"
+            normalized[stage_key] = stage_value
+            continue
+        if isinstance(stage_value, str):
+            fallback_status = "completed" if "completed" in stage_value or "valid" in stage_value else "active"
+            normalized[stage_key] = {"status": fallback_status, "data": {}}
+            continue
+        normalized[stage_key] = {"status": "locked", "data": {}}
+    return normalized
 
 
 def _normalize_initial_data(raw: object) -> dict:
@@ -46,13 +68,14 @@ def _to_project(model: ProjectModel) -> Project:
 
 
 def _to_skill_state(model: SkillStateModel) -> SkillState:
+    stages = _normalize_stage_statuses(json_loads(model.stages, {}))
     return SkillState(
         project_id=model.project_id,
         version=model.version or "1.0.0",
         mode=model.mode,  # type: ignore[arg-type]
         current_stage=model.current_stage,  # type: ignore[arg-type]
         light_step=int(model.light_step) if model.light_step else None,  # type: ignore[arg-type]
-        stages=json_loads(model.stages, {}),
+        stages=stages,
         metadata=json_loads(model.skill_metadata, {}),
         light_to_standard_mapping=json_loads(model.light_to_standard_mapping, None),
         stage_history=json_loads(model.stage_history, []),
@@ -96,10 +119,11 @@ class ProjectRepo(BaseRepository):
         workspace.setdefault("chat_messages", [])
         workspace.setdefault("saved_at", None)
         workspace.setdefault("chat_saved_at", None)
+        workspace.setdefault("files", [])  # 多文件支持，默认空列表
         return workspace
 
     def _save_project_row(self, row: ProjectModel, *, updated_by: str | None = None) -> None:
-        row.updated_at = datetime.utcnow()
+        row.updated_at = utc_now()
         if updated_by:
             row.updated_by = updated_by
         self.db.commit()
@@ -164,7 +188,7 @@ class ProjectRepo(BaseRepository):
                 stages="{}",
                 metadata="{}",
                 light_to_standard_mapping=None,
-                stage_history=json_dumps([{"stage": project.current_stage, "started_at": datetime.utcnow().isoformat()}], "[]"),
+                stage_history=json_dumps([{"stage": project.current_stage, "started_at": utc_now_iso()}], "[]"),
                 light_step_data="{}",
                 standard_step_data="{}",
             )
@@ -210,7 +234,7 @@ class ProjectRepo(BaseRepository):
         if not row or row.is_deleted:
             return False
         row.is_deleted = True
-        row.deleted_at = datetime.utcnow()
+        row.deleted_at = utc_now()
         row.deleted_by = deleted_by
         self.db.commit()
         return True
@@ -262,6 +286,8 @@ class ProjectRepo(BaseRepository):
             if value is None:
                 continue
             if key in json_keys:
+                if key == "stages":
+                    value = _normalize_stage_statuses(value)
                 setattr(row, key, json_dumps(value))
             elif key == "metadata":
                 row.skill_metadata = json_dumps(value)
@@ -269,11 +295,11 @@ class ProjectRepo(BaseRepository):
                 row.light_step = str(value) if value else None
             else:
                 setattr(row, key, value)
-        row.updated_at = datetime.utcnow()
+        row.updated_at = utc_now()
         project = self.db.get(ProjectModel, project_id)
         if project:
             project.current_stage = row.current_stage
-            project.updated_at = datetime.utcnow()
+            project.updated_at = utc_now()
         self.db.commit()
         return _to_skill_state(row)
 
@@ -288,13 +314,13 @@ class ProjectRepo(BaseRepository):
         if idx < len(STAGES) - 1:
             row.current_stage = STAGES[idx + 1]
             history = json_loads(row.stage_history, [])
-            history.append({"stage": row.current_stage, "started_at": datetime.utcnow().isoformat()})
+            history.append({"stage": row.current_stage, "started_at": utc_now_iso()})
             row.stage_history = json_dumps(history, "[]")
             project = self.db.get(ProjectModel, project_id)
             if project:
                 project.current_stage = row.current_stage
-                project.updated_at = datetime.utcnow()
-        row.updated_at = datetime.utcnow()
+                project.updated_at = utc_now()
+        row.updated_at = utc_now()
         self.db.commit()
         return _to_skill_state(row)
 
@@ -312,6 +338,6 @@ class ProjectRepo(BaseRepository):
             self.db.add(row)
         else:
             row.tags = json_dumps(normalized, "[]")
-            row.updated_at = datetime.utcnow()
+            row.updated_at = utc_now()
         self.db.commit()
         return normalized

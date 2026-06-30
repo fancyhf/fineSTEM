@@ -1,7 +1,7 @@
 import json
 import sqlite3
 import uuid
-from datetime import datetime
+from app.core.time_utils import utc_now_iso
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -172,7 +172,7 @@ class SQLiteDatabase:
         conn.commit()
 
     def _now(self) -> str:
-        return datetime.utcnow().isoformat() + "Z"
+        return utc_now_iso()
 
     def _row_to_model(self, row: sqlite3.Row, model_class) -> Any:
         if row is None:

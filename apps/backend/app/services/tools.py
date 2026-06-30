@@ -13,8 +13,9 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
+from app.core.time_utils import utc_now
 from app.repositories.runtime_db import db
-from app.services.pbl_engine import advance_with_gate, save_artifact
+from app.services.pbl_engine import ARTIFACT_TO_BLOB_KEY, advance_with_gate, save_artifact
 
 
 class ToolResult:
@@ -304,12 +305,8 @@ class ArtifactReaderTool(BaseTool):
     }
 
     ARTIFACT_MAP = {
-        "brainstorm": ("standard_step_data", "brainstorm_content"),
-        "project_brief": ("standard_step_data", "brief_content"),
-        "design": ("standard_step_data", "design_content"),
-        "step_plan": ("standard_step_data", "step_plan_content"),
-        "dev_log": ("standard_step_data", "dev_log_content"),
-        "evaluate": ("standard_step_data", "evaluate_content"),
+        artifact_name: ("standard_step_data", blob_key)
+        for artifact_name, blob_key in ARTIFACT_TO_BLOB_KEY.items()
     }
 
     async def execute(self, params: Dict[str, Any]) -> ToolResult:
@@ -355,12 +352,8 @@ class ArtifactWriterTool(BaseTool):
     }
 
     ARTIFACT_CONTAINER_MAP = {
-        "brainstorm": ("standard_step_data", "brainstorm_content"),
-        "project_brief": ("standard_step_data", "brief_content"),
-        "design": ("standard_step_data", "design_content"),
-        "step_plan": ("standard_step_data", "step_plan_content"),
-        "dev_log": ("standard_step_data", "dev_log_content"),
-        "evaluate": ("standard_step_data", "evaluate_content"),
+        artifact_name: ("standard_step_data", blob_key)
+        for artifact_name, blob_key in ARTIFACT_TO_BLOB_KEY.items()
     }
 
     async def execute(self, params: Dict[str, Any]) -> ToolResult:
@@ -378,27 +371,10 @@ class ArtifactWriterTool(BaseTool):
 
         mapping = self.ARTIFACT_CONTAINER_MAP.get(artifact_name)
         if mapping:
-            container_key, content_key = mapping
-            container_raw = getattr(state, container_key, "{}")
-            container = json.loads(container_raw) if isinstance(container_raw, str) else container_raw
-            container[content_key] = content
-            container["last_updated_at"] = datetime.now(timezone.utc).isoformat()
-
-            updates = {container_key: json.dumps(container, ensure_ascii=False)}
-
-            stages_raw = getattr(state, "stages", "{}")
-            stages_dict = json.loads(stages_raw) if isinstance(stages_raw, str) else stages_dict
-            if artifact_name in stages_dict:
-                stages_dict[artifact_name]["status"] = "valid"
-                updates["stages"] = json.dumps(stages_dict, ensure_ascii=False)
-
-            db.update_skill_state(project_id, updates)
-
-            return ToolResult(True, data={
-                "artifact_name": artifact_name,
-                "status": "valid",
-                "path": f"docs/{artifact_name}.md",
-            })
+            result = save_artifact(project_id, artifact_name, content, db)
+            if result.get("status") == "valid":
+                return ToolResult(True, data=result)
+            return ToolResult(False, error=f"写入工件失败: {artifact_name}", data=result)
 
         return ToolResult(False, error=f"未知工件名称: {artifact_name}")
 
@@ -444,8 +420,8 @@ class EvidenceSaverTool(BaseTool):
             title=title,
             content=content,
             related_step=stage or getattr(project, "current_stage", ""),
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=utc_now(),
+            updated_at=utc_now(),
         )
         created = db.create_evidence(evidence)
         return ToolResult(True, data={
@@ -543,6 +519,72 @@ class CodeRunnerTool(BaseTool):
             "exit_code": exit_code,
             "execution_time_ms": exec_time_ms,
         })
+
+
+class ProjectCodeWriterTool(BaseTool):
+    """将生成的代码写入项目工作区。"""
+
+    name = "project_code_writer"
+    description = "将完整可运行代码保存到指定项目的编辑器工作区，确保 AI 生成的代码真实落盘"
+    parameters_schema = {
+        "type": "object",
+        "properties": {
+            "project_id": {"type": "string", "description": "项目 ID（必填）"},
+            "code": {"type": "string", "description": "完整源代码（必填）"},
+            "language": {"type": "string", "description": "代码语言，如 html/python/javascript/typescript/css"},
+            "filename": {"type": "string", "description": "主文件名，如 index.html 或 main.py"},
+        },
+        "required": ["project_id", "code"],
+    }
+
+    async def execute(self, params: Dict[str, Any]) -> ToolResult:
+        project_id = str(params.get("project_id") or "").strip()
+        code = str(params.get("code") or "")
+        language = str(params.get("language") or "html").strip().lower() or "html"
+        filename = str(params.get("filename") or "").strip() or _guess_code_filename(language)
+        if not project_id:
+            return ToolResult(False, error="缺少必填参数 project_id")
+        if len(code.strip()) <= 10:
+            return ToolResult(False, error="代码内容为空或过短")
+
+        saved_at = utc_now().isoformat()
+        files = [{
+            "name": filename,
+            "language": language,
+            "content": code,
+            "is_main": True,
+        }]
+        workspace = db.save_project_workspace(project_id, {
+            "code": code,
+            "language": language,
+            "filename": filename,
+            "files": files,
+            "saved_at": saved_at,
+        })
+        if workspace is None:
+            return ToolResult(False, error=f"未找到项目 {project_id}")
+        return ToolResult(True, data={
+            "project_id": project_id,
+            "language": language,
+            "filename": filename,
+            "saved_at": saved_at,
+            "code_length": len(code),
+        })
+
+
+def _guess_code_filename(language: str) -> str:
+    normalized = (language or "").lower()
+    if normalized == "html":
+        return "index.html"
+    if normalized in {"javascript", "js"}:
+        return "main.js"
+    if normalized in {"typescript", "ts"}:
+        return "main.ts"
+    if normalized == "css":
+        return "style.css"
+    if normalized in {"python", "py"}:
+        return "main.py"
+    return "main.txt"
 
 
 class ResourceSearcherTool(BaseTool):
@@ -701,6 +743,131 @@ class ProjectCreatorTool(BaseTool):
         })
 
 
+class AchievementCardTool(BaseTool):
+    """生成/更新项目成果档案卡"""
+
+    name = "achievement_card"
+    description = "为当前项目生成或更新成果档案卡（成果总结）。当项目完成验收、需要生成最终成果展示时调用此工具。"
+    parameters_schema = {
+        "type": "object",
+        "properties": {
+            "project_id": {"type": "string", "description": "项目 ID（必填）"},
+            "title": {"type": "string", "description": "档案卡标题，如“XX 项目成果档案卡”（必填）"},
+            "one_liner": {"type": "string", "description": "一句话介绍项目成果（必填）"},
+            "problem_solved": {"type": "string", "description": "我解决了什么问题，核心挑战是什么（必填）"},
+            "method_used": {"type": "string", "description": "我用了什么方法/技术/流程来解决问题（必填）"},
+            "reflection": {"type": "string", "description": "我的反思与收获，如果重新做会怎么做（必填）"},
+            "capability_tags": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "AI 总结的能力标签列表，如 ['前端开发', '数据分析', '项目管理']",
+            },
+            "screenshots": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "项目截图或演示链接列表",
+            },
+        },
+        "required": ["project_id", "title", "one_liner", "problem_solved", "method_used", "reflection"],
+    }
+
+    async def execute(self, params: Dict[str, Any]) -> ToolResult:
+        from app.db.models import AchievementCard
+        from app.schemas.achievements import AchievementCardCreate
+        from app.services.stage08_sync import build_stage08_payload, merge_stage08_into_standard_data
+
+        project_id = params.get("project_id")
+        title = params.get("title", "")
+        one_liner = params.get("one_liner", "")
+        problem_solved = params.get("problem_solved", "")
+        method_used = params.get("method_used", "")
+        reflection = params.get("reflection", "")
+        capability_tags = params.get("capability_tags", [])
+        screenshots = params.get("screenshots", [])
+
+        if not all([project_id, title, one_liner, problem_solved, method_used, reflection]):
+            return ToolResult(False, error="缺少必填参数：project_id / title / one_liner / problem_solved / method_used / reflection")
+
+        # 检查是否已有该项目的档案卡，有则更新，无则创建
+        existing_card = db.get_achievement_card_by_project(project_id)
+        if existing_card:
+            update_data = {
+                "title": title,
+                "one_liner": one_liner,
+                "problem_solved": problem_solved,
+                "method_used": method_used,
+                "reflection": reflection,
+                "capability_tags": capability_tags or existing_card.capability_tags,
+                "screenshots": screenshots or existing_card.screenshots,
+            }
+            updated = db.update_achievement_card(existing_card.id, update_data)
+            skill_state = db.get_skill_state(project_id)
+            stage08_payload = build_stage08_payload(
+                skill_state.standard_step_data if skill_state else {},
+                achievement_card=updated or existing_card,
+                draft_data={
+                    "title": title,
+                    "one_liner": one_liner,
+                    "problem_solved": problem_solved,
+                    "method_used": method_used,
+                    "reflection": reflection,
+                },
+            )
+            merged_standard_data = merge_stage08_into_standard_data(
+                skill_state.standard_step_data if skill_state else {},
+                stage08_payload,
+            )
+            db.update_skill_state(project_id, {"standard_step_data": merged_standard_data})
+            return ToolResult(True, data={
+                "action": "updated",
+                "card_id": updated.id if updated else existing_card.id,
+                "message": f"已更新项目 {project_id} 的成果档案卡",
+            })
+
+        # 获取项目信息确定 author_id 和 mode
+        project = db.get_project(project_id)
+        if not project:
+            return ToolResult(False, error=f"未找到项目 {project_id}")
+
+        card = AchievementCard(
+            id=str(uuid.uuid4()),
+            project_id=project_id,
+            author_id=project.author_id,
+            title=title,
+            one_liner=one_liner,
+            problem_solved=problem_solved,
+            method_used=method_used,
+            reflection=reflection,
+            capability_tags=capability_tags or [],
+            screenshots=screenshots or [],
+            project_mode=getattr(project, 'mode', 'standard'),
+            created_by=project.author_id,
+        )
+        created = db.create_achievement_card(card)
+        skill_state = db.get_skill_state(project_id)
+        stage08_payload = build_stage08_payload(
+            skill_state.standard_step_data if skill_state else {},
+            achievement_card=created,
+            draft_data={
+                "title": title,
+                "one_liner": one_liner,
+                "problem_solved": problem_solved,
+                "method_used": method_used,
+                "reflection": reflection,
+            },
+        )
+        merged_standard_data = merge_stage08_into_standard_data(
+            skill_state.standard_step_data if skill_state else {},
+            stage08_payload,
+        )
+        db.update_skill_state(project_id, {"standard_step_data": merged_standard_data})
+        return ToolResult(True, data={
+            "action": "created",
+            "card_id": created.id,
+            "message": f"已为项目 {project_id} 创建成果档案卡",
+        })
+
+
 TOOL_REGISTRY: Dict[str, BaseTool] = {
     "skill_state_reader": SkillStateReaderTool(),
     "skill_state_writer": SkillStateWriterTool(),
@@ -709,8 +876,10 @@ TOOL_REGISTRY: Dict[str, BaseTool] = {
     "artifact_writer": ArtifactWriterTool(),
     "evidence_saver": EvidenceSaverTool(),
     "code_runner": CodeRunnerTool(),
+    "project_code_writer": ProjectCodeWriterTool(),
     "resource_searcher": ResourceSearcherTool(),
     "project_creator": ProjectCreatorTool(),
+    "achievement_card": AchievementCardTool(),
 }
 
 

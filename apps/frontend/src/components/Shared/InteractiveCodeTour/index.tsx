@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { ChevronLeft, ChevronRight, Play, BookOpen, Volume2, VolumeX } from 'lucide-react';
 import { CodeTourConfig } from '../../../types/system';
 
@@ -26,7 +26,7 @@ export const InteractiveCodeTour: React.FC<InteractiveCodeTourProps> = ({ config
     };
   }, []);
 
-  const speakText = (text: string) => {
+  const speakText = useCallback((text: string) => {
     if (!synthRef.current || isMuted) return;
 
     // Cancel previous speech
@@ -65,7 +65,7 @@ export const InteractiveCodeTour: React.FC<InteractiveCodeTourProps> = ({ config
 
     utteranceRef.current = utterance;
     synthRef.current.speak(utterance);
-  };
+  }, [isMuted]);
 
   const handleNext = () => {
     if (currentStepIndex < totalSteps - 1) {
@@ -109,7 +109,7 @@ export const InteractiveCodeTour: React.FC<InteractiveCodeTourProps> = ({ config
       const scrollPos = (currentStep.highlightLines.start - 2) * lineHeight;
       codeContainerRef.current.scrollTo({ top: Math.max(0, scrollPos), behavior: 'smooth' });
     }
-  }, [currentStepIndex, currentStep, onStepChange]); // isMuted is handled in toggleMute and speakText logic
+  }, [currentStepIndex, currentStep, onStepChange, speakText]);
 
   return (
     <div className="flex flex-col h-full bg-gray-900 text-white overflow-hidden relative">

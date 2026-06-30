@@ -6,7 +6,6 @@
 links: .trae/documents/api-specs/v1/spec.json
 """
 
-from datetime import datetime
 from typing import Optional
 from urllib.parse import quote
 import io
@@ -34,15 +33,19 @@ from app.schemas.projects import (
     ProjectChatSave,
     ProjectWorkspaceData,
     ProjectWorkspaceResponse,
+    FileEntry,
 )
 from app.schemas.evidence import Evidence
+from app.schemas.achievements import AchievementCard
 from app.schemas.common import ApiResponse, PaginationResult
 from app.schemas.auth import UserResponse
 from app.repositories.runtime_db import db
 from app.api.auth import get_current_user
 from app.services.document_service import document_service
 from app.services.pbl_engine import advance_with_gate, save_artifact
+from app.services.stage08_sync import build_stage08_payload, merge_stage08_into_standard_data
 from app.core.config import settings
+from app.core.time_utils import utc_now, utc_now_iso
 
 router = APIRouter(prefix="/projects", tags=["研学项目"])
 
@@ -405,11 +408,29 @@ def _build_workspace_payload(project_id: str) -> tuple[ProjectProgress, ProjectW
             detail="项目状态不存在",
         )
     workspace = db.get_project_workspace(project_id) or {}
+    project = db.get_project(project_id)
+    standard_step_data = skill_state.standard_step_data or {}
+    if project:
+        draft_data, _ = _build_achievement_draft(project_id, project)
+        achievement = db.get_achievement_card_by_project(project_id)
+        hydrated_stage8 = build_stage08_payload(
+            standard_step_data,
+            achievement_card=achievement,
+            draft_data=draft_data,
+        )
+        hydrated_standard_data = merge_stage08_into_standard_data(standard_step_data, hydrated_stage8)
+        if hydrated_standard_data != standard_step_data:
+            updated_state = db.update_skill_state(project_id, {"standard_step_data": hydrated_standard_data})
+            if updated_state:
+                skill_state = updated_state
+                standard_step_data = updated_state.standard_step_data or hydrated_standard_data
+            else:
+                standard_step_data = hydrated_standard_data
     progress = ProjectProgress(
         current_stage=skill_state.current_stage,
         stage_history=skill_state.stage_history,
         light_step_data=skill_state.light_step_data,
-        standard_step_data=skill_state.standard_step_data,
+        standard_step_data=standard_step_data,
         teaching_mode=_get_teaching_mode_from_state(skill_state),
     )
     workspace_data = ProjectWorkspaceData(
@@ -420,6 +441,7 @@ def _build_workspace_payload(project_id: str) -> tuple[ProjectProgress, ProjectW
         preview_html=str(workspace.get("preview_html") or ""),
         saved_at=workspace.get("saved_at"),
         chat_saved_at=workspace.get("chat_saved_at"),
+        files=[FileEntry(**f) for f in (workspace.get("files") or []) if isinstance(f, dict)],
     )
     return progress, workspace_data
 
@@ -664,14 +686,19 @@ async def save_project_code(
     if project.author_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权操作此项目")
 
+    workspace_payload = {
+        "code": code_data.code,
+        "language": code_data.language,
+        "filename": code_data.filename,
+        "saved_at": utc_now_iso(),
+    }
+    # 多文件支持：如果传了 files 字段，一并保存
+    if code_data.files is not None:
+        workspace_payload["files"] = [f.model_dump() for f in code_data.files]
+
     db.save_project_workspace(
         project_id,
-        {
-            "code": code_data.code,
-            "language": code_data.language,
-            "filename": code_data.filename,
-            "saved_at": datetime.utcnow().isoformat(),
-        },
+        workspace_payload,
         updated_by=current_user.id,
     )
     return ApiResponse(data={'saved': True, 'project_id': project_id}, message="代码已保存")
@@ -696,6 +723,7 @@ async def get_project_code(
     language = str(workspace.get('language') or 'python')
     filename = workspace.get('filename')
     saved_at = workspace.get('saved_at')
+    files = workspace.get('files') or []
 
     return ApiResponse(data={
         'code': code,
@@ -703,6 +731,7 @@ async def get_project_code(
         'filename': filename,
         'saved_at': saved_at,
         'has_code': bool(code),
+        'files': files,
     }, message="获取成功")
 
 
@@ -725,7 +754,7 @@ async def save_project_chat(
         project_id,
         {
             "chat_messages": chat_data.messages,
-            "chat_saved_at": datetime.utcnow().isoformat(),
+            "chat_saved_at": utc_now_iso(),
         },
         updated_by=current_user.id,
     )
@@ -758,6 +787,117 @@ async def get_project_chat(
     }, message="获取成功")
 
 
+# ── 项目文档列表/内容接口（阶段工件浏览） ───────────────────────────
+
+# 阶段工件元数据：阶段标识 → (工件名, 显示名, blob_key, 文件名)
+_ARTIFACT_META = [
+    ("stage_01_brainstorm", "头脑风暴", "brainstorm_content", "00_brainstorm.md"),
+    ("stage_02_opening",    "开题立项", "brief_content",      "01_project_brief.md"),
+    ("stage_03_scope",      "范围裁剪", "constraints_content", "02_constraints.md"),
+    ("stage_04_track",      "技术轨道", "track_plan_content",  "03_track_plan.md"),
+    ("stage_05_design",     "设计蓝图", "design_content",      "04_design.md"),
+    ("stage_06_plan",       "分步计划", "step_plan_content",   "05_step_plan.md"),
+    ("stage_07_execute",    "开发日志", "dev_log_content",     "06_dev_log.md"),
+    ("stage_08_review",     "验收评估", "evaluate_content",    "07_evaluation.md"),
+]
+
+
+@router.get("/{project_id}/documents", response_model=ApiResponse[list])
+async def list_project_documents(
+    project_id: str,
+    current_user: UserResponse = Depends(get_current_user),
+):
+    """
+    获取项目阶段文档列表（从 standard_step_data 和 light_step_data 中提取）
+    返回每个文档的：阶段、名称、是否有内容、摘要
+    """
+    project = db.get_project(project_id)
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
+    if project.author_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权查看此项目")
+
+    skill_state = db.get_skill_state(project_id)
+    if not skill_state:
+        return ApiResponse(data=[], message="项目状态不存在")
+
+    documents = []
+    standard_data = skill_state.standard_step_data or {}
+    light_data = {}
+    if skill_state.light_step_data:
+        light_data = skill_state.light_step_data.model_dump() if hasattr(skill_state.light_step_data, 'model_dump') else {}
+
+    for stage, display_name, blob_key, filename in _ARTIFACT_META:
+        content = ""
+        # 优先从 standard_step_data 获取
+        if isinstance(standard_data, dict):
+            content = str(standard_data.get(blob_key, "") or "")
+        # 回退到 light_step_data
+        if not content and isinstance(light_data, dict):
+            content = str(light_data.get(blob_key, "") or "")
+
+        documents.append({
+            'stage': stage,
+            'name': display_name,
+            'filename': filename,
+            'has_content': bool(content.strip()),
+            'summary': content[:200] if content else "",
+            'content_length': len(content),
+        })
+
+    return ApiResponse(data=documents, message="获取成功")
+
+
+@router.get("/{project_id}/documents/{stage}", response_model=ApiResponse[dict])
+async def get_project_document(
+    project_id: str,
+    stage: str,
+    current_user: UserResponse = Depends(get_current_user),
+):
+    """
+    获取指定阶段文档的完整内容
+    """
+    project = db.get_project(project_id)
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
+    if project.author_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权查看此项目")
+
+    skill_state = db.get_skill_state(project_id)
+    if not skill_state:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目状态不存在")
+
+    # 查找对应阶段的工件元数据
+    artifact_info = None
+    for s, display_name, blob_key, filename in _ARTIFACT_META:
+        if s == stage:
+            artifact_info = (display_name, blob_key, filename)
+            break
+
+    if not artifact_info:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"未知阶段: {stage}")
+
+    display_name, blob_key, filename = artifact_info
+    standard_data = skill_state.standard_step_data or {}
+    light_data = {}
+    if skill_state.light_step_data:
+        light_data = skill_state.light_step_data.model_dump() if hasattr(skill_state.light_step_data, 'model_dump') else {}
+
+    content = ""
+    if isinstance(standard_data, dict):
+        content = str(standard_data.get(blob_key, "") or "")
+    if not content and isinstance(light_data, dict):
+        content = str(light_data.get(blob_key, "") or "")
+
+    return ApiResponse(data={
+        'stage': stage,
+        'name': display_name,
+        'filename': filename,
+        'content': content,
+        'has_content': bool(content.strip()),
+    }, message="获取成功")
+
+
 @router.get("/{project_id}/achievement-draft", response_model=ApiResponse[Optional[dict]])
 async def get_achievement_draft(
     project_id: str,
@@ -775,20 +915,110 @@ async def get_achievement_draft(
     if project.author_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权访问此项目")
 
+    result, source_message = _build_achievement_draft(project_id, project)
+    return ApiResponse(data=result, message=source_message)
+
+
+@router.post("/{project_id}/achievement-generate", response_model=ApiResponse[AchievementCard])
+async def generate_project_achievement_card(
+    project_id: str,
+    current_user: UserResponse = Depends(get_current_user),
+):
+    """
+    根据项目已有材料自动创建或更新成果档案卡。
+    优先使用 AI 已整理的草稿，其次回退到聊天记录和项目元数据。
+    """
+    project = db.get_project(project_id)
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
+    if project.author_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权操作此项目")
+
+    draft, source_message = _build_achievement_draft(project_id, project)
+    title = str(draft.get("title") or project.name).strip()
+    one_liner = str(draft.get("one_liner") or "").strip()
+    problem_solved = str(draft.get("problem_solved") or "").strip()
+    method_used = str(draft.get("method_used") or "").strip()
+    reflection = str(draft.get("reflection") or "").strip()
+    capability_tags_raw = draft.get("capability_tags")
+    screenshots_raw = draft.get("screenshots")
+    capability_tags = [str(item).strip() for item in capability_tags_raw if str(item).strip()] if isinstance(capability_tags_raw, list) else []
+    screenshots = [str(item).strip() for item in screenshots_raw if str(item).strip()] if isinstance(screenshots_raw, list) else []
+
+    if not all([title, one_liner, problem_solved, method_used, reflection]):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="成果卡关键字段仍不完整，暂时无法自动生成")
+
+    existing_card = db.get_achievement_card_by_project(project_id)
+    if existing_card:
+        update_data = {
+            "title": title,
+            "one_liner": one_liner,
+            "problem_solved": problem_solved,
+            "method_used": method_used,
+            "reflection": reflection,
+            "capability_tags": capability_tags or existing_card.capability_tags,
+            "screenshots": screenshots or existing_card.screenshots,
+        }
+        updated_card = db.update_achievement_card(existing_card.id, update_data)
+        stage08_payload = build_stage08_payload(
+            skill_state.standard_step_data if (skill_state := db.get_skill_state(project_id)) else {},
+            achievement_card=updated_card or existing_card,
+            draft_data=draft,
+        )
+        merged_standard_data = merge_stage08_into_standard_data(
+            skill_state.standard_step_data if skill_state else {},
+            stage08_payload,
+        )
+        db.update_skill_state(project_id, {"standard_step_data": merged_standard_data})
+        return ApiResponse(
+            data=updated_card or existing_card,
+            message=f"{source_message}，已更新成果档案卡",
+        )
+
+    card = AchievementCard(
+        project_id=project_id,
+        author_id=current_user.id,
+        title=title,
+        one_liner=one_liner,
+        problem_solved=problem_solved,
+        method_used=method_used,
+        screenshots=screenshots,
+        reflection=reflection,
+        capability_tags=capability_tags,
+        project_mode=project.mode,
+        created_by=current_user.id,
+    )
+    created_card = db.create_achievement_card(card)
+    skill_state = db.get_skill_state(project_id)
+    stage08_payload = build_stage08_payload(
+        skill_state.standard_step_data if skill_state else {},
+        achievement_card=created_card,
+        draft_data=draft,
+    )
+    merged_standard_data = merge_stage08_into_standard_data(
+        skill_state.standard_step_data if skill_state else {},
+        stage08_payload,
+    )
+    db.update_skill_state(project_id, {"standard_step_data": merged_standard_data})
+    return ApiResponse(
+        data=created_card,
+        message=f"{source_message}，已生成成果档案卡",
+    )
+
+
+def _build_achievement_draft(project_id: str, project) -> tuple[dict[str, object], str]:
     slug = _slugify_project_name(project.name)
     draft_path = Path(settings.STORAGE_BASE_PATH) / "projects" / slug / "docs" / "reports" / "成果档案卡.md"
 
-    # 优先级 1: Markdown 文件
     if draft_path.exists():
         try:
             raw = draft_path.read_text(encoding="utf-8")
             result: dict[str, object] = {"raw": raw, "project_id": project_id, "project_name": project.name, "source": "markdown_file"}
             result.update(_parse_achievement_md(raw))
-            return ApiResponse(data=result, message="获取成功（MD文件）")
+            return result, "已从 AI 生成的成果卡草稿提取内容"
         except Exception:
-            pass  # 文件损坏，继续 fallback
+            pass
 
-    # 优先级 2: 扫描 workspace 聊天记录
     workspace = db.get_project_workspace(project_id) or {}
     chat_messages: list[dict] = workspace.get("chat_messages", [])
     if chat_messages:
@@ -796,18 +1026,16 @@ async def get_achievement_draft(
         if parsed_from_chat:
             result = {"project_id": project_id, "project_name": project.name, "source": "chat_history"}
             result.update(parsed_from_chat)
-            # 用 auto_generate 补充聊天记录中缺失的关键字段（如 reflection）
             fallback = _auto_generate_achievement(project)
             for key in ("title", "one_liner", "problem_solved", "method_used", "reflection", "capability_tags"):
                 if not result.get(key) and fallback.get(key):
                     result[key] = fallback[key]
-            return ApiResponse(data=result, message="获取成功（聊天记录）")
+            return result, "已从工作台对话记录提取成果卡内容"
 
-    # 优先级 3: 项目元数据自动生成（兜底）
     auto_generated = _auto_generate_achievement(project)
     result = {"project_id": project_id, "project_name": project.name, "source": "auto_generated"}
     result.update(auto_generated)
-    return ApiResponse(data=result, message="获取成功（自动生成）")
+    return result, "已根据项目现有资料自动生成基础成果卡"
 
 
 def _extract_achievement_from_chat(messages: list[dict], project_name: str) -> dict[str, object] | None:
@@ -1309,6 +1537,10 @@ async def save_standard_step(
     current_standard_data = dict(skill_state.standard_step_data or {})
     step_key = f"step{step}"
     current_standard_data[step_key] = step_data.model_dump()
+    if step == 8:
+        payload = step_data.model_dump().get("payload") if isinstance(step_data.model_dump(), dict) else {}
+        if isinstance(payload, dict):
+            current_standard_data = merge_stage08_into_standard_data(current_standard_data, payload)
     
     updated_skill_state = db.update_skill_state(
         project_id,
@@ -1472,7 +1704,7 @@ async def export_project(
                 {
                     "project_id": project_id,
                     "project_name": project.name,
-                    "generated_at": datetime.utcnow().isoformat(),
+                    "generated_at": utc_now_iso(),
                     "includes": [
                         "README.md",
                         "index.html",
@@ -1488,7 +1720,7 @@ async def export_project(
             _zip_json(zipf, "project.json", project.model_dump(mode="json"))
 
             # 生成 README.md、index.html 和 .gitignore
-            export_time = datetime.utcnow()
+            export_time = utc_now()
             export_time_str = export_time.strftime("%Y-%m-%d %H:%M UTC")
             desc = getattr(project, "description", None) or ""
             readme_content = _build_readme_md(project.name, project.mode, desc, export_time_str)
@@ -1509,10 +1741,26 @@ async def export_project(
             workspace = db.get_project_workspace(project_id) or {}
             _zip_json(zipf, "data/workspace.json", workspace)
             code = str(workspace.get("code") or "")
+            written_source_paths: set[str] = set()
+            workspace_files = workspace.get("files") or []
+            if isinstance(workspace_files, list):
+                for file_entry in workspace_files:
+                    if not isinstance(file_entry, dict):
+                        continue
+                    file_name = str(file_entry.get("name") or "").strip()
+                    if not file_name:
+                        continue
+                    zip_path = _safe_zip_path("src", file_name)
+                    if not zip_path or zip_path in written_source_paths:
+                        continue
+                    zipf.writestr(zip_path, str(file_entry.get("content") or ""))
+                    written_source_paths.add(zip_path)
             if code.strip():
                 language = str(workspace.get("language") or "")
                 code_name = _guess_code_filename(language, workspace.get("filename"))
-                zipf.writestr(_safe_zip_path("src", code_name), code)
+                zip_path = _safe_zip_path("src", code_name)
+                if zip_path not in written_source_paths:
+                    zipf.writestr(zip_path, code)
             chat_messages = workspace.get("chat_messages") or []
             if chat_messages:
                 _zip_json(zipf, "docs/chat_messages.json", chat_messages)

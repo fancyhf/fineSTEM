@@ -6,6 +6,14 @@ export interface QuestionOption {
   label: string;
   description?: string;
   recommended?: boolean;
+  groupId?: string;
+  groupTitle?: string;
+}
+
+export interface QuestionOptionGroup {
+  id: string;
+  title: string;
+  optionIds: string[];
 }
 
 export interface QuestionData {
@@ -13,6 +21,8 @@ export interface QuestionData {
   title: string;
   subtitle?: string;
   options: QuestionOption[];
+  optionGroups?: QuestionOptionGroup[];
+  requireEachGroup?: boolean;
   multiple?: boolean;
   allowCustom?: boolean;
   step?: number;
@@ -26,6 +36,7 @@ interface QuestionCardProps {
   onAnswer: (selectedIds: string[], customText?: string) => void;
   onCancel?: () => void;
   onDismiss?: () => void;
+  onBack?: () => void;
 }
 
 export const QuestionCard: React.FC<QuestionCardProps> = ({
@@ -33,12 +44,19 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
   onAnswer,
   onCancel,
   onDismiss,
+  onBack,
 }) => {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [customText, setCustomText] = useState('');
   const [showCustomInput, setShowCustomInput] = useState(false);
 
-  const isMultiple = data.multiple ?? false;
+  const visibleGroups = data.optionGroups?.filter((group) => group.optionIds.length > 0) ?? [];
+  const hasGroupedOptions = visibleGroups.length > 1;
+  const isMultiple = data.requireEachGroup || hasGroupedOptions || (data.multiple ?? false);
+  const missingRequiredGroups = data.requireEachGroup
+    ? visibleGroups.filter((group) => !group.optionIds.some((optionId) => selectedIds.includes(optionId)))
+    : [];
+  const canSubmit = (selectedIds.length > 0 || !!customText.trim()) && missingRequiredGroups.length === 0;
 
   const toggleOption = (optionId: string) => {
     if (isMultiple) {
@@ -53,7 +71,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
   };
 
   const handleSubmit = () => {
-    if (selectedIds.length === 0 && !customText.trim()) return;
+    if (!canSubmit) return;
     onAnswer(selectedIds, customText.trim() || undefined);
   };
 
@@ -87,8 +105,21 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
         <p className="text-sm text-gray-800 leading-relaxed mb-3">{data.title}</p>
 
         {/* Options */}
-        <div className="space-y-1.5">
-          {data.options.map((option) => {
+        <div className="space-y-2">
+          {(hasGroupedOptions ? visibleGroups : [{ id: 'default', title: '', optionIds: data.options.map((option) => option.id) }]).map((group) => {
+            const groupOptions = data.options.filter((option) => group.optionIds.includes(option.id));
+            const isGroupMissing = data.requireEachGroup && groupOptions.every((option) => !selectedIds.includes(option.id));
+            return (
+              <div key={group.id} className="space-y-1.5">
+                {hasGroupedOptions && (
+                  <div className="flex items-center justify-between px-0.5">
+                    <p className="text-[11px] font-semibold text-gray-600">{group.title}</p>
+                    {isGroupMissing && (
+                      <span className="text-[10px] text-amber-600">至少选 1 项</span>
+                    )}
+                  </div>
+                )}
+                {groupOptions.map((option) => {
             const isSelected = selectedIds.includes(option.id);
             return (
               <button
@@ -128,6 +159,9 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
                   </div>
                 </div>
               </button>
+            );
+                })}
+              </div>
             );
           })}
 
@@ -177,6 +211,11 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
               已选: {selectedLabels.join(', ')}
             </span>
           )}
+          {missingRequiredGroups.length > 0 && (
+            <span className="text-[11px] text-amber-600 font-medium truncate max-w-[180px]">
+              还需选择: {missingRequiredGroups.map((group) => group.title).join('、')}
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {onCancel && (
@@ -187,9 +226,9 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
               取消
             </button>
           )}
-          {data.step != null && data.step > 1 && onCancel && (
+          {data.step != null && data.step > 1 && onBack && (
             <button
-              onClick={onCancel}
+              onClick={onBack}
               className="px-3 py-1 text-xs text-gray-600 hover:text-gray-800 bg-white border border-gray-200 rounded hover:bg-gray-50 transition-colors flex items-center gap-1"
             >
               <ChevronLeft className="w-3 h-3" /> 上一步
@@ -197,7 +236,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
           )}
           <button
             onClick={handleSubmit}
-            disabled={selectedIds.length === 0 && !customText.trim()}
+            disabled={!canSubmit}
             className="px-3 py-1 text-xs font-medium text-white bg-gray-800 hover:bg-gray-900 disabled:bg-gray-200 disabled:text-gray-400 rounded transition-colors flex items-center gap-1"
           >
             {data.step != null && data.totalSteps != null && data.step < data.totalSteps ? (

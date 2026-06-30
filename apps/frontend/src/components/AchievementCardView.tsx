@@ -1,5 +1,5 @@
 import React from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from './ui/Card';
+import { Card, CardContent } from './ui/Card';
 import { Badge } from './ui/Badge';
 import { MarkdownText } from './MarkdownText';
 import { AchievementCard } from '../types';
@@ -11,7 +11,7 @@ interface AchievementCardViewProps {
   onShare?: () => void;
 }
 
-export function AchievementCardView({ achievement, showShareButton = false, onShare }: AchievementCardViewProps) {
+export function AchievementCardView({ achievement }: AchievementCardViewProps) {
   return (
     <Card className="overflow-hidden">
       <div className="bg-gradient-to-r from-teal-500 to-teal-600 px-6 py-8">

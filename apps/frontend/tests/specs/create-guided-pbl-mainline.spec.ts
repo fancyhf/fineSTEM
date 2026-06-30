@@ -64,6 +64,13 @@ async function answerQuestionByPreferredLabels(page: Parameters<typeof test>[0][
   await confirmButton.click();
 }
 
+async function waitForQuestionCard(page: Parameters<typeof test>[0]['authenticatedPage'], title: string) {
+  const questionCard = page.locator('div.my-3.rounded-xl').last();
+  await expect(questionCard).toBeVisible({ timeout: QUESTION_TIMEOUT_MS });
+  await expect(questionCard).toContainText(title, { timeout: QUESTION_TIMEOUT_MS });
+  return questionCard;
+}
+
 async function waitForPromptInput(page: Parameters<typeof test>[0]['authenticatedPage']) {
   const input = page.locator('textarea[placeholder*="继续对话"], textarea[placeholder*="输入你的目标"]').first();
   await expect(input).toBeVisible({ timeout: 15000 });
@@ -73,8 +80,11 @@ async function waitForPromptInput(page: Parameters<typeof test>[0]['authenticate
 
 test.describe('创造页引导式 PBL 主链路', () => {
   test('回答基础三问后进入方向与技术建议，不再重复问年级和时间', async ({ authenticatedPage }) => {
-    await authenticatedPage.goto('/create');
-    await authenticatedPage.waitForLoadState('domcontentloaded');
+    test.setTimeout(90000);
+    await authenticatedPage.goto('/create', {
+      waitUntil: 'domcontentloaded',
+      timeout: 30000,
+    });
 
     const firstInput = await waitForPromptInput(authenticatedPage);
     await firstInput.fill('我想做一个项目');
@@ -106,5 +116,38 @@ test.describe('创造页引导式 PBL 主链路', () => {
     expect(gradeQuestionCountAfter).toBeLessThanOrEqual(gradeQuestionCountBefore);
     expect(timeQuestionCountAfter).toBeLessThanOrEqual(timeQuestionCountBefore);
     expect(finalText).toMatch(/HTML|JavaScript|Python|技术路线|MVP/);
+  });
+
+  test('第三问显示上一步并可回到第二问', async ({ authenticatedPage }) => {
+    test.setTimeout(90000);
+    await authenticatedPage.goto('/create', {
+      waitUntil: 'domcontentloaded',
+      timeout: 30000,
+    });
+
+    const input = await waitForPromptInput(authenticatedPage);
+    await input.fill('我想做一个项目');
+    await authenticatedPage.keyboard.press('Enter');
+
+    await answerQuestionByPreferredLabels(authenticatedPage, ['高中', '初中']);
+    await answerQuestionByPreferredLabels(authenticatedPage, ['6小时', '2小时', '12小时']);
+
+    const thirdQuestionCard = await waitForQuestionCard(authenticatedPage, '你有初步想法了吗？');
+    await expect(thirdQuestionCard).toContainText(/3\s*\/\s*3\s+子选项设计/);
+    await expect(thirdQuestionCard).not.toContainText(/2\s*\/\s*3/);
+
+    const backButton = thirdQuestionCard.getByRole('button', { name: '上一步' });
+    await expect(backButton).toBeVisible();
+    await backButton.click();
+
+    const secondQuestionCard = await waitForQuestionCard(authenticatedPage, '你打算花多长时间完成');
+    await expect(secondQuestionCard).toContainText(/2\s*\/\s*3\s+子选项设计/);
+    await expect(secondQuestionCard).not.toContainText(/3\s*\/\s*3/);
+    await expect(secondQuestionCard.getByRole('button', { name: '上一步' })).toBeVisible();
+
+    await answerQuestionByPreferredLabels(authenticatedPage, ['6小时', '2小时', '12小时']);
+    const restoredThirdQuestionCard = await waitForQuestionCard(authenticatedPage, '你有初步想法了吗？');
+    await expect(restoredThirdQuestionCard).toContainText(/3\s*\/\s*3\s+子选项设计/);
+    await expect(restoredThirdQuestionCard).not.toContainText(/2\s*\/\s*3/);
   });
 });

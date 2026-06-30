@@ -6,7 +6,7 @@
 links: .trae/documents/api-specs/v1/spec.json
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List, Dict, Any, Literal
 from datetime import datetime
 from .common import AuditFields
@@ -247,13 +247,24 @@ class ProjectUpdate(BaseModel):
     initial_data: Optional[Dict[str, Any]] = Field(default=None, description="项目数据（含代码快照等）")
 
 
+class FileEntry(BaseModel):
+    """
+    项目文件条目（多文件支持）
+    """
+    name: str = Field(..., description="文件名，如 main.py")
+    language: str = Field(default="python", description="编程语言")
+    content: str = Field(default="", description="文件内容")
+    is_main: bool = Field(default=False, description="是否为主文件（运行入口）")
+
+
 class ProjectCodeSave(BaseModel):
     """
     项目代码保存请求
     """
-    code: str = Field(..., description="代码内容")
+    code: str = Field(..., description="代码内容（主文件）")
     language: str = Field(default="python", description="编程语言")
     filename: Optional[str] = Field(default=None, description="文件名")
+    files: Optional[List[FileEntry]] = Field(default=None, description="多文件列表（可选，保存时覆盖）")
 
 
 class ProjectChatSave(BaseModel):
@@ -307,6 +318,7 @@ class ProjectWorkspaceData(BaseModel):
     preview_html: str = ""
     saved_at: Optional[str] = None
     chat_saved_at: Optional[str] = None
+    files: List[FileEntry] = Field(default_factory=list, description="多文件列表（向后兼容：空列表表示单文件模式）")
 
 
 class ProjectWorkspaceResponse(BaseModel):
@@ -334,8 +346,7 @@ class Project(ProjectBase, AuditFields):
     current_stage: str = Field(default='stage_01_brainstorm', description="当前阶段")
     skill_state: Optional[SkillState] = Field(None, description="SKILL_STATE")
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # =============================================================================

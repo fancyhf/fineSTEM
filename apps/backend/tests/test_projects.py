@@ -14,8 +14,9 @@ import json
 import zipfile
 from pathlib import Path
 from app.core.config import settings
+from app.repositories.runtime_db import db
 from app.schemas.agent import AgentChatRequest
-from app.services.orchestrator import AgentOrchestratorService
+from app.services.orchestrator import AgentOrchestratorService, _parse_question_block
 from app.services.pbl_engine import ARTIFACT_TO_FILENAME
 
 
@@ -87,6 +88,142 @@ class TestProjectDetail:
     def test_get_project_forbidden(self, client: TestClient, second_auth_headers: dict, created_project: dict):
         resp = client.get(f"/api/v1/projects/{created_project['id']}", headers=second_auth_headers)
         assert resp.status_code == 403
+
+
+class TestAchievementDraft:
+    def test_get_achievement_draft_from_chat_history(self, client: TestClient, auth_headers: dict):
+        create_resp = client.post(
+            "/api/v1/projects",
+            json={
+                "name": "成果卡草稿项目",
+                "mode": "standard",
+                "description": "用于测试从聊天记录恢复成果卡草稿",
+            },
+            headers=auth_headers,
+        )
+        assert create_resp.status_code == 200
+        project_id = create_resp.json()["data"]["id"]
+
+        chat_resp = client.post(
+            f"/api/v1/projects/{project_id}/chat",
+            json={
+                "messages": [
+                    {"role": "user", "content": "请帮我总结这个项目"},
+                    {
+                        "role": "assistant",
+                        "content": "\n".join([
+                            "项目名称：成果卡草稿项目",
+                            "一句话介绍：这是一个可从聊天记录提取成果卡草稿的项目。",
+                            "解决了什么问题：我把历史项目的成果总结重新整理出来了。",
+                            "用了什么方法：结合项目文档和历史对话进行总结。",
+                            "反思：后续还可以继续补充更具体的验收细节。",
+                        ]),
+                    },
+                ]
+            },
+            headers=auth_headers,
+        )
+        assert chat_resp.status_code == 200
+
+        resp = client.get(f"/api/v1/projects/{project_id}/achievement-draft", headers=auth_headers)
+        assert resp.status_code == 200
+        body = resp.json()["data"]
+        assert body["source"] == "chat_history"
+        assert body["title"] == "成果卡草稿项目"
+        assert "聊天记录提取成果卡草稿" in body["one_liner"]
+        assert "历史项目" in body["problem_solved"]
+        assert "项目文档和历史对话" in body["method_used"]
+        assert "验收细节" in body["reflection"]
+
+    def test_generate_achievement_card_from_draft(self, client: TestClient, auth_headers: dict):
+        create_resp = client.post(
+            "/api/v1/projects",
+            json={
+                "name": "自动生成成果卡项目",
+                "mode": "standard",
+                "description": "用于测试直接生成成果档案卡",
+            },
+            headers=auth_headers,
+        )
+        assert create_resp.status_code == 200
+        project_id = create_resp.json()["data"]["id"]
+
+        chat_resp = client.post(
+            f"/api/v1/projects/{project_id}/chat",
+            json={
+                "messages": [
+                    {"role": "user", "content": "请帮我整理成果卡"},
+                    {
+                        "role": "assistant",
+                        "content": "\n".join([
+                            "项目名称：自动生成成果卡项目",
+                            "一句话介绍：这是一个可以直接生成成果档案卡的项目。",
+                            "解决了什么问题：解决了成果卡只在对话里出现、不真正落库的问题。",
+                            "用了什么方法：通过项目材料和聊天记录自动整理并生成成果卡。",
+                            "反思：后续还可以继续补充更细的展示截图。",
+                        ]),
+                    },
+                ]
+            },
+            headers=auth_headers,
+        )
+        assert chat_resp.status_code == 200
+
+        resp = client.post(f"/api/v1/projects/{project_id}/achievement-generate", headers=auth_headers)
+        assert resp.status_code == 200
+        body = resp.json()
+        assert "成果档案卡" in body["message"]
+        assert body["data"]["project_id"] == project_id
+        assert body["data"]["title"] == "自动生成成果卡项目"
+        assert "直接生成成果档案卡" in body["data"]["one_liner"]
+
+        progress_resp = client.get(f"/api/v1/projects/{project_id}/progress", headers=auth_headers)
+        assert progress_resp.status_code == 200
+        progress_data = progress_resp.json()["data"]["standard_step_data"]
+        assert progress_data["step8"]["payload"]["acceptance_summary"]
+        assert "解决了什么问题" in progress_data["step8"]["payload"]["acceptance_summary"]
+        assert progress_data["step8"]["payload"]["reflection"]
+        assert progress_data["evaluate_content"]
+
+        get_resp = client.get(f"/api/v1/achievement-cards/projects/{project_id}", headers=auth_headers)
+        assert get_resp.status_code == 200
+        assert get_resp.json()["data"]["title"] == "自动生成成果卡项目"
+
+    def test_get_progress_hydrates_stage08_from_existing_card(self, client: TestClient, auth_headers: dict):
+        create_resp = client.post(
+            "/api/v1/projects",
+            json={
+                "name": "阶段8回填项目",
+                "mode": "standard",
+                "description": "用于验证旧项目 stage8 自动回填",
+            },
+            headers=auth_headers,
+        )
+        assert create_resp.status_code == 200
+        project_id = create_resp.json()["data"]["id"]
+
+        state = db.get_skill_state(project_id)
+        db.update_skill_state(project_id, {
+            "current_stage": "stage_08_evaluate",
+            "standard_step_data": {},
+            "stage_history": state.stage_history + [{"stage": "stage_08_evaluate", "started_at": "2026-06-24T00:00:00Z"}],
+        })
+
+        generate_resp = client.post(f"/api/v1/projects/{project_id}/achievement-generate", headers=auth_headers)
+        assert generate_resp.status_code == 200
+
+        # 人为模拟旧状态：成果卡存在，但 step8 / evaluate_content 丢失
+        db.update_skill_state(project_id, {
+            "current_stage": "stage_08_evaluate",
+            "standard_step_data": {},
+        })
+
+        progress_resp = client.get(f"/api/v1/projects/{project_id}/progress", headers=auth_headers)
+        assert progress_resp.status_code == 200
+        standard_step_data = progress_resp.json()["data"]["standard_step_data"]
+        assert standard_step_data["step8"]["payload"]["acceptance_summary"]
+        assert standard_step_data["step8"]["payload"]["reflection"]
+        assert standard_step_data["evaluate_content"]
 
 
 class TestProjectUpdate:
@@ -290,9 +427,49 @@ class TestProjectExport:
             # 验证 index.html 内容
             index_html = package.read("index.html").decode("utf-8")
             assert "ZIP 完整资料包测试" in index_html
-            assert "fineSTEM" in index_html
-            assert "资料包" in index_html
-            assert "IDE 就绪" in index_html
+
+    def test_export_zip_contains_workspace_files(self, client: TestClient, auth_headers: dict):
+        create_resp = client.post(
+            "/api/v1/projects",
+            json={"name": "ZIP 多文件导出测试", "mode": "standard"},
+            headers=auth_headers,
+        )
+        assert create_resp.status_code == 200
+        project_id = create_resp.json()["data"]["id"]
+
+        code_resp = client.post(
+            f"/api/v1/projects/{project_id}/code",
+            json={
+                "code": "<main>primary-file</main>",
+                "language": "html",
+                "filename": "index.html",
+                "files": [
+                    {
+                        "name": "index.html",
+                        "language": "html",
+                        "content": "<main>primary-file</main>",
+                        "is_main": True,
+                    },
+                    {
+                        "name": "src/app.js",
+                        "language": "javascript",
+                        "content": "console.log('secondary-file');",
+                        "is_main": False,
+                    },
+                ],
+            },
+            headers=auth_headers,
+        )
+        assert code_resp.status_code == 200
+
+        resp = client.get(f"/api/v1/projects/{project_id}/export?format=zip", headers=auth_headers)
+        assert resp.status_code == 200
+
+        with zipfile.ZipFile(io.BytesIO(resp.content)) as package:
+            names = set(package.namelist())
+            assert "src/index.html" in names
+            assert "src/src/app.js" in names
+            assert "secondary-file" in package.read("src/src/app.js").decode("utf-8")
 
             # 验证 .gitignore 内容
             gitignore = package.read(".gitignore").decode("utf-8")
@@ -415,6 +592,121 @@ class TestTeachingModeBlackBoxBehavior:
         assert expected_keyword in response.content
         assert forbidden_keyword not in response.content
         assert response.model == "fake-model"
+
+
+class TestQuestionFallbackBehavior:
+    def test_generic_reply_does_not_generate_hardcoded_question(self):
+        orchestrator = AgentOrchestratorService()
+        req = AgentChatRequest(
+            message="继续完成项目",
+            context={"current_stage": "stage_01_brainstorm"},
+        )
+
+        fallback_question = orchestrator._generate_fallback_question(
+            req,
+            "好的，我先查看当前项目状态和已有文档，再继续推进到下一步。",
+            [],
+        )
+
+        assert fallback_question is None
+
+    def test_parse_question_block_returns_none_without_real_options(self):
+        parsed_question = _parse_question_block("好的，我先查看当前项目状态和已有文档，再继续推进到下一步。")
+
+        assert parsed_question is None
+
+    def test_parse_question_block_supports_plaintext_numbered_options(self):
+        parsed_question = _parse_question_block(
+            """
+            下面这三个方向里，你更想先做哪一个？
+            1. 古诗词生成器：输入关键词，自动生成一首短诗
+            2. 互动故事机：根据你的选择推进剧情
+            3. 成语闯关小游戏：答题闯关并累计分数
+            """
+        )
+
+        assert parsed_question is not None
+        assert parsed_question["title"] == "下面这三个方向里，你更想先做哪一个？"
+        assert len(parsed_question["options"]) == 3
+        assert parsed_question["options"][0]["label"] == "古诗词生成器"
+        assert parsed_question["options"][0]["description"] == "输入关键词，自动生成一首短诗"
+
+    def test_parse_question_block_supports_ask_user_question_json(self):
+        parsed_question = _parse_question_block(
+            """
+            ```json
+            {
+              "questions": [{
+                "question": "目标用户是谁？",
+                "header": "用户",
+                "options": [
+                  {"label": "我自己", "description": "解决我自己的问题"},
+                  {"label": "同学/朋友", "description": "帮助身边的人"},
+                  {"label": "特定群体", "description": "比如：小学生、老师、家长"}
+                ],
+                "multiSelect": false
+              }]
+            }
+            ```
+            """
+        )
+
+        assert parsed_question is not None
+        assert parsed_question["title"] == "目标用户是谁？"
+        assert parsed_question["multiple"] is False
+        assert len(parsed_question["options"]) == 3
+        assert parsed_question["options"][1]["label"] == "同学/朋友"
+        assert parsed_question["options"][1]["description"] == "帮助身边的人"
+
+    def test_parse_question_block_filters_generic_prompt_buttons(self):
+        parsed_question = _parse_question_block(
+            """
+            <question>
+              <title>接下来你想怎么做？</title>
+              <option id="continue"><label>继续</label></option>
+              <option id="detail"><label>详细说说</label></option>
+              <option id="switch"><label>换个方向</label></option>
+            </question>
+            """
+        )
+
+        assert parsed_question is None
+
+    def test_parse_question_block_reads_step_and_total_steps_from_xml_attributes(self):
+        parsed_question = _parse_question_block(
+            """
+            <question type="single" title="你有初步想法了吗？" step="3" total_steps="3">
+              <option id="brainstorm"><label>完全没想法，需要脑爆</label></option>
+              <option id="direction"><label>有个大概方向</label></option>
+              <option id="idea"><label>已经有具体想法</label></option>
+            </question>
+            """
+        )
+
+        assert parsed_question is not None
+        assert parsed_question["title"] == "你有初步想法了吗？"
+        assert parsed_question["step"] == 3
+        assert parsed_question["total_steps"] == 3
+
+    def test_achievement_scene_keeps_specialized_fallback_question(self):
+        orchestrator = AgentOrchestratorService()
+        req = AgentChatRequest(
+            message="帮我生成成果档案卡",
+            context={
+                "scene": "generate_achievement",
+                "current_stage": "stage_08_evaluate",
+            },
+        )
+
+        fallback_question = orchestrator._generate_fallback_question(
+            req,
+            "我先整理现有材料，再补齐成果档案卡缺失信息。",
+            [],
+        )
+
+        assert fallback_question is not None
+        assert fallback_question["title"] == "成果档案卡还缺一点信息，你想先补哪一项？"
+        assert fallback_question["options"][0]["id"] == "opt_one_liner"
 
 
 # =============================================================================

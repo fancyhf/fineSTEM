@@ -1,5 +1,3 @@
-import React from 'react';
-
 export interface StageComponentProps<T> {
   value: T;
   onChange: (next: T) => void;

@@ -13,7 +13,7 @@ from app.core.config import settings
 from app.db.database import Base, engine, SessionLocal
 from app.db.models import UserModel
 from app.api.auth import get_password_hash
-from app.api import demos, projects, auth, achievement_cards, evidence, chat, skills, agent, documents, files, courses, code_execution
+from app.api import demos, projects, auth, achievement_cards, evidence, chat, skills, agent, documents, files, courses, code_execution, capability_tags
 import os
 
 Base.metadata.create_all(bind=engine)
@@ -65,6 +65,8 @@ app.include_router(agent.router, prefix=API_PREFIX)
 app.include_router(documents.router, prefix=API_PREFIX)
 app.include_router(files.router, prefix=API_PREFIX)
 app.include_router(courses.router, prefix=API_PREFIX)
+app.include_router(courses.router, prefix=f"{API_PREFIX}/course-library")
+app.include_router(capability_tags.router, prefix=API_PREFIX)
 app.include_router(code_execution.router, prefix=API_PREFIX)
 
 DEMOS_STATIC_DIR = os.environ.get("DEMOS_STATIC_DIR", r"D:\data\finestem\demos")

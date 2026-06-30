@@ -1,4 +1,4 @@
-import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react';
+import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { evidenceApi } from '../services/api';
 import { Evidence } from '../types';
 import { Button } from './ui/Button';
@@ -30,15 +30,15 @@ const TYPE_LABELS: Record<Evidence['type'], string> = {
 
 // 阶段 key → 中文标签映射
 const STAGE_LABELS: Record<string, string> = {
-  stage_00_bootstrap: '阶段 0：准备启动',
-  stage_01_brainstorm: '阶段 1：脑暴选题',
-  stage_02_brief: '阶段 2：开题立项',
-  stage_03_constraints: '阶段 3：范围裁剪',
-  stage_04_track: '阶段 4：轨道选择',
-  stage_05_design: '阶段 5：设计蓝图',
-  stage_06_step_plan: '阶段 6：分步计划',
-  stage_07_execute: '阶段 7：执行开发',
-  stage_08_evaluate: '阶段 8：评估展示',
+  stage_00_bootstrap: '第 1 阶段：准备启动',
+  stage_01_brainstorm: '第 2 阶段：脑暴选题',
+  stage_02_brief: '第 3 阶段：开题立项',
+  stage_03_constraints: '第 4 阶段：范围裁剪',
+  stage_04_track: '第 5 阶段：轨道选择',
+  stage_05_design: '第 6 阶段：设计蓝图',
+  stage_06_step_plan: '第 7 阶段：分步计划',
+  stage_07_execute: '第 8 阶段：执行开发',
+  stage_08_evaluate: '第 9 阶段：评估展示',
   step_1: '步骤 1：想法与方向',
   step_2: '步骤 2：设计与实现',
   step_3: '步骤 3：展示与反思',
@@ -84,7 +84,7 @@ export function EvidencePanel({ projectId, className }: EvidencePanelProps) {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
 
-  const loadEvidence = async () => {
+  const loadEvidence = useCallback(async () => {
     try {
       setLoading(true);
       setError('');
@@ -96,12 +96,11 @@ export function EvidencePanel({ projectId, className }: EvidencePanelProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [projectId]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- 异步加载证据数据
     void loadEvidence();
-  }, [projectId]);
+  }, [loadEvidence]);
 
   const filteredItems = useMemo(() => {
     const sorted = [...items].sort((a, b) => {

@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
-import { ArrowLeft, Download, FileText, Sparkles, Trash2, Award, TrendingUp, Code, X, FolderOpen } from 'lucide-react';
+import { ArrowLeft, Check, Download, FileText, Pencil, Sparkles, Trash2, Award, TrendingUp, Code, X, FolderOpen } from 'lucide-react';
 import { projectsApi, achievementCardsApi, documentsApi, capabilityTagsApi } from '../services/api';
 import { Project, ProjectProgress, AchievementCard } from '../types';
 import { ProjectStageBar } from '../components/ProjectStageBar';
@@ -20,10 +20,13 @@ export default function ProjectDetail() {
   const [project, setProject] = useState<Project | null>(null);
   const [progress, setProgress] = useState<ProjectProgress | null>(null);
   const [achievement, setAchievement] = useState<AchievementCard | null>(null);
+  const [achievementDraft, setAchievementDraft] = useState<Record<string, unknown> | null>(null);
+  const [achievementDraftSource, setAchievementDraftSource] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [capabilityTags, setCapabilityTags] = useState<string[]>([]);
   const [downloading, setDownloading] = useState<string>('');
+  const [generatingAchievement, setGeneratingAchievement] = useState(false);
   const [upgrading, setUpgrading] = useState(false);
   const [searchParams] = useSearchParams();
   const referredFile = searchParams.get('file');
@@ -45,6 +48,9 @@ export default function ProjectDetail() {
   const loadProjectData = async (projectId: string) => {
     try {
       setLoading(true);
+      setAchievement(null);
+      setAchievementDraft(null);
+      setAchievementDraftSource(null);
       const [projectRes, progressRes, achievementRes, tagsRes] = await Promise.allSettled([
         projectsApi.get(projectId),
         projectsApi.getProgress(projectId),
@@ -66,6 +72,21 @@ export default function ProjectDetail() {
       if (achievementRes.status === 'fulfilled' && achievementRes.value.data) {
         setAchievement(achievementRes.value.data);
       }
+      if (
+        (achievementRes.status !== 'fulfilled' || !achievementRes.value.data)
+        && projectRes.status === 'fulfilled'
+        && projectRes.value.data
+      ) {
+        try {
+          const draftRes = await achievementCardsApi.getDraft(projectId);
+          if (draftRes.data && typeof draftRes.data === 'object' && Object.keys(draftRes.data).length > 0) {
+            setAchievementDraft(draftRes.data);
+            setAchievementDraftSource(typeof draftRes.data.source === 'string' ? draftRes.data.source : null);
+          }
+        } catch {
+          // 草稿读取失败不阻塞详情页主流程
+        }
+      }
       if (tagsRes.status === 'fulfilled' && tagsRes.value.data) {
         setCapabilityTags(tagsRes.value.data);
       }
@@ -79,19 +100,50 @@ export default function ProjectDetail() {
 
   useEffect(() => {
     if (!id) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- 异步加载项目数据
     loadProjectData(id);
   }, [id]);
 
   const handleDelete = async () => {
     if (!id || !confirm('确定要删除这个项目吗？')) return;
-    
+
     try {
       await projectsApi.delete(id);
       navigate('/research');
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : '删除失败';
-      alert('删除失败：' + msg);
+    } catch (err) {
+      console.error('[project:delete] 删除失败:', err);
+      alert('删除项目失败，请重试');
+    }
+  };
+
+  // 项目重命名
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [savingName, setSavingName] = useState(false);
+  const editNameInputRef = React.useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isEditingName && project) {
+      setEditName(project.name);
+      setTimeout(() => editNameInputRef.current?.focus(), 30);
+    }
+  }, [isEditingName, project]);
+
+  const handleSaveName = async () => {
+    const newName = editName.trim();
+    if (!newName || !project || newName === project.name) {
+      setIsEditingName(false);
+      return;
+    }
+    setSavingName(true);
+    try {
+      await projectsApi.update(project.id, { name: newName });
+      setProject({ ...project, name: newName });
+      setIsEditingName(false);
+    } catch (err) {
+      console.error('[project:rename] 改名失败:', err);
+      alert('修改项目名称失败，请重试');
+    } finally {
+      setSavingName(false);
     }
   };
 
@@ -102,28 +154,31 @@ export default function ProjectDetail() {
   const handleCreateAchievement = async () => {
     if (!project?.id) return;
     try {
-      const workspaceRes = await projectsApi.getWorkspace(project.id);
-      const restoreData: Record<string, unknown> = {
-        projectId: project.id,
-        projectName: project.name,
-        mode: project.mode,
-        currentStage: workspaceRes.data?.progress.current_stage || project.current_stage,
-        scene: 'generate_achievement',
-      };
-      if (workspaceRes.data?.workspace) {
-        restoreData.code = workspaceRes.data.workspace.code;
-        restoreData.language = workspaceRes.data.workspace.language || 'python';
-        restoreData.messages = workspaceRes.data.workspace.chat_messages || [];
+      setGeneratingAchievement(true);
+      const response = await projectsApi.generateAchievementCard(project.id);
+      if (response.data) {
+        setAchievement(response.data);
+        setAchievementDraft(null);
+        setAchievementDraftSource(null);
+        navigate(`/research/projects/${project.id}/achievement`);
+        return;
       }
-
-      sessionStorage.setItem('finestem_restore_project', JSON.stringify(restoreData));
-      navigate('/create');
+      throw new Error(response.message || '成果档案卡生成失败');
     } catch (error) {
-      console.error('[project_detail:generate_achievement] 恢复项目失败:', error);
-      // 降级：仍然跳转工作台，AI 会尝试重新获取项目信息
-      navigate('/create');
+      console.error('[project_detail:generate_achievement] 自动生成失败:', error);
+      const msg = error instanceof Error ? error.message : '成果档案卡生成失败，请稍后重试';
+      alert(msg);
+    } finally {
+      setGeneratingAchievement(false);
     }
   };
+
+  const handleOpenAchievement = () => {
+    if (!project?.id) return;
+    navigate(`/research/projects/${project.id}/achievement`);
+  };
+
+  const hasActionableAchievementDraft = !!achievementDraft && achievementDraftSource !== 'auto_generated';
 
   const downloadBlob = (blob: Blob, fileName: string) => {
     const url = URL.createObjectURL(blob);
@@ -185,6 +240,12 @@ export default function ProjectDetail() {
 
   const handleEnterCodeEditor = async () => {
     if (!project?.id) return;
+    const fallbackRestoreData: Record<string, unknown> = {
+      projectId: project.id,
+      projectName: project.name,
+      mode: project.mode,
+      currentStage: project.current_stage,
+    };
     try {
       const workspaceRes = await projectsApi.getWorkspace(project.id);
       const restoreData: Record<string, unknown> = {
@@ -202,6 +263,7 @@ export default function ProjectDetail() {
       sessionStorage.setItem('finestem_restore_project', JSON.stringify(restoreData));
     } catch (err) {
       console.error('[handleEnterCodeEditor] 恢复数据失败:', err);
+      sessionStorage.setItem('finestem_restore_project', JSON.stringify(fallbackRestoreData));
     }
     navigate('/create');
   };
@@ -253,8 +315,62 @@ export default function ProjectDetail() {
             <ArrowLeft className="h-4 w-4 mr-2" />
             返回
           </Button>
-          <div className="flex-1">
-            <h1 className="text-2xl font-bold text-gray-900">{project.name}</h1>
+          <div className="flex-1 min-w-0">
+            {isEditingName ? (
+              <div className="flex items-center gap-2">
+                <input
+                  ref={editNameInputRef}
+                  type="text"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      void handleSaveName();
+                    } else if (e.key === 'Escape') {
+                      e.preventDefault();
+                      setIsEditingName(false);
+                    }
+                  }}
+                  disabled={savingName}
+                  className="text-2xl font-bold text-gray-900 px-2 py-1 border border-teal-500 rounded outline-none focus:ring-2 focus:ring-teal-200 flex-1 min-w-0"
+                  maxLength={100}
+                />
+                <button
+                  type="button"
+                  onClick={() => void handleSaveName()}
+                  disabled={savingName || !editName.trim()}
+                  className="p-1.5 text-teal-600 hover:bg-teal-50 rounded disabled:opacity-50"
+                  title="保存（Enter）"
+                >
+                  <Check className="w-5 h-5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsEditingName(false)}
+                  disabled={savingName}
+                  className="p-1.5 text-gray-400 hover:bg-gray-100 rounded disabled:opacity-50"
+                  title="取消（Esc）"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 group">
+                <h1 className="text-2xl font-bold text-gray-900 truncate">{project.name}</h1>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditName(project.name);
+                    setIsEditingName(true);
+                  }}
+                  className="p-1 text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded opacity-50 group-hover:opacity-100 transition-opacity"
+                  title="修改项目名"
+                >
+                  <Pencil className="w-4 h-4" />
+                </button>
+              </div>
+            )}
             <div className="flex items-center gap-3 mt-2 flex-wrap">
               <Badge className={getModeColor(project.mode)}>
                 {project.mode === 'light' ? '轻量项目' : '标准项目'}
@@ -265,6 +381,9 @@ export default function ProjectDetail() {
                 </Badge>
               ))}
             </div>
+            <p className="mt-2 text-xs text-gray-400 font-mono break-all">
+              项目 ID：{project.id}
+            </p>
           </div>
           <div className="flex items-center gap-2">
             <Button
@@ -412,18 +531,27 @@ export default function ProjectDetail() {
                   {achievement ? (
                     <Button
                       className="w-full justify-start"
-                      onClick={() => navigate(`/research/projects/${id}/achievement`)}
+                      onClick={handleOpenAchievement}
                     >
                       <Award className="mr-2 h-4 w-4" />
                       查看成果档案卡
+                    </Button>
+                  ) : hasActionableAchievementDraft ? (
+                    <Button
+                      className="w-full justify-start bg-amber-500 hover:bg-amber-600"
+                      onClick={handleOpenAchievement}
+                    >
+                      <Award className="mr-2 h-4 w-4" />
+                      查看成果卡草稿
                     </Button>
                   ) : (
                     <Button
                       className="w-full justify-start bg-teal-600 hover:bg-teal-700"
                       onClick={handleCreateAchievement}
+                      disabled={generatingAchievement}
                     >
                       <Award className="mr-2 h-4 w-4" />
-                      生成成果档案卡
+                      {generatingAchievement ? '生成中...' : '生成成果档案卡'}
                     </Button>
                   )}
                   <Button
@@ -508,6 +636,26 @@ export default function ProjectDetail() {
                 </CardHeader>
                 <CardContent>
                   <AchievementCardView achievement={achievement} />
+                </CardContent>
+              </Card>
+            )}
+
+            {!achievement && hasActionableAchievementDraft && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">成果档案卡草稿</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <p className="text-sm text-gray-600">
+                    AI 已经整理出一份成果卡草稿，但还没有保存成正式成果档案卡。
+                  </p>
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+                    当前状态：有草稿待确认保存
+                  </div>
+                  <Button className="w-full" onClick={handleOpenAchievement}>
+                    <Award className="mr-2 h-4 w-4" />
+                    打开草稿并确认保存
+                  </Button>
                 </CardContent>
               </Card>
             )}

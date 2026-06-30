@@ -19,7 +19,7 @@ interface NavbarProps {
   children?: React.ReactNode;
 }
 
-export function Navbar({ title, children }: NavbarProps) {
+export function Navbar({ children }: NavbarProps) {
   const { user, logout } = useAuth();
   const [showMenu, setShowMenu] = useState(false);
   const navigate = useNavigate();

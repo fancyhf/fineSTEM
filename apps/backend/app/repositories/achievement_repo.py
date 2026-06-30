@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import secrets
-from datetime import datetime
 import uuid
 
+from app.core.time_utils import utc_now
 from app.db.models import AchievementCardModel
 from app.repositories.base import BaseRepository
 from app.repositories.utils import json_dumps, json_loads
@@ -71,7 +71,7 @@ class AchievementRepo(BaseRepository):
         row.project_mode = card.project_mode
         row.is_public = card.is_public
         row.submitted_at = card.submitted_at
-        row.updated_at = datetime.utcnow()
+        row.updated_at = utc_now()
         self.db.commit()
         self.db.refresh(row)
         return _to_schema(row)
@@ -92,7 +92,7 @@ class AchievementRepo(BaseRepository):
                 setattr(row, key, json_dumps(value, default="[]"))
             else:
                 setattr(row, key, value)
-        row.updated_at = datetime.utcnow()
+        row.updated_at = utc_now()
         self.db.commit()
         self.db.refresh(row)
         return _to_schema(row)
@@ -124,7 +124,7 @@ class AchievementRepo(BaseRepository):
         if not row or row.is_deleted:
             return None
         row.share_token = secrets.token_urlsafe(16)
-        row.updated_at = datetime.utcnow()
+        row.updated_at = utc_now()
         self.db.commit()
         return row.share_token
 

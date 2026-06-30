@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "test:e2e": "playwright test",
-    "test:e2e:create-smoke": "playwright test specs/create-history-restore.spec.ts specs/create-guided-pbl-mainline.spec.ts specs/create-development-preview.spec.ts specs/project-detail-final-report.spec.ts specs/create-teaching-mode.spec.ts --project=chromium --reporter=list",
+    "test:e2e:ai": "set RUN_AI_E2E=1&& playwright test --grep @ai --project=chromium --reporter=list",
+    "test:e2e:create-smoke": "playwright test specs/create-history-restore.spec.ts specs/create-guided-pbl-mainline.spec.ts specs/create-development-preview.spec.ts specs/project-detail-final-report.spec.ts specs/project-detail-achievement-draft.spec.ts specs/project-detail-generate-achievement.spec.ts specs/project-detail-stage08-hydration.spec.ts specs/create-teaching-mode.spec.ts --project=chromium --reporter=list",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:debug": "playwright test --debug"

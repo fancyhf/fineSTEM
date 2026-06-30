@@ -42,15 +42,15 @@ interface StandardStageConfig {
 }
 
 const STANDARD_STAGES: StandardStageConfig[] = [
-  { step: 0, stageId: 'stage_00_bootstrap', label: '阶段 0：准备阶段', gain: '明确项目背景、目标和边界。', minimumDone: '目标、资源与限制条件已经写清楚。', aiSupport: 'AI 可以帮你生成检查清单和风险提示。' },
-  { step: 1, stageId: 'stage_01_brainstorm', label: '阶段 1：脑暴选题', gain: '选出最值得投入的项目方向。', minimumDone: '已有候选主题，并确定最终选题。', aiSupport: 'AI 可以扩展选项并比较取舍。' },
-  { step: 2, stageId: 'stage_02_brief', label: '阶段 2：开题立项', gain: '形成可执行的项目简述。', minimumDone: '问题、用户和成功标准已经定义。', aiSupport: 'AI 可以收敛范围并完善验收标准。' },
-  { step: 3, stageId: 'stage_03_constraints', label: '阶段 3：范围裁剪', gain: '锁定 MVP 范围。', minimumDone: '必做、选做、不做事项已经明确。', aiSupport: 'AI 可以提醒过度设计和延期风险。' },
-  { step: 4, stageId: 'stage_04_track', label: '阶段 4：轨道选择', gain: '确定实现路线和技术栈。', minimumDone: '轨道、工具链和依赖已经确认。', aiSupport: 'AI 可以给出路线成本对比。' },
-  { step: 5, stageId: 'stage_05_design', label: '阶段 5：设计蓝图', gain: '完成模块计划和验收检查。', minimumDone: '模块、数据流和验收条件已经完整。', aiSupport: 'AI 可以建议架构、接口和页面结构。' },
-  { step: 6, stageId: 'stage_06_step_plan', label: '阶段 6：分步计划', gain: '拆出可执行的任务序列。', minimumDone: '执行步骤、检查点和回退方案清楚。', aiSupport: 'AI 可以把任务拆成更小的步骤。' },
-  { step: 7, stageId: 'stage_07_execute', label: '阶段 7：执行开发', gain: '交付实现并留下证据。', minimumDone: '里程碑、问题记录和证据链接已经整理。', aiSupport: 'AI 可以协助调试、生成代码和排障。' },
-  { step: 8, stageId: 'stage_08_evaluate', label: '阶段 8：评估展示', gain: '完成验收总结和下一轮迭代计划。', minimumDone: '验收总结和反思已经完成。', aiSupport: 'AI 可以帮你整理展示稿和复盘。' },
+  { step: 0, stageId: 'stage_00_bootstrap', label: '第 1 阶段：准备阶段', gain: '明确项目背景、目标和边界。', minimumDone: '目标、资源与限制条件已经写清楚。', aiSupport: 'AI 可以帮你生成检查清单和风险提示。' },
+  { step: 1, stageId: 'stage_01_brainstorm', label: '第 2 阶段：脑暴选题', gain: '选出最值得投入的项目方向。', minimumDone: '已有候选主题，并确定最终选题。', aiSupport: 'AI 可以扩展选项并比较取舍。' },
+  { step: 2, stageId: 'stage_02_brief', label: '第 3 阶段：开题立项', gain: '形成可执行的项目简述。', minimumDone: '问题、用户和成功标准已经定义。', aiSupport: 'AI 可以收敛范围并完善验收标准。' },
+  { step: 3, stageId: 'stage_03_constraints', label: '第 4 阶段：范围裁剪', gain: '锁定 MVP 范围。', minimumDone: '必做、选做、不做事项已经明确。', aiSupport: 'AI 可以提醒过度设计和延期风险。' },
+  { step: 4, stageId: 'stage_04_track', label: '第 5 阶段：轨道选择', gain: '确定实现路线和技术栈。', minimumDone: '轨道、工具链和依赖已经确认。', aiSupport: 'AI 可以给出路线成本对比。' },
+  { step: 5, stageId: 'stage_05_design', label: '第 6 阶段：设计蓝图', gain: '完成模块计划和验收检查。', minimumDone: '模块、数据流和验收条件已经完整。', aiSupport: 'AI 可以建议架构、接口和页面结构。' },
+  { step: 6, stageId: 'stage_06_step_plan', label: '第 7 阶段：分步计划', gain: '拆出可执行的任务序列。', minimumDone: '执行步骤、检查点和回退方案清楚。', aiSupport: 'AI 可以把任务拆成更小的步骤。' },
+  { step: 7, stageId: 'stage_07_execute', label: '第 8 阶段：执行开发', gain: '交付实现并留下证据。', minimumDone: '里程碑、问题记录和证据链接已经整理。', aiSupport: 'AI 可以协助调试、生成代码和排障。' },
+  { step: 8, stageId: 'stage_08_evaluate', label: '第 9 阶段：评估展示', gain: '完成验收总结和下一轮迭代计划。', minimumDone: '验收总结和反思已经完成。', aiSupport: 'AI 可以帮你整理展示稿和复盘。' },
 ];
 
 function resolveActiveStep(currentStage: string): number {
@@ -177,12 +177,12 @@ export function StandardProjectSteps({ projectId, progress, onProgressUpdate }: 
   const [activeStep, setActiveStep] = useState<number>(resolveActiveStep(progress.current_stage));
   const [saving, setSaving] = useState(false);
   const [advancing, setAdvancing] = useState(false);
+  const [assisting, setAssisting] = useState(false);
   const [savedMessage, setSavedMessage] = useState('');
   const [contents, setContents] = useState<Record<number, StandardProjectStepData>>({});
 
   // 同步 activeStep：progress 变化时更新当前阶段，同时保留用户手动切换 tab 的能力
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- 将外部 progress 同步到本地 UI 状态
     setActiveStep(resolveActiveStep(progress.current_stage));
   }, [progress.current_stage]);
 
@@ -197,7 +197,6 @@ export function StandardProjectSteps({ projectId, progress, onProgressUpdate }: 
 
   // 同步 contents：stageMap 变化时（切换项目等），重置本地编辑副本
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- 将外部数据同步到本地表单 state 是受控组件的必要模式
     setContents(stageMap);
   }, [stageMap]);
 
@@ -308,7 +307,7 @@ export function StandardProjectSteps({ projectId, progress, onProgressUpdate }: 
             return (
               <button key={stage.stageId} type="button" onClick={() => setActiveStep(stage.step)} className="text-left">
                 <Badge variant={isCurrent ? 'primary' : isDone ? 'success' : 'secondary'}>
-                  {stage.step}. {stage.label.replace(/^阶段 \d+：/, '')}
+                  {stage.step + 1}. {stage.label.replace(/^第 \d+ 阶段：/, '')}
                 </Badge>
               </button>
             );
@@ -334,15 +333,61 @@ export function StandardProjectSteps({ projectId, progress, onProgressUpdate }: 
             </Button>
             <Button
               variant="secondary"
-              onClick={() =>
+              onClick={async () => {
+                if (activeStage.stageId === 'stage_08_evaluate') {
+                  try {
+                    setAssisting(true);
+                    const response = await projectsApi.generateAchievementCard(projectId);
+                    if (response.data) {
+                      const progressResponse = await projectsApi.getProgress(projectId);
+                      if (progressResponse.data) {
+                        onProgressUpdate?.(progressResponse.data);
+                      }
+                      setSavedMessage('已根据当前项目材料生成成果档案卡，并回填到评估展示阶段。');
+                      return;
+                    }
+                    throw new Error(response.message || '成果档案卡生成失败');
+                  } catch (err) {
+                    console.error('[steps:ai-assist] 自动生成成果卡失败:', err);
+                    setSavedMessage(err instanceof Error ? err.message : '成果档案卡生成失败，请稍后重试。');
+                    return;
+                  } finally {
+                    setAssisting(false);
+                  }
+                }
+                // 关键：先用 sessionStorage 恢复项目状态，再跳转 /create，
+                // scene=continue_stage 会触发 Create 页 useEffect 引导 AI 协助当前阶段
+                try {
+                  setAssisting(true);
+                  const wsRes = await projectsApi.getWorkspace(projectId);
+                  const restoreData: Record<string, unknown> = {
+                    projectId,
+                    projectName: wsRes.data?.project?.name || '',
+                    mode: 'standard',
+                    currentStage: activeStage.stageId,
+                    scene: 'continue_stage',
+                    stage: activeStage.stageId,
+                  };
+                  if (wsRes.data?.workspace) {
+                    restoreData.code = wsRes.data.workspace.code;
+                    restoreData.language = wsRes.data.workspace.language || 'python';
+                    restoreData.messages = wsRes.data.workspace.chat_messages || [];
+                  }
+                  sessionStorage.setItem('finestem_restore_project', JSON.stringify(restoreData));
+                } catch (err) {
+                  console.error('[steps:ai-assist] 恢复项目失败:', err);
+                } finally {
+                  setAssisting(false);
+                }
                 navigate(
-                  `/create?scene=${encodeURIComponent('开始项目')}&projectId=${encodeURIComponent(projectId)}&stage=${encodeURIComponent(
+                  `/create?scene=continue_stage&projectId=${encodeURIComponent(projectId)}&stage=${encodeURIComponent(
                     activeStage.stageId
                   )}`
-                )
-              }
+                );
+              }}
+              disabled={assisting}
             >
-              让 AI 协助本阶段
+              {assisting ? '处理中...' : '让 AI 协助本阶段'}
             </Button>
           </div>
 

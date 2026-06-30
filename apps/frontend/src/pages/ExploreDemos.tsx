@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DemoCard } from '../components/DemoCard';
 import { DemoFilter } from '../components/DemoFilter';
 import { demosApi } from '../services/api';
-import { Demo, PaginationResult, ApiResponse } from '../types';
+import { Demo, PaginationResult } from '../types';
 import { Button } from '../components/ui/Button';
 
 export default function ExploreDemos() {
@@ -20,7 +20,7 @@ export default function ExploreDemos() {
     page_size?: number;
   }>({ page: 1, page_size: 9 });
 
-  const loadDemos = async () => {
+  const loadDemos = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -40,11 +40,11 @@ export default function ExploreDemos() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filters]);
 
   useEffect(() => {
-    loadDemos();
-  }, [filters]);
+    void loadDemos();
+  }, [loadDemos]);
 
   const handleFilter = (newFilters: { search?: string; difficulty?: string; subject?: string }) => {
     setFilters((prev) => ({ ...prev, ...newFilters, page: 1 }));

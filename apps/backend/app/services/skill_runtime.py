@@ -5,12 +5,12 @@ Skill 运行时服务
 维护者：AI Agent
 """
 
-from datetime import datetime
 from typing import Dict, List
 import asyncio
 import time
 
 from app.core.config import settings
+from app.core.time_utils import utc_now
 from app.repositories.runtime_db import db
 from app.schemas.evidence import Evidence
 from app.schemas.skills import SkillInvokeInput, SkillInvokeOutput, SkillRecord
@@ -152,8 +152,8 @@ class SkillRuntimeService:
                 type="text_log",
                 content=summary,
                 related_step=project.current_stage,
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow(),
+                created_at=utc_now(),
+                updated_at=utc_now(),
                 created_by=user_id,
             )
         )

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Search, Sparkles, ClipboardList, ArrowRight, MessageCircle, Paperclip, Image, Send } from 'lucide-react';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '../components/ui/Card';
@@ -7,7 +7,7 @@ import { achievementCardsApi, demosApi } from '../services/api';
 import { AchievementCard, Demo } from '../types';
 
 export function Home() {
-  const { user } = useAuth();
+  useAuth();
   const navigate = useNavigate();
   const [demos, setDemos] = useState<Demo[]>([]);
   const [inspirationCards, setInspirationCards] = useState<AchievementCard[]>([]);

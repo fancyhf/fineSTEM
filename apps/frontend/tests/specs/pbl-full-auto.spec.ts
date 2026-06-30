@@ -5,13 +5,21 @@
  * 更新: 2026-05-02 - 绕过QuestionCard点击，直接通过WebSocket发送选择消息
  */
 
-import { test, expect, Page } from '@playwright/test';
+import { test, expect, Page, APIRequestContext } from '@playwright/test';
+import { UserResponse } from '../../src/types';
+
+interface LightRegisterResponse {
+  data?: {
+    access_token: string;
+    user: UserResponse;
+  };
+}
 
 const BASE_URL = 'http://localhost:5284/create';
 const API_URL = 'http://localhost:3200/api/v1';
 
 /** 通过Playwright API轻注册获取测试用户 */
-async function apiLightRegister(request: any): Promise<{ token: string; user: any }> {
+async function apiLightRegister(request: APIRequestContext): Promise<{ token: string; user: UserResponse }> {
   console.log('🔐 正在通过API轻注册测试用户...');
 
   const response = await request.post(`${API_URL}/auth/light-register`, {
@@ -19,7 +27,7 @@ async function apiLightRegister(request: any): Promise<{ token: string; user: an
     headers: { 'Content-Type': 'application/json' },
   });
 
-  const body = await response.json();
+  const body = await response.json() as LightRegisterResponse;
 
   if (!body.data?.access_token) {
     throw new Error(`轻注册失败: ${JSON.stringify(body)}`);
@@ -30,7 +38,7 @@ async function apiLightRegister(request: any): Promise<{ token: string; user: an
 }
 
 /** 注入认证状态到页面 */
-async function injectAuth(page: Page, token: string, user: any): Promise<void> {
+async function injectAuth(page: Page, token: string, user: UserResponse): Promise<void> {
   await page.evaluate(({ token, user }) => {
     localStorage.setItem('auth_token', token);
     localStorage.setItem('auth_user', JSON.stringify(user));
@@ -149,7 +157,7 @@ async function screenshot(page: Page, name: string): Promise<void> {
   });
 }
 
-test('PBL完整自动化: 发起对话→逐轮选择→产生代码', async ({ page, request }) => {
+test('@ai PBL完整自动化: 发起对话→逐轮选择→产生代码', async ({ page, request }) => {
   console.log('\n========== PBL 完整自动化测试开始 ==========\n');
   test.setTimeout(300000);
 

@@ -34,8 +34,8 @@ export default function Register() {
     try {
       await register(name, email, password);
       navigate('/');
-    } catch (err: any) {
-      setError(err.message || '注册失败');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : '注册失败，请重试');
     } finally {
       setLoading(false);
     }

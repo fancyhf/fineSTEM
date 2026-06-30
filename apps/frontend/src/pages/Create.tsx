@@ -1,23 +1,24 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { MessageSquare, Code, Rocket, FileText, ChevronUp, Paperclip, Link2, FolderOpen, Plus, Sparkles, User, Zap, Play, Copy, Check, ArrowRight, BookOpen, PanelLeftClose, PanelLeftOpen, Terminal, Eye, Pencil, MoreHorizontal, Maximize2, Minimize2 } from 'lucide-react';
+import { MessageSquare, Code, Rocket, FileText, ChevronUp, Paperclip, Link2, FolderOpen, Plus, Sparkles, User, Zap, Play, Copy, Check, ArrowRight, BookOpen, PanelLeftClose, PanelLeftOpen, Terminal, Eye, Pencil, MoreHorizontal, Maximize2, PanelLeft } from 'lucide-react';
 import { Card } from '../components/ui/Card';
-import { useStreamingChat } from '../hooks/useStreamingChat';
+import { CodeGeneratedEvent, useStreamingChat } from '../hooks/useStreamingChat';
 import { MarkdownText } from '../components/MarkdownText';
 import { LightRegisterPrompt } from '../components/LightRegisterPrompt';
 import { CodePreview } from '../components/CodePreview';
 import { CodeEditor } from '../components/CodeEditor';
+import { ProjectFilesPanel } from '../components/ProjectFilesPanel';
 import { QuestionCard, QuestionData } from '../components/QuestionCard';
 import { useAuth } from '../contexts/AuthContext';
 import { projectsApi, codeExecutionApi } from '../services/api';
-import { ProjectWorkspaceResponse } from '../types';
+import { ProjectWorkspaceResponse, FileEntry } from '../types';
 
 interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   skillInfo?: { skill_id: string; skill_name: string; sub_skill_name?: string };
-  toolCalls?: { tool_name: string; success: boolean; data?: any }[];
+  toolCalls?: { tool_name: string; success: boolean; data?: unknown }[];
 }
 
 function buildStreamHistory(messages: Message[]): Array<{ role: 'user' | 'assistant'; content: string }> {
@@ -50,48 +51,191 @@ function collapseRepeatedFragments(content: string): string {
   return compactLines.join('\n');
 }
 
+/**
+ * 移除指定标签（支持属性值含 > 的引号边界解析）
+ * 例如：<option id="x" label="正常 > 异常">运行报错</option>
+ */
+function removeTagWithQuoteAware(text: string, tagName: string): string {
+  const tagPattern = new RegExp(`<${tagName}\\b[\\s\\S]*?<\\/${tagName}>`, 'gi');
+  return text.replace(tagPattern, (match) => {
+    // 校验：起始标签的开标签范围是否正确（找到引号外的首个 >）
+    const openEnd = findTagEnd(match, `<${tagName}`);
+    if (openEnd < 0) return match;
+    // 校验：闭合标签存在
+    if (!new RegExp(`<\\/${tagName}>`, 'i').test(match)) return match;
+    return '';
+  });
+}
+
+/**
+ * 找到标签的结束 > 位置（跳过引号内的 >）
+ * 例如：在 <option label="A>B"> 中找到 label 后的 " 边界后的 >
+ */
+function findTagEnd(text: string, tagStart: string): number {
+  const start = text.indexOf(tagStart);
+  if (start < 0) return -1;
+  let i = start + tagStart.length;
+  let inSingle = false;
+  let inDouble = false;
+  while (i < text.length) {
+    const c = text[i];
+    if (c === '"' && !inSingle) inDouble = !inDouble;
+    else if (c === "'" && !inDouble) inSingle = !inSingle;
+    else if (c === '>' && !inSingle && !inDouble) return i;
+    i++;
+  }
+  return -1;
+}
+
 function sanitizeAssistantNarration(content: string): string {
   let cleaned = content;
   const originalLength = cleaned.length;
 
-  // ── 策略 0：核弹级广谱清理 —— 移除任何包含 DSML 标记特征的行 ──
-  // 关键：DSML 标签中的 | 是全角字符 U+FF5C（｜），不是半角 U+007C（|）
-  // 用 [|\uff5c] 同时匹配两种竖线
-  const vBar = '[|\uff5c]'; // | 或 ｜
-  const vBarNot = '[^|\uff5c]';
-  cleaned = cleaned.replace(new RegExp(`^.*${vBar}${vBarNot}*DSML${vBarNot}*${vBar}.*$`, 'gim'), '');
-  cleaned = cleaned.replace(new RegExp(`^.*${vBar}${vBarNot}*invoke\\s+name=.*$`, 'gim'), '');
-  cleaned = cleaned.replace(new RegExp(`^.*${vBar}${vBarNot}*parameter\\s+name=.*$`, 'gim'), '');
-  cleaned = cleaned.replace(/^.*tool_calls.*$/gim, '');
+  // ── 精确移除 DSML 标签本身（只删标签，保留标签间的正文）──
+  // DSML 标签格式：<｜｜DSML｜｜xxx> 或 </｜｜DSML｜｜>
+  // | 是全角 U+FF5C（｜），不是半角 U+007C（|）
+  // 关键：标签必须以 < 开头（行首或空白后），防止误吃行中间的内容
+  // 例如 "projects/xxx.json</| | DSML | parameter>" 中的 "</|..." 之前是路径文本，
+  // 不应被识别为 DSML 闭合标签的开始位置
+  const dsmlTagPattern = /(?:^|(?<=[\s\n]))<\/?[|\uff5c]?[|\uff5c]?DSML[|\uff5c]?[^\n]*>/gi;
+  cleaned = cleaned.replace(dsmlTagPattern, '');
 
-  // ── 策略 1：移除完整的 DSML 工具调用块（多行）──
-  cleaned = cleaned.replace(/<[^\n]*[|\uff5c][^\n]*DSML[^\n]*>[ \t\r\n\S]*?<\/[^\n]*[|\uff5c][^\n]*>/gi, '');
+  // ── 移除独立行的 invoke/parameter/tool_calls 关键字行（整行只有这些关键字）──
+  cleaned = cleaned.replace(/^\s*(?:invoke|parameter)\s+name=\S+.*$/gim, '');
+  cleaned = cleaned.replace(/^\s*tool_calls\s*$/gim, '');
 
-  // ── 策略 2：广谱移除所有残留 DSML 标签行 ──
-  cleaned = cleaned.replace(/^.*?<[^\n]*[|\uff5c][^\n]*DSML[^\n]*>.*$/gim, '');
-  cleaned = cleaned.replace(/^.*?<\/[^\n]*[|\uff5c][^\n]*.*$/gim, '');
-  cleaned = cleaned.replace(/^\s*(tool_calls|invoke name=|parameter name=|artifact_writer|artifact_reader).*$/gim, '');
+  // ── 兜底：清理残破的 DSML 工具调用行（典型特征是含 <| / {/| 模式）──
+  // 删除任意行内出现 DSML 残破 XML 的整行
+  // 关键安全约束：行首必须有 DSML 残破模式才算可疑，正常正文中的 "<" 不删
+  // 已知 LLM 残破模式：
+  //   - <|...| DSML | ...>  （开标签）
+  //   - </|...| DSML | ...> （闭合标签，正常不应该出现）
+  //   - {/| DSML || parameter }  （LLM 残破闭合标签变体，{ 误生成 < 的产物）
+  //   - | DSML | xxx  （孤立的 DSML 段）
+  //   - |parameter| 或 | invoke |  （孤立的管道包裹工具调用）
+  cleaned = cleaned.split('\n').map((line) => {
+    const trimmed = line.trim();
+    // 关键修复：放宽到"行内任意位置出现 DSML 残破模式"也清掉
+    // 之前要求行首 <| 才清，导致"句末挂载的 </|...|>"（"我先问你：xxx</|...|>"）漏过
+    // 安全约束：仅当行内 < 数量 ≤3 且行长度 < 2000 时才触发，避免误伤长正文
+    const isShortLine = trimmed.length < 2000;
+    const hasOpenAngle = (trimmed.match(/</g) || []).length;
+    const isBrokenDsml =
+      /<\|\s*\|?\s*DSML\s*\|/.test(trimmed) ||
+      /<\/\s*\|\s*\|?\s*DSML\s*\|/.test(trimmed) ||
+      /<\|\s*\|/.test(trimmed) ||
+      /^\{\s*[/｜|]\s*\|/.test(trimmed) ||          // 残破闭合 {/| 或 {｜|
+      /^\{\/\s*\|\s*DSML/i.test(trimmed) ||           // 残破闭合 {/| DSML
+      /^<\/?\s*[|\uff5c]/.test(trimmed) ||
+      // 末尾挂载的 DSML 残破（如 "projects/xx.json</| | DSML | parameter>"）
+      /<\/?\s*[|\uff5c]\s*[|\uff5c]?\s*DSML/i.test(trimmed) ||
+      // 关键：句中/句末出现的 DSML 闭合标签（"<|...| DSML ...>" 整段）也清
+      // 安全约束：必须 < 数 ≤3 且行较短，避免误伤正常正文
+      (isShortLine && hasOpenAngle <= 3 && (
+        /[|\uff5c]\s*DSML\s*\|/i.test(trimmed) ||
+        /<\/?\s*[|\uff5c][^>]{0,80}parameter/i.test(trimmed) ||
+        // 关键：行末挂载的孤悬残片（"xxx</|...|DSML|parameter>"）
+        />\s*<\s*[|\uff5c][^>]*$/i.test(trimmed) ||
+        /<\/?\s*[|\uff5c][^>]*$/i.test(trimmed)
+      )) ||
+      /\bDSML\s*\|/i.test(trimmed) ||
+      /^\s*[|｜]\s*parameter\s*[|｜]/i.test(trimmed) ||
+      /^\s*[|｜]\s*invoke\s+name\s*=/i.test(trimmed) ||
+      // 关键：UUID + 未闭合 < 的孤悬残片（如 "a1b57213-b531-...2055a</"）
+      // 这是 LLM 工具调用 trace_id 泄露到 content 中，完全不是用户可见内容
+      (isShortLine && /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}<\/?\s*$/.test(trimmed));
+    return isBrokenDsml ? '' : line;
+  }).join('\n');
 
-  // ── 策略 3：移除 question/option 结构化标签 ──
-  cleaned = cleaned.replace(/<question\s+[^>]*>/gi, '');
-  cleaned = cleaned.replace(/<\/question>/gi, '');
-  cleaned = cleaned.replace(/<option\s+[^>]*>[\s\S]*?<\/option>/gi, '');
-  cleaned = cleaned.replace(/^\s*<\/?(?:option|label|desc)[^>]*>\s*$/gim, '');
+  // ── 清理 LLM 模拟工具调用的命令行/代码残片 ──
+  // AI 有时不用真正的 tool_calls，而是输出 cat/ls/os.walk/import os 等来"模拟读文件"
+  // 这些不是用户可见的有效内容，必须清除
+  cleaned = cleaned.split('\n').map((line) => {
+    const trimmed = line.trim();
+    if (!trimmed) return line;
+    // 模式 1：shell 命令（cat/ls/find/grep/head/tail/wc 等 + 文件路径）
+    if (/^\s*(cat|ls|find|grep|head|tail|wc|less|more|file|stat|tree|diff|echo)\s+[\w/.-~]/.test(trimmed)) return '';
+    // 模式 2：Python 文件操作代码（import os; os.walk / open(...).read() / pathlib）
+    if (/^\s*(import\s+os|from\s+os\s+import|from\s+pathlib|os\.walk|os\.path\.exists|os\.listdir|open\(['"][\w/.]+['"]\)\.read|Path\(['"])/.test(trimmed)) return '';
+    // 模式 3：纯文件路径行（projects/xxx/docs/xx.json、/dev/null、/tmp/xxx 等）
+    if (/^\/(dev|null|tmp|home|usr|var|etc|opt)\//.test(trimmed)) return '';
+    if (/^(projects\/|docs\/|src\/|apps\/)[\w/.-]+\.(json|md|txt|py|js|ts|yaml|yml|csv)$/.test(trimmed)) return '';
+    // 模式 4：孤立的 UUID 行（trace_id / project_id 泄露，大小写均匹配）
+    if (/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(trimmed)) return '';
+    // 模式 4a：工具结果 JSON / JSON Patch 泄露，不属于用户可读对话内容
+    if (/["']op["']\s*:\s*["'](?:replace|add|remove)["']/.test(trimmed)) return '';
+    if (/["']path["']\s*:\s*["']\//.test(trimmed)) return '';
+    if (/^[{[].*(project_id|tool_call_id|stage_passed|current_stage|teaching_mode).*[\]}]?$/i.test(trimmed)) return '';
+    // 模式 4b：孤立的 "Skill" / skill 单词行（LLM 伪造工具调用残留）
+    if (/^skill$/i.test(trimmed)) return '';
+    // 模式 4c：孤立的内部标记行：仅由 UUID + 可选的 "Skill" 组成
+    if (/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\s+skill$/i.test(trimmed)) return '';
+    // 模式 5：孤立的残缺标签碎片（常见于流式输出被中途截断时的 "</"）
+    if (/^<\/?$/.test(trimmed) || /^\/>$/.test(trimmed) || /^>$/.test(trimmed)) return '';
+    return line;
+  }).join('\n');
 
-  // ── 策略 4：清理复制提示等杂项 ──
+  // 删除空行
+  cleaned = cleaned.replace(/\n{3,}/g, '\n\n').replace(/^\s*\n/gm, '');
+
+  // ── 末尾兜底清理：流式输出被中途截断时残留的孤悬 < / </ / <｜ 等碎片 ──
+  // 例如 AI 输出末尾出现 "好的<" 或 "正在生成代码</"，这些都是流式中断遗留
+  // 仅处理整段文本末尾，避免误伤正常的 < 字符（如 "a < b"）
+  cleaned = cleaned.replace(/[\s\n]*<\/?[\s\S]{0,30}$/u, (match) => {
+    // 只清理"看起来是不完整标签"的末尾片段
+    // 安全条件：片段不含 > （即未闭合），且长度 ≤ 30
+    if (match.includes('>')) return match;
+    // 检查是否仅为残破标签开始（< / </ / <｜...）
+    const trimmed = match.trim();
+    if (/^<\/?[\s|｜\w-]{0,30}$/.test(trimmed)) {
+      return '';
+    }
+    return match;
+  });
+
+  // ── 移除 question/option 结构化标签 ──
+  // 关键：
+  //   1. 标签内的属性值可能含 >（如 label="正常 > 异常"），需要正确解析引号边界
+  //   2. option 标签始终清理（由 QuestionCard 独立渲染，原始内容由 parseQuestionFromText 解析）
+  //   3. question 标签也始终清理
+
+  // 始终彻底删除所有 option 标签
+  cleaned = cleaned.replace(/<option\b[^>]*>[\s\S]*?<\/option>/gi, (m) => {
+    return /<\/option>/i.test(m) ? '' : m;
+  });
+  cleaned = removeTagWithQuoteAware(cleaned, 'option');
+  // 兜底：单行 option 标签
+  cleaned = cleaned.replace(/^\s*<\/?option\b.*$/gim, '');
+
+  // 始终彻底删除所有 question 标签
+  cleaned = cleaned.replace(/<question\b[^>]*>[\s\S]*?<\/question>/gi, '');
+  cleaned = removeTagWithQuoteAware(cleaned, 'question');
+  // 兜底：单行 question/label/desc 标签
+  cleaned = removeTagWithQuoteAware(cleaned, 'label');
+  cleaned = removeTagWithQuoteAware(cleaned, 'desc');
+  cleaned = cleaned.replace(/^\s*<\/?(?:question|label|desc)\b.*$/gim, '');
+
+  // ── 清理杂项 ──
   cleaned = cleaned.replace(/^\s*```(?:markdown|md)?\s*复制\s*$/gim, '```');
-  cleaned = cleaned.replace(/^\s*<[^>\n]*calls[^>\n]*>\s*$/gim, '');
 
-  // 调试日志（上线前移除）
-  if (cleaned.length !== originalLength || cleaned.includes('DSML') || cleaned.includes('< |') || cleaned.includes('</|')) {
-    console.log('[sanitize] 输入长度:', originalLength, '输出长度:', cleaned.length, '移除:', originalLength - cleaned.length);
-    if (cleaned.includes('DSML') || cleaned.includes('< |') || cleaned.includes('</|')) {
-      console.warn('[sanitize] ⚠️ 仍有残留! 前200字:', cleaned.slice(0, 200));
+  // 调试日志
+  if (cleaned.length !== originalLength) {
+    console.log('[sanitize] 输入:', originalLength, '→ 输出:', cleaned.length, '移除:', originalLength - cleaned.length);
+    if (cleaned.includes('DSML') || /[|\uff5c]DSML/.test(cleaned)) {
+      console.warn('[sanitize] ⚠️ 残留! 前200字:', cleaned.slice(0, 200));
     }
   }
 
   cleaned = collapseRepeatedFragments(cleaned);
   return cleaned;
+}
+
+/**
+ * 清理历史 assistant 消息内容（兜底删除所有 option 标签）
+ * 由于 cleanAssistantMessageContent 已始终清理 option，此函数等价于 cleanAssistantMessageContent
+ */
+function cleanHistoricalAssistantContent(content: string): string {
+  return cleanAssistantMessageContent(content);
 }
 
 function cleanAssistantMessageContent(content: string): string {
@@ -215,15 +359,15 @@ const PBL_GUIDE_STEPS = [
 ];
 
 const STANDARD_STAGES = [
-  { key: 'stage_00', label: '初始化', icon: '🚀' },
-  { key: 'stage_01', label: '脑爆选题', icon: '💭' },
-  { key: 'stage_02', label: '开题立项', icon: '📋' },
-  { key: 'stage_03', label: '范围裁剪', icon: '✂️' },
-  { key: 'stage_04', label: '轨道选择', icon: '🛤️' },
-  { key: 'stage_05', label: '设计蓝图', icon: '📐' },
-  { key: 'stage_06', label: '分步计划', icon: '📝' },
-  { key: 'stage_07', label: '编码实现', icon: '💻' },
-  { key: 'stage_08', label: '验收展示', icon: '🎯' },
+  { key: 'stage_00', label: '第 1 阶段：准备阶段', shortLabel: '1. 准备阶段', icon: '🚀' },
+  { key: 'stage_01', label: '第 2 阶段：脑暴选题', shortLabel: '2. 脑暴选题', icon: '💭' },
+  { key: 'stage_02', label: '第 3 阶段：开题立项', shortLabel: '3. 开题立项', icon: '📋' },
+  { key: 'stage_03', label: '第 4 阶段：范围裁剪', shortLabel: '4. 范围裁剪', icon: '✂️' },
+  { key: 'stage_04', label: '第 5 阶段：轨道选择', shortLabel: '5. 轨道选择', icon: '🛤️' },
+  { key: 'stage_05', label: '第 6 阶段：设计蓝图', shortLabel: '6. 设计蓝图', icon: '📐' },
+  { key: 'stage_06', label: '第 7 阶段：分步计划', shortLabel: '7. 分步计划', icon: '📝' },
+  { key: 'stage_07', label: '第 8 阶段：编码实现', shortLabel: '8. 编码实现', icon: '💻' },
+  { key: 'stage_08', label: '第 9 阶段：评估展示', shortLabel: '9. 评估展示', icon: '🎯' },
 ];
 
 const STAGE_ACTION_HINTS: Record<string, string> = {
@@ -250,7 +394,11 @@ function getStageDisplayInfo(currentStage: string): { label: string; hint: strin
 }
 
 function hasDirectCodingIntent(message: string): boolean {
-  return /(直接进入编码|直接推进到编码|进入执行阶段|直接做|立即做|马上做|不要再问|别再问|别问了|直接实现|直接开发|跳过引导|跳过开题|跳过前置|直接给代码|直接输出代码|直接给出完整代码|写到编辑器|写入编辑器)/.test(message);
+  return /(开始编码|开始开发|给我完整的代码|完整代码|用\s*(Python|JavaScript|TypeScript|HTML|CSS)\s*实现|直接进入编码|直接推进到编码|进入执行阶段|直接做|立即做|马上做|不要再问|别再问|别问了|直接实现|直接开发|跳过引导|跳过开题|跳过前置|直接给代码|直接输出代码|直接给出完整代码|写到编辑器|写入编辑器|代码为空|代码是空|没有代码|没代码|重新生成代码|重新写代码|生成代码文件|main\.py\s*(为空|没有|没|空的)|代码文件.*(为空|没有|没|空的))/i.test(message);
+}
+
+function hasStrongCodingIntent(message: string): boolean {
+  return /(开始编码|开始开发|给我完整的代码|完整代码|用\s*(Python|JavaScript|TypeScript|HTML|CSS)\s*实现|直接进入编码|直接推进到编码|进入执行阶段|直接实现|直接开发|直接给代码|直接输出代码|直接给出完整代码|写到编辑器|写入编辑器)/i.test(message);
 }
 
 function isTeachingModeStage(currentStage: string): boolean {
@@ -310,6 +458,83 @@ function inferRequestedOutputLanguage(message: string): string {
   return 'auto';
 }
 
+function buildFallbackCode(language: string): { code: string; language: string; filename: string } {
+  if (language === 'python') {
+    return {
+      language: 'python',
+      filename: 'main.py',
+      code: `import random
+
+
+def main():
+    answer = random.randint(1, 100)
+    tries = 0
+    print("欢迎来到猜数字游戏！我已经想好了 1 到 100 之间的一个整数。")
+    while True:
+        raw_value = input("请输入你的猜测：")
+        if raw_value.lower() in {"q", "quit", "exit"}:
+            print(f"游戏结束，正确答案是 {answer}。")
+            break
+        try:
+            guess = int(raw_value)
+        except ValueError:
+            print("请输入整数，或输入 q 退出。")
+            continue
+        tries += 1
+        if guess < answer:
+            print("低了，再试试。")
+        elif guess > answer:
+            print("高了，再试试。")
+        else:
+            print(f"恭喜你猜对了！一共用了 {tries} 次。")
+            break
+
+
+if __name__ == "__main__":
+    main()
+`,
+    };
+  }
+
+  return {
+    language: 'html',
+    filename: 'index.html',
+    code: `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>fineSTEM MVP</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; min-height: 100vh; display: grid; place-items: center; background: #ecfeff; }
+    main { width: min(560px, 92vw); padding: 28px; border-radius: 18px; background: white; box-shadow: 0 18px 50px rgba(15, 118, 110, 0.18); }
+    h1 { margin-top: 0; color: #0f766e; }
+    button { border: 0; border-radius: 10px; padding: 10px 16px; background: #0d9488; color: white; cursor: pointer; }
+    #result { margin-top: 16px; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>我的 STEM 项目 MVP</h1>
+    <p>这是一个可运行的最小版本，你可以继续让 AI 按你的项目主题扩展功能。</p>
+    <button id="actionButton">点击验证交互</button>
+    <div id="result">等待操作...</div>
+  </main>
+  <script>
+    const button = document.querySelector('#actionButton');
+    const result = document.querySelector('#result');
+    let count = 0;
+    button.addEventListener('click', () => {
+      count += 1;
+      result.textContent = '已成功运行 ' + count + ' 次。';
+    });
+  </script>
+</body>
+</html>
+`,
+  };
+}
+
 function StageProgressBar({ projectContext }: { projectContext: ProjectContext }) {
   if (!projectContext.mode) return null;
   const steps = projectContext.mode === 'light' ? LIGHT_STEPS : STANDARD_STAGES;
@@ -324,7 +549,7 @@ function StageProgressBar({ projectContext }: { projectContext: ProjectContext }
               idx < currentIdx ? 'bg-teal-100 text-teal-700' : idx === currentIdx ? 'bg-teal-500 text-white' : 'bg-gray-100 text-gray-400'
             }`}>
               <span>{step.icon}</span>
-              <span className="hidden xl:inline">{step.label}</span>
+              <span className="hidden xl:inline">{'shortLabel' in step && typeof step.shortLabel === 'string' ? step.shortLabel : step.label}</span>
             </div>
           </React.Fragment>
         ))}
@@ -370,14 +595,301 @@ function CodeBlock({ code, language, onWriteToEditor, onRun }: { code: string; l
 function parseQuestionFromText(text: string): QuestionData | null {
   const hasQuestionWrapper = /<question[^>]*>/i.test(text);
   const hasBareOptions = /<option\s+id=["'][^"']*["']/i.test(text);
-  if (!hasQuestionWrapper && !hasBareOptions) return null;
+  const createBootstrapIdeaFallback = (): QuestionData => ({
+    id: `q-bootstrap-idea-fallback-${Date.now()}`,
+    title: '你有初步想法了吗？',
+    options: [
+      {
+        id: 'brainstorm',
+        label: '完全没想法，需要脑爆',
+        description: '从零开始，一起探索可做的项目方向',
+      },
+      {
+        id: 'direction',
+        label: '有个大概方向',
+        description: '我知道想做什么类型，但还需要一起收敛',
+      },
+      {
+        id: 'idea',
+        label: '已经有具体想法',
+        description: '直接基于我的想法进入立项和方案设计',
+        recommended: true,
+      },
+    ],
+    multiple: false,
+    step: 3,
+    totalSteps: 3,
+  });
+  const extractQuestionProgress = (source: string): { step?: number; totalSteps?: number } => {
+    const stepMatch = source.match(/\bstep\b\s*(?:=|:)\s*["']?(\d+)/i);
+    const totalMatch = source.match(/\b(?:total_steps|totalSteps|total)\b\s*(?:=|:)\s*["']?(\d+)/i);
+    return {
+      step: stepMatch ? Number(stepMatch[1]) : undefined,
+      totalSteps: totalMatch ? Number(totalMatch[1]) : undefined,
+    };
+  };
+  const isGenericQuestion = (
+    title: string,
+    options: Array<{ id: string; label: string; description?: string }>,
+  ): boolean => {
+    const normalizedTitle = title.trim();
+    const normalizedLabels = new Set(options.map((option) => option.label.trim()).filter(Boolean));
+    const genericTitles = new Set([
+      '请选择',
+      '接下来你想怎么做？',
+      '接下来你想怎么做',
+      '你想怎么继续？',
+      '你想怎么继续',
+    ]);
+    const genericLabels = new Set(['继续', '详细说说', '换个方向', '了解更多', '其他']);
+    if (genericTitles.has(normalizedTitle)) return true;
+    return normalizedLabels.size > 0 && Array.from(normalizedLabels).every((label) => genericLabels.has(label));
+  };
+  const extractJsonQuestion = (source: string): { title: string; options: { id: string; label: string; description?: string }[]; multiple: boolean } | null => {
+    const candidates = [...source.matchAll(/```json\s*([\s\S]*?)```/gi)].map(match => match[1].trim());
+    if (source.includes('"questions"')) {
+      candidates.push(source.trim());
+    }
+
+    for (const candidate of candidates) {
+      if (!candidate.includes('"questions"')) continue;
+      const startIndexes = Array.from(candidate.matchAll(/\{/g)).map(match => match.index ?? -1).filter(index => index >= 0);
+      for (const startIndex of startIndexes) {
+        try {
+          const payload = JSON.parse(candidate.slice(startIndex));
+          if (!payload || typeof payload !== 'object' || !Array.isArray((payload as { questions?: unknown[] }).questions)) continue;
+          const firstQuestion = (payload as { questions: Array<Record<string, unknown>> }).questions[0];
+          if (!firstQuestion || !Array.isArray(firstQuestion.options)) continue;
+          const options = firstQuestion.options.flatMap((option, index) => {
+            if (!option || typeof option !== 'object') return [];
+            const label = String((option as { label?: unknown }).label ?? '').trim();
+            if (!label) return [];
+            const description = String((option as { description?: unknown }).description ?? '').trim() || undefined;
+            return [{ id: `opt-${index + 1}`, label: label.slice(0, 100), description: description?.slice(0, 200) }];
+          });
+          if (options.length === 0) continue;
+          return {
+            title: String(firstQuestion.question ?? firstQuestion.header ?? '请选择').trim(),
+            options,
+            multiple: Boolean(firstQuestion.multiSelect),
+          };
+        } catch {
+          continue;
+        }
+      }
+    }
+    return null;
+  };
+  const extractPlaintextOptions = (source: string): {
+    title: string | null;
+    options: { id: string; label: string; description?: string; groupId?: string; groupTitle?: string }[];
+    optionGroups?: { id: string; title: string; optionIds: string[] }[];
+    requireEachGroup?: boolean;
+    multiple?: boolean;
+  } => {
+    const lines = source.split('\n').map((line) => line.replace(/\r/g, ''));
+    const optionPattern = /^\s*(?:[-*•]\s+|(?:\d{1,2}|[A-Za-z]|[一二三四五六七八九十]+)[.)、]\s+|(?:[0-9]\uFE0F?\u20E3|🔟|[①②③④⑤⑥⑦⑧⑨⑩])\s*)(.+?)\s*$/u;
+    const candidateBlocks: Array<{ start: number; end: number }> = [];
+    let blockStart = -1;
+
+    lines.forEach((line, index) => {
+      if (optionPattern.test(line)) {
+        if (blockStart < 0) blockStart = index;
+      } else if (blockStart >= 0) {
+        if (index - blockStart >= 2) candidateBlocks.push({ start: blockStart, end: index });
+        blockStart = -1;
+      }
+    });
+    if (blockStart >= 0 && lines.length - blockStart >= 2) {
+      candidateBlocks.push({ start: blockStart, end: lines.length });
+    }
+    if (candidateBlocks.length === 0) return { title: null, options: [] };
+
+    const lastBlock = candidateBlocks[candidateBlocks.length - 1];
+    const trailingQuestionLine = lines
+      .slice(lastBlock.end)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .find((line) => /[？?]/.test(line) && line.length <= 120) ?? null;
+
+    const lastSeparatorBeforeOptions = lines
+      .slice(0, lastBlock.end)
+      .reduce((lastIndex, line, index) => (/^\s*-{3,}\s*$/.test(line) ? index : lastIndex), -1);
+    const selectedBlocks = trailingQuestionLine
+      ? candidateBlocks.filter((block) => block.start > lastSeparatorBeforeOptions)
+      : [lastBlock];
+
+    let title: string | null = null;
+    if (trailingQuestionLine) {
+      title = trailingQuestionLine;
+    } else {
+      for (let index = lastBlock.start - 1; index >= 0; index -= 1) {
+        const candidate = lines[index].trim();
+        if (!candidate) continue;
+        if (/[？?：:]/.test(candidate) || candidate.length <= 80) {
+          title = candidate.replace(/[：:]\s*$/, '');
+          break;
+        }
+      }
+    }
+
+    const getGroupTitle = (block: { start: number; end: number }, groupIndex: number): string => {
+      for (let index = block.start - 1; index > lastSeparatorBeforeOptions; index -= 1) {
+        const candidate = lines[index].trim();
+        if (!candidate || optionPattern.test(candidate) || /^\s*-{3,}\s*$/.test(candidate)) continue;
+        return candidate.replace(/^[#\s]+/, '').replace(/[：:]\s*$/, '').trim() || `第 ${groupIndex + 1} 类`;
+      }
+      return `第 ${groupIndex + 1} 类`;
+    };
+
+    const usedLabels = new Set<string>();
+    const options: { id: string; label: string; description?: string; groupId?: string; groupTitle?: string }[] = [];
+    const optionGroups: { id: string; title: string; optionIds: string[] }[] = [];
+
+    const isStatusListLine = (line: string): boolean => {
+      return /[\u2705\u274c\u2714\u2718\u274e\u2611\u2612\u26a0\u2757\u2753]/.test(line) ||
+        /\b(?:docs|src|assets|tests|reports|public|app|pages|components|backend|frontend)\//.test(line) ||
+        /\.(json|md|py|ts|tsx|js|html|css)\b/.test(line) ||
+        /（已补|已生成|缺失|已完成|未完成|待完成）/.test(line) ||
+        /\(已补|已生成|缺失|已完成|未完成|待完成\)/.test(line);
+    };
+
+    const isStatusListBlock = (block: { start: number; end: number }): boolean => {
+      const blockLines = lines.slice(block.start, block.end).filter((line) => optionPattern.test(line));
+      if (blockLines.length === 0) return false;
+      const statusCount = blockLines.filter(isStatusListLine).length;
+      return statusCount / blockLines.length >= 0.5;
+    };
+
+    selectedBlocks.forEach((block, groupIndex) => {
+      if (isStatusListBlock(block)) return;
+      const groupId = `group-${groupIndex + 1}`;
+      const groupTitle = getGroupTitle(block, groupIndex);
+      const optionIds: string[] = [];
+      lines.slice(block.start, block.end).forEach((line) => {
+        const match = line.match(optionPattern);
+        if (!match) return;
+        const body = match[1].trim();
+        if (!body) return;
+        let label = body;
+        let description: string | undefined;
+        const cnParts = body.split('：');
+        const enParts = body.split(':');
+        if (cnParts.length > 1) {
+          label = cnParts[0].trim();
+          description = cnParts.slice(1).join('：').trim() || undefined;
+        } else if (enParts.length > 1) {
+          label = enParts[0].trim();
+          description = enParts.slice(1).join(':').trim() || undefined;
+        }
+        const normalizedLabel = label.replace(/^[*_`\s]+|[*_`\s]+$/g, '').slice(0, 100);
+        if (!normalizedLabel || usedLabels.has(normalizedLabel)) return;
+        const optionId = `opt-${options.length + 1}`;
+        usedLabels.add(normalizedLabel);
+        optionIds.push(optionId);
+        options.push({
+          id: optionId,
+          label: normalizedLabel,
+          description: description?.slice(0, 200),
+          groupId,
+          groupTitle,
+        });
+      });
+      if (optionIds.length > 0) {
+        optionGroups.push({ id: groupId, title: groupTitle, optionIds });
+      }
+    });
+
+    const hasMultipleGroups = optionGroups.length > 1;
+    return {
+      title,
+      options,
+      optionGroups: hasMultipleGroups ? optionGroups : undefined,
+      requireEachGroup: hasMultipleGroups || undefined,
+      multiple: hasMultipleGroups || undefined,
+    };
+  };
+
+  if (!hasQuestionWrapper && !hasBareOptions) {
+    const progress = extractQuestionProgress(text);
+    const jsonResult = extractJsonQuestion(text);
+    if (jsonResult) {
+      if (isGenericQuestion(jsonResult.title, jsonResult.options)) return null;
+      return {
+        id: `q-fallback-${Date.now()}`,
+        title: jsonResult.title,
+        options: jsonResult.options,
+        multiple: jsonResult.multiple,
+        step: progress.step,
+        totalSteps: progress.totalSteps,
+      };
+    }
+    const plaintextResult = extractPlaintextOptions(text);
+    if (plaintextResult.options.length === 0) {
+      const trimmedText = text.trim();
+      if (
+        /(最后一个问题|最后一题)[:：]?\s*$/.test(trimmedText) ||
+        (/(最后一个问题|最后一题)/.test(text) && /(初步项目想法|初步想法|项目想法|你的起点)/.test(text))
+      ) {
+        return createBootstrapIdeaFallback();
+      }
+      return null;
+    }
+    if (isGenericQuestion(plaintextResult.title || '请选择', plaintextResult.options)) return null;
+    return {
+      id: `q-fallback-${Date.now()}`,
+      title: plaintextResult.title || '请选择',
+      options: plaintextResult.options,
+      optionGroups: plaintextResult.optionGroups,
+      requireEachGroup: plaintextResult.requireEachGroup,
+      multiple: plaintextResult.multiple,
+      step: progress.step,
+      totalSteps: progress.totalSteps,
+    };
+  }
+
+  // 关键修复：只解析**最后一个** question 块或最后一段裸 option
+  // 防止历史 question 标签在累积内容中被重复解析
+  const lastQuestionStart = (() => {
+    const matches = [...text.matchAll(/<question\b[^>]*>/gi)];
+    return matches.length > 0 ? matches[matches.length - 1].index ?? -1 : -1;
+  })();
+  const lastOptionStart = (() => {
+    const matches = [...text.matchAll(/<option\s+id=["'][^"']*["']/gi)];
+    return matches.length > 0 ? matches[matches.length - 1].index ?? -1 : -1;
+  })();
+
+  // 取最后一次 question/option 出现的起始位置
+  const lastRelevantStart = Math.max(
+    hasQuestionWrapper ? lastQuestionStart : -1,
+    hasBareOptions ? lastOptionStart : -1,
+  );
+  if (lastRelevantStart < 0) return null;
+
+  // 截取最后一段相关的文本
+  const textFromLast = text.slice(lastRelevantStart);
+  const progress = extractQuestionProgress(textFromLast);
+
+  const jsonResult = extractJsonQuestion(textFromLast);
+  if (jsonResult) {
+    if (isGenericQuestion(jsonResult.title, jsonResult.options)) return null;
+    return {
+      id: `q-fallback-${Date.now()}`,
+      title: jsonResult.title,
+      options: jsonResult.options,
+      multiple: jsonResult.multiple,
+      step: progress.step,
+      totalSteps: progress.totalSteps,
+    };
+  }
 
   let title = '请选择';
-  if (hasQuestionWrapper) {
-    const qTagMatch = text.match(/<question[^>]*title=["']([^"']*)["']/);
-    title = qTagMatch ? qTagMatch[1] : title;
+  const questionBlockMatch = textFromLast.match(/<question\b[^>]*title=["']([^"']*)["']/i);
+  if (questionBlockMatch) {
+    title = questionBlockMatch[1];
   } else {
-    const beforeOptions = text.split(/<option\s+id=["'][^"']*["'][^>]*>/i)[0] || '';
+    // 裸 option：取该段在最后一个 option 之前的第一行非空文本作为标题
+    const beforeOptions = textFromLast.split(/<option\s+id=["'][^"']*["'][^>]*>/i)[0] || '';
     const titleCandidate = beforeOptions
       .split('\n')
       .map((line) => line.trim())
@@ -388,9 +900,10 @@ function parseQuestionFromText(text: string): QuestionData | null {
     }
   }
   const options: { id: string; label: string; description?: string }[] = [];
-  const optRegex = /<option\s+id=["']([^"']*)["'][^>]*?(?:label=["']([^"']*)["'])?[^>]*>(.*?)<\/option>/gs;
+  // 只在截取后的文本中搜索 option
+  const optRegex = /<option\s+id=["']([^"']*)["'][^>]*?(?:label=["']([^"']*)["'])?[^>]*>([\s\S]*?)<\/option>/gi;
   let optMatch;
-  while ((optMatch = optRegex.exec(text)) !== null) {
+  while ((optMatch = optRegex.exec(textFromLast)) !== null) {
     const optId = optMatch[1];
     const attrLabel = optMatch[2]?.trim() || '';
     const rawBody = (optMatch[3] || '').trim();
@@ -407,34 +920,107 @@ function parseQuestionFromText(text: string): QuestionData | null {
     const description = descMatch ? descMatch[1].trim().slice(0, 200) : undefined;
     options.push({ id: optId, label: finalLabel, description });
   }
-  if (options.length === 0) return null;
-  return { id: `q-fallback-${Date.now()}`, title, options };
+  if (options.length === 0) {
+    const plaintextResult = extractPlaintextOptions(textFromLast);
+    if (plaintextResult.options.length === 0) return null;
+    if (isGenericQuestion(plaintextResult.title || title, plaintextResult.options)) return null;
+    return {
+      id: `q-fallback-${Date.now()}`,
+      title: plaintextResult.title || title,
+      options: plaintextResult.options,
+      optionGroups: plaintextResult.optionGroups,
+      requireEachGroup: plaintextResult.requireEachGroup,
+      multiple: plaintextResult.multiple,
+      step: progress.step,
+      totalSteps: progress.totalSteps,
+    };
+  }
+
+  if (isGenericQuestion(title, options)) return null;
+
+  return {
+    id: `q-fallback-${Date.now()}`,
+    title,
+    options,
+    step: progress.step,
+    totalSteps: progress.totalSteps,
+  };
+}
+
+function isSameQuestionData(left: QuestionData | null, right: QuestionData | null): boolean {
+  if (!left || !right) return false;
+  if (left.title !== right.title) return false;
+  if ((left.step ?? null) !== (right.step ?? null)) return false;
+  if ((left.totalSteps ?? null) !== (right.totalSteps ?? null)) return false;
+  if (left.options.length !== right.options.length) return false;
+  return left.options.every((option, index) => {
+    const candidate = right.options[index];
+    return candidate
+      && option.id === candidate.id
+      && option.label === candidate.label
+      && (option.description ?? null) === (candidate.description ?? null);
+  });
+}
+
+function isRedundantProjectNameQuestion(question: QuestionData, projectContext: ProjectContext): boolean {
+  const hasConfirmedProjectName = Boolean(projectContext.projectName.trim());
+  if (!hasConfirmedProjectName) return false;
+  const normalizedTitle = question.title.replace(/\s+/g, '');
+  const asksProjectName = /(项目名称|项目名|叫什么名字|名字是什么)/.test(normalizedTitle);
+  if (asksProjectName) return true;
+
+  const normalizedProjectName = projectContext.projectName.trim();
+  return question.options.some((option) => {
+    const label = option.label.trim();
+    return label === normalizedProjectName || /换个名字|改名|重新命名/.test(label);
+  });
+}
+
+function normalizeQuestionProgress(
+  question: QuestionData,
+  previousQuestions: QuestionData[],
+  knownQuestions: QuestionData[] = previousQuestions,
+): QuestionData {
+  const derivedStep = question.step ?? (previousQuestions.length + 1);
+  const highestKnownTotal = knownQuestions.reduce(
+    (max, item) => Math.max(max, item.totalSteps ?? 0),
+    question.totalSteps ?? 0,
+  );
+  return {
+    ...question,
+    step: derivedStep,
+    totalSteps: question.totalSteps ?? (highestKnownTotal > 0 ? Math.max(highestKnownTotal, derivedStep) : undefined),
+  };
 }
 
 function EnhancedMarkdownText({
   content,
+  isCurrentQuestion = true,
   projectId,
   onWriteCode,
   onRunCode,
 }: {
   content: string;
+  isCurrentQuestion?: boolean;
   projectId?: string | null;
   onWriteCode: (code: string, lang: string) => void;
   onRunCode: (code: string, lang: string) => void;
 }) {
+  // 历史消息（非当前问题）：彻底删除所有 option 标签，避免已答问题在历史消息中显示
+  const displayContent = isCurrentQuestion ? content : cleanHistoricalAssistantContent(content);
   const parts: React.ReactNode[] = [];
   const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/g;
   let lastIndex = 0;
   let match;
   let key = 0;
-  while ((match = codeBlockRegex.exec(content)) !== null) {
-    if (match.index > lastIndex) parts.push(<MarkdownText key={key++} content={content.slice(lastIndex, match.index)} projectId={projectId} />);
+  while ((match = codeBlockRegex.exec(displayContent)) !== null) {
+    if (match.index > lastIndex) parts.push(<MarkdownText key={key++} content={displayContent.slice(lastIndex, match.index)} projectId={projectId} />);
     const language = match[1] || 'text';
     const code = match[2].trim();
     parts.push(<CodeBlock key={key++} code={code} language={language} onWriteToEditor={() => onWriteCode(code, language)} onRun={() => onRunCode(code, language)} />);
     lastIndex = match.index + match[0].length;
   }
-  if (lastIndex < content.length) parts.push(<MarkdownText key={key++} content={content.slice(lastIndex)} projectId={projectId} />);
+  if (lastIndex < displayContent.length) parts.push(<MarkdownText key={key++} content={displayContent.slice(lastIndex)} projectId={projectId} />);
   return <>{parts}</>;
 }
 
@@ -446,12 +1032,6 @@ function buildHtmlFromCode(code: string, language: string): string {
   if (!code || !code.trim()) return '';
   if (language === 'html') return code.includes('<!DOCTYPE') || code.includes('<html') ? code : `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0}body{font-family:-apple-system,sans-serif;padding:20px;background:#f9fafb}</style></head><body>${code}</body></html>`;
   if (language === 'javascript' || language === 'js') {
-    const escaped = _escHtml(code);
-    // Use new Function() to catch BOTH syntax errors and runtime errors
-    const safeCode = code
-      .replace(/\\/g, '\\\\')
-      .replace(/`/g, '\\`')
-      .replace(/\$/g, '\\$');
     return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;padding:20px;background:#f9fafb;color:#1f2937;line-height:1.6}
 #out{margin-top:16px}pre{background:#1f2937;color:#e5e7eb;padding:16px;border-radius:8px;overflow-x:auto;margin:8px 0;font-size:13px}
@@ -468,7 +1048,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;p
   var _log=console.log,_err=console.error,_warn=console.warn;
   console.log=function(){add(Array.prototype.slice.call(arguments).map(function(a){return typeof a==='object'?JSON.stringify(a,null,2):String(a)}).join(' '),'info');_log.apply(console,arguments)};
   console.error=function(){add(Array.prototype.slice.call(arguments).join('\\n'),'err');_err.apply(console,arguments)};
-  console.warn=function(){add(Array.prototype.slice.call(arguments).join\\n'),'info');_warn.apply(console,arguments)};
+  console.warn=function(){add(Array.prototype.slice.call(arguments).join('\\n'),'info');_warn.apply(console,arguments)};
   try { (new Function(${JSON.stringify(code)}))(); if(!has) add('OK - no output','ok'); }
   catch(e) {
     var d=document.createElement('div');d.className='err';
@@ -525,6 +1105,30 @@ function buildExecutionResultHtml(result: { success: boolean; output: string; er
   `;
 }
 
+function upsertWorkspaceFiles(
+  files: FileEntry[],
+  fileName: string,
+  code: string,
+  language: string,
+): FileEntry[] {
+  if (!fileName || files.length === 0) {
+    return files;
+  }
+  let matched = false;
+  const nextFiles = files.map((file) => {
+    if (file.name !== fileName) {
+      return file;
+    }
+    matched = true;
+    return {
+      ...file,
+      content: code,
+      language,
+    };
+  });
+  return matched ? nextFiles : files;
+}
+
 function buildErrorHtml(message: string): string {
   return `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 16px; text-align: center;">
@@ -539,24 +1143,35 @@ function buildStreamlitIframeHtml(url: string, statusMsg: string): string {
   // Streamlit 模式：嵌入 iframe 真实预览 UI
   // 使用宽高 100% 让 Streamlit 自适应容器，并禁用其默认的 max-width
   return `
-    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; height: 100%; display: flex; flex-direction: column;">
-      <div style="padding: 6px 10px; background: #ecfdf5; border-bottom: 1px solid #d1fae5; display: flex; align-items: center; justify-content: space-between; font-size: 12px;">
-        <span style="color: #065f46; font-weight: 500;">${statusMsg || '🚀 Streamlit 服务已启动'}</span>
-        <a href="${url}" target="_blank" rel="noopener noreferrer" style="color: #059669; text-decoration: none; font-size: 11px; padding: 2px 8px; background: white; border: 1px solid #d1fae5; border-radius: 4px;">
-          🔗 新窗口打开
-        </a>
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <style>
+        html, body { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+        /* Streamlit 内部主容器使用 100% 宽度 */
+        [data-testid="stAppViewContainer"] > .main { max-width: 100% !important; padding-left: 1rem !important; padding-right: 1rem !important; }
+      </style>
+    </head>
+    <body>
+      <div style="height: 100vh; width: 100%; display: flex; flex-direction: column;">
+        <div style="padding: 6px 10px; background: #ecfdf5; border-bottom: 1px solid #d1fae5; display: flex; align-items: center; justify-content: space-between; font-size: 12px; flex-shrink: 0;">
+          <span style="color: #065f46; font-weight: 500;">${statusMsg || '🚀 Streamlit 服务已启动'}</span>
+          <a href="${url}" target="_blank" rel="noopener noreferrer" style="color: #059669; text-decoration: none; font-size: 11px; padding: 2px 8px; background: white; border: 1px solid #d1fae5; border-radius: 4px;">
+            🔗 新窗口打开
+          </a>
+        </div>
+        <iframe
+          src="${url}"
+          style="flex: 1 1 auto; width: 100%; min-height: 0; height: 100%; border: none; background: white; display: block;"
+          title="Streamlit App Preview"
+          sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-modals"
+        ></iframe>
       </div>
-      <iframe
-        src="${url}"
-        style="flex: 1 1 auto; width: 100%; min-height: 0; height: 100%; border: none; background: white; display: block;"
-        title="Streamlit App Preview"
-        sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-modals"
-      ></iframe>
-    </div>
-    <style>
-      /* Streamlit 内部主容器使用 100% 宽度 */
-      [data-testid="stAppViewContainer"] > .main { max-width: 100% !important; padding-left: 1rem !important; padding-right: 1rem !important; }
-    </style>
+    </body>
+    </html>
   `;
 }
 
@@ -584,6 +1199,10 @@ export function Create() {
   const [showRunResultModal, setShowRunResultModal] = useState(false);
   const [runResultHtml, setRunResultHtml] = useState('');
   const [runResultUrl, setRunResultUrl] = useState<string | null>(null); // Streamlit 等直接 URL 预览
+  const [projectFiles, setProjectFiles] = useState<FileEntry[]>([]);
+  const [activeFileName, setActiveFileName] = useState('main.py');
+  const [showFilesPanel, setShowFilesPanel] = useState(false);
+  const [runStatus, setRunStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [editorWidth, setEditorWidth] = useState(() => {
     const saved = localStorage.getItem('finestem_editor_width');
     return saved ? Number(saved) : 480;
@@ -594,13 +1213,15 @@ export function Create() {
   const [editProjectName, setEditProjectName] = useState('');
   const [moreMenuProjectId, setMoreMenuProjectId] = useState<string | null>(null);
   const [pendingQuestion, setPendingQuestion] = useState<QuestionData | null>(null);
+  const [questionStack, setQuestionStack] = useState<QuestionData[]>([]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
   const messageSeqRef = useRef(0);
   const handleSendRef = useRef<typeof handleSend>(null! as unknown as typeof handleSend);
-  const handleAdvanceStageRef = useRef<() => void>(() => {});
+  const pendingQuestionRef = useRef<QuestionData | null>(null);
+  const questionStackRef = useRef<QuestionData[]>([]);
   const projectCreatingRef = useRef(false);
   const codeSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const chatSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -637,7 +1258,6 @@ export function Create() {
 
   useEffect(() => {
     if (user) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- 这是异步数据加载的合法副作用
       loadUserProjects();
     }
   }, [user, loadUserProjects]);
@@ -646,6 +1266,8 @@ export function Create() {
   const restoreRef = useRef(false);
   /** 恢复后的场景标识（如 'generate_achievement' 表示需要 AI 引导生成成果卡） */
   const restoreSceneRef = useRef<string | undefined>(undefined);
+  /** 恢复时携带的额外上下文（如 stageId） */
+  const restoreSceneExtraRef = useRef<Record<string, unknown>>({});
   const consumeRestoreAutosaveGuard = useCallback((kind: 'code' | 'chat', projectId: string) => {
     const guard = restoreAutosaveGuardRef.current;
     if (guard.projectId !== projectId) {
@@ -673,8 +1295,18 @@ export function Create() {
 
     return true;
   }, []);
+  const buildWorkspaceSavePayload = useCallback((code: string, language: string, fileName: string) => {
+    const filesSnapshot = upsertWorkspaceFiles(projectFiles, fileName, code, language);
+    return {
+      code,
+      language,
+      filename: fileName,
+      files: filesSnapshot.length > 0 ? filesSnapshot : undefined,
+    };
+  }, [projectFiles]);
   const applyWorkspaceRestore = useCallback((payload: ProjectWorkspaceResponse) => {
     const { project, progress, workspace } = payload;
+    const wsFiles = (workspace as { files?: FileEntry[] }).files;
     if (codeSaveTimerRef.current) clearTimeout(codeSaveTimerRef.current);
     if (chatSaveTimerRef.current) clearTimeout(chatSaveTimerRef.current);
     restoreAutosaveGuardRef.current = {
@@ -691,17 +1323,139 @@ export function Create() {
       currentStage: progress.current_stage || project.current_stage || '',
       teachingMode: progress.teaching_mode || 'guided',
     }));
-    setEditorCode(workspace.code || DEFAULT_CODE);
+    // 优化代码展示逻辑：有代码则展示，无代码则保留默认提示
+    const rawCode = workspace.code || '';
+    const trimmedCode = rawCode.trim();
+    // 检测是否为 JSON/结构化数据（非源码），如果是则视为无代码
+    const isJsonLike = /^\s*[{[]/.test(trimmedCode) && trimmedCode.length > 10;
+    const hasRealCode = !isJsonLike && trimmedCode.length > 5;
+    if (hasRealCode) {
+      setEditorCode(rawCode);
+    } else if (isJsonLike) {
+      // 关键修复：workspace.code 已被污染为 JSON（早期 bug 导致 evaluation.json 等被存为 code）
+      // 主动清理：直接重置为默认代码，并尝试用 saveCode 把后端存为正常 code
+      console.warn('[restore] workspace.code 是 JSON 格式，疑似被污染，重置为默认代码');
+      setEditorCode(DEFAULT_CODE);
+      projectsApi.saveCode(project.id, {
+        code: DEFAULT_CODE,
+        language: workspace.language || 'python',
+        filename: workspace.filename || 'main.py',
+        files: wsFiles && wsFiles.length > 0 ? wsFiles : undefined,
+      }).catch(() => {});
+    } else {
+      // workspace.code 为空，尝试从 getCode 接口获取
+      projectsApi.getCode(project.id).then((codeRes) => {
+        if (codeRes.data?.has_code && codeRes.data.code) {
+          const fetched = (codeRes.data.code || '').trim();
+          const fetchedIsJson = /^\s*[{[]/.test(fetched) && fetched.length > 10;
+          if (fetchedIsJson) {
+            setEditorCode(DEFAULT_CODE);
+          } else {
+            setEditorCode(codeRes.data.code);
+            setEditorLanguage(toEditorLanguage(codeRes.data.language || 'python'));
+          }
+        } else {
+          setEditorCode(DEFAULT_CODE);
+        }
+      }).catch(() => {
+        setEditorCode(DEFAULT_CODE);
+      });
+    }
     setEditorLanguage(toEditorLanguage(workspace.language));
     setPreviewHtml(workspace.preview_html || '');
+    // 多文件支持
+    if (wsFiles && wsFiles.length > 0) {
+      setProjectFiles(wsFiles);
+      const mainFile = wsFiles.find(f => f.is_main) || wsFiles[0];
+      setActiveFileName(mainFile.name);
+    } else {
+      setProjectFiles([]);
+      setActiveFileName('main.py');
+    }
     setShowEditor(true);
     setEditorTab('code');
-    setMessages(normalizeWorkspaceMessages(workspace.chat_messages));
-    setPendingQuestion(null);
+    setRunStatus('idle');
+    const restoredMessages = normalizeWorkspaceMessages(workspace.chat_messages);
+    setMessages(restoredMessages);
+    clearQuestionFlow();
     setIsLoading(false);
     setShowChatHistory(true);
     setRestoreDone(true);
-  }, []);
+    // 恢复后：检查最后一条原始 assistant 消息是否含未答问题，若有则恢复 pendingQuestion
+    // 必须用原始未清理内容（已清理内容里的 option 标签已删除，无法解析）
+    if (Array.isArray(workspace.chat_messages) && workspace.chat_messages.length > 0) {
+      const lastRaw = workspace.chat_messages[workspace.chat_messages.length - 1];
+      if (lastRaw && lastRaw.role === 'assistant' && typeof lastRaw.content === 'string') {
+        const rawContent = lastRaw.content;
+        const parsed = parseQuestionFromText(rawContent);
+        if (parsed) showPendingQuestion(parsed);
+      }
+    }
+  }, [clearQuestionFlow, showPendingQuestion]);
+
+  useEffect(() => {
+    pendingQuestionRef.current = pendingQuestion;
+  }, [pendingQuestion]);
+
+  useEffect(() => {
+    questionStackRef.current = questionStack;
+  }, [questionStack]);
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- 该函数只重置本地问题流状态，依赖为空且由 ref 保证当前值同步
+  function clearQuestionFlow() {
+    questionStackRef.current = [];
+    pendingQuestionRef.current = null;
+    setQuestionStack([]);
+    setPendingQuestion(null);
+  }
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- 该函数参与多处流式回调，projectContext 读取需保持当前 render 语义
+  function showPendingQuestion(nextQuestion: QuestionData) {
+    if (isRedundantProjectNameQuestion(nextQuestion, projectContext)) {
+      console.warn('[question] 已过滤重复的项目名称提问:', nextQuestion.title);
+      return;
+    }
+    const statusOptionCount = nextQuestion.options.filter((option) => {
+      const text = `${option.label || ''} ${option.description || ''}`;
+      return /[\u2705\u274c\u2714\u2718\u274e\u2611\u2612\u26a0\u2757\u2753]/.test(text) ||
+        /\b(?:docs|src|assets|tests|reports|public|app|pages|components|backend|frontend)\//.test(text) ||
+        /\.(json|md|py|ts|tsx|js|html|css)\b/.test(text) ||
+        /（已补|已生成|缺失|已完成|未完成|待完成）/.test(text) ||
+        /\(已补|已生成|缺失|已完成|未完成|待完成\)/.test(text);
+    }).length;
+    if (nextQuestion.options.length > 0 && statusOptionCount / nextQuestion.options.length >= 0.5) {
+      console.warn('[question] 已过滤状态清单误解析的选项:', nextQuestion.title);
+      return;
+    }
+    setQuestionStack((prev) => {
+      const normalizedQuestion = normalizeQuestionProgress(nextQuestion, prev);
+      const current = prev[prev.length - 1] ?? null;
+      if (isSameQuestionData(current, normalizedQuestion)) {
+        pendingQuestionRef.current = current;
+        setPendingQuestion(current);
+        return prev;
+      }
+      pendingQuestionRef.current = normalizedQuestion;
+      setPendingQuestion(normalizedQuestion);
+      return [...prev, normalizedQuestion];
+    });
+  }
+
+  function handleQuestionBack() {
+    const stack = questionStackRef.current;
+    if (stack.length < 2) return;
+    const nextStack = stack.slice(0, -1);
+    const baseQuestion = nextStack[nextStack.length - 1] ?? null;
+    const previousQuestion = baseQuestion
+      ? normalizeQuestionProgress(baseQuestion, nextStack.slice(0, -1), stack)
+      : null;
+    questionStackRef.current = nextStack;
+    setQuestionStack(previousQuestion ? [...nextStack.slice(0, -1), previousQuestion] : nextStack);
+    pendingQuestionRef.current = previousQuestion;
+    setPendingQuestion(previousQuestion);
+    setInputValue('');
+    setIsLoading(false);
+  }
 
   useEffect(() => {
     if (restoreRef.current) return;
@@ -714,6 +1468,10 @@ export function Create() {
       console.log('[restore] 恢复数据:', { projectId: data.projectId, hasCode: !!data.code, msgCount: data.messages?.length, scene: data.scene });
       // 存储场景标识，待恢复完成后由 useEffect 触发对应动作
       restoreSceneRef.current = data.scene || undefined;
+      restoreSceneExtraRef.current = {
+        stage: data.stage,
+        currentStage: data.currentStage,
+      };
       if (data.projectId) {
         projectsApi.getWorkspace(data.projectId)
           .then((res) => {
@@ -740,7 +1498,7 @@ export function Create() {
             setShowEditor(true);
             setEditorTab('code');
             setMessages(normalizeWorkspaceMessages(Array.isArray(data.messages) ? data.messages : []));
-            setPendingQuestion(null);
+            clearQuestionFlow();
             setIsLoading(false);
             setShowChatHistory(true);
             setRestoreDone(true);
@@ -751,7 +1509,7 @@ export function Create() {
     }
   }, [applyWorkspaceRestore]);
 
-  useEffect(() => { const q = searchParams.get('q'); if (q && messages.length === 0) handleSendRef.current?.(q); }, [searchParams]);
+  useEffect(() => { const q = searchParams.get('q'); if (q && messages.length === 0) handleSendRef.current?.(q); }, [messages.length, searchParams]);
 
   /** 场景驱动：从 sessionStorage 恢复后，根据 scene 标识触发对应 AI 引导 */
   useEffect(() => {
@@ -764,10 +1522,40 @@ export function Create() {
       // 延迟确保 chat UI 已渲染完毕
       setTimeout(() => {
         handleSendRef.current?.(
-          '请帮我为当前项目生成一份成果档案卡。请根据项目的阶段文档（开题卡、设计方案、评估结果等）自动整理关键信息，生成一个完整的成果卡。如果某些信息缺失，请引导我补充。',
+          '请帮我为当前项目生成一份成果档案卡。请先读取项目阶段文档、评估结果和历史对话，整理成果卡所需字段；如果信息已经足够，请直接调用 achievement_card 工具创建或更新成果档案卡；只有在关键字段缺失时，才用 question 选项向我补充确认。',
+        );
+      }, 600);
+    } else if (scene === 'continue_stage') {
+      // 用户在 ProjectDetail 详情卡点了"让 AI 协助本阶段"
+      // 触发 AI 引导用户完成当前阶段
+      const stageLabelMap: Record<string, string> = {
+        stage_00_bootstrap: '第 1 阶段：准备阶段',
+        stage_01_brainstorm: '第 2 阶段：脑爆选题',
+        stage_02_brief: '第 3 阶段：开题立项',
+        stage_03_constraints: '第 4 阶段：范围裁剪',
+        stage_04_track: '第 5 阶段：技术轨道',
+        stage_05_design: '第 6 阶段：设计蓝图',
+        stage_06_step_plan: '第 7 阶段：分步计划',
+        stage_07_execute: '第 8 阶段：执行开发',
+        stage_08_evaluate: '第 9 阶段：评估展示',
+      };
+      const stageId = (restoreSceneExtraRef.current.stage as string | undefined)
+        || (restoreSceneExtraRef.current.currentStage as string | undefined);
+      const stageLabel = stageId ? stageLabelMap[stageId] || stageId : '当前阶段';
+      setTimeout(() => {
+        if (stageId === 'stage_08_evaluate') {
+          handleSendRef.current?.(
+            '我们继续完成【第 9 阶段：评估展示】。请先查看我当前的项目文档、验收内容和历史对话，判断评估材料是否已经足够；如果已经足够，请直接整理并调用 achievement_card 工具生成或更新成果档案卡；如果还缺关键信息，再明确告诉我缺什么，并用 question 选项让我补充。',
+          );
+          return;
+        }
+        handleSendRef.current?.(
+          `我们继续完成【${stageLabel}】。请先查看我当前的项目文档和进度，然后告诉我本阶段还差什么、按什么顺序补全。`,
         );
       }, 600);
     }
+    // 清理 extra（一次性）
+    restoreSceneExtraRef.current = {};
   }, [_restoreDone, projectContext.projectId]);
   useEffect(() => { if (messagesEndRef.current) messagesEndRef.current.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
   useEffect(() => { if (textareaRef.current) { textareaRef.current.style.height = 'auto'; textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 200) + 'px'; } }, [inputValue]);
@@ -778,12 +1566,12 @@ export function Create() {
     if (consumeRestoreAutosaveGuard('code', projectId)) return;
     if (codeSaveTimerRef.current) clearTimeout(codeSaveTimerRef.current);
     codeSaveTimerRef.current = setTimeout(() => {
-      projectsApi.saveCode(projectId, { code: editorCode, language: editorLanguage }).catch((error) => {
+      projectsApi.saveCode(projectId, buildWorkspaceSavePayload(editorCode, editorLanguage, activeFileName)).catch((error) => {
         console.error('[autosave:code] 保存失败:', error);
       });
     }, 2000);
     return () => { if (codeSaveTimerRef.current) clearTimeout(codeSaveTimerRef.current); };
-  }, [consumeRestoreAutosaveGuard, editorCode, projectContext.projectId, editorLanguage]);
+  }, [activeFileName, buildWorkspaceSavePayload, consumeRestoreAutosaveGuard, editorCode, projectContext.projectId, editorLanguage]);
 
   useEffect(() => {
     if (!projectContext.projectId || projectContext.projectId.startsWith('local-')) return;
@@ -871,10 +1659,10 @@ export function Create() {
     if (projectCreatingRef.current) return null;
     if (projectContext.projectId) {
       if (codeResult && !projectContext.projectId.startsWith('local-')) {
-        projectsApi.saveCode(projectContext.projectId, {
-          code: codeResult.code,
-          language: codeResult.language,
-        }).catch((error) => {
+        projectsApi.saveCode(
+          projectContext.projectId,
+          buildWorkspaceSavePayload(codeResult.code, codeResult.language, activeFileName),
+        ).catch((error) => {
           console.error('[ensureProjectCreated] 初始代码保存失败:', error);
         });
       }
@@ -897,10 +1685,10 @@ export function Create() {
         currentStage: createdProject.current_stage || '',
       }));
       if (codeResult) {
-        projectsApi.saveCode(createdProject.id, {
-          code: codeResult.code,
-          language: codeResult.language,
-        }).catch((error) => {
+        projectsApi.saveCode(
+          createdProject.id,
+          buildWorkspaceSavePayload(codeResult.code, codeResult.language, activeFileName),
+        ).catch((error) => {
           console.error('[ensureProjectCreated] 新项目代码保存失败:', error);
         });
       }
@@ -909,7 +1697,7 @@ export function Create() {
       projectCreatingRef.current = false;
       return null;
     }
-  }, [user, projectContext.projectId, createProjectViaAPI]);
+  }, [activeFileName, buildWorkspaceSavePayload, projectContext.projectId, projectContext.currentStage, projectContext.mode, projectContext.projectName, createProjectViaAPI]);
 
   const nextMessageId = () => { messageSeqRef.current += 1; return String(messageSeqRef.current); };
 
@@ -963,13 +1751,13 @@ export function Create() {
     setIsLoading(false);
     setActiveScene('开始项目');
     setShowChatHistory(false);
-    setPendingQuestion(null);
+    clearQuestionFlow();
     setShowEditor(false);
     setEditorCode(DEFAULT_CODE);
     setEditorLanguage('html');
     setPreviewHtml('');
     setEditorTab('code');
-  }, []);
+  }, [clearQuestionFlow]);
 
   const handleQuestionAnswer = useCallback((selectedIds: string[], customText?: string) => {
     const question = pendingQuestion;
@@ -985,6 +1773,7 @@ export function Create() {
     }
 
     const sendText = `[选择] ${question.title}\n回答：${answerText}`;
+    pendingQuestionRef.current = null;
     setPendingQuestion(null);
     setInputValue('');
     setIsLoading(false);
@@ -992,8 +1781,8 @@ export function Create() {
   }, [pendingQuestion]);
 
   const dismissQuestion = useCallback(() => {
-    setPendingQuestion(null);
-  }, []);
+    clearQuestionFlow();
+  }, [clearQuestionFlow]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -1023,8 +1812,9 @@ export function Create() {
     if (language === 'python' || language === 'py') {
       setRunningCode(true);
       try {
-        const result = await codeExecutionApi.execute(code, 'python');
+        const result = await codeExecutionApi.execute(code, 'python', projectFiles.length > 0 ? projectFiles : undefined);
         const data = result.data ?? { success: false, output: '', error: '执行结果为空' };
+        setRunStatus(data.success ? 'success' : 'error');
         // Streamlit 模式：直接 URL 预览
         if (data.mode === 'streamlit' && data.preview_url) {
           setRunResultUrl(data.preview_url);
@@ -1042,6 +1832,7 @@ export function Create() {
         setShowRunResultModal(true);
       } catch (error) {
         console.error('代码执行失败:', error);
+        setRunStatus('error');
         const errHtml = buildErrorHtml('连接服务器失败，请稍后重试');
         setRunResultUrl(null);
         setRunResultHtml(errHtml);
@@ -1052,6 +1843,7 @@ export function Create() {
       }
     } else {
       const html = buildHtmlFromCode(code, language);
+      setRunStatus('success');
       setRunResultUrl(null);
       setRunResultHtml(html);
       setPreviewHtml(html);
@@ -1059,14 +1851,15 @@ export function Create() {
       // HTML/JS 也弹出预览
       setShowRunResultModal(true);
     }
-  }, []);
+  }, [projectFiles]);
 
   const handleRunEditorCode = useCallback(async () => {
     if (editorLanguage === 'python' || editorLanguage === 'py') {
       setRunningCode(true);
       try {
-        const result = await codeExecutionApi.execute(editorCode, 'python');
+        const result = await codeExecutionApi.execute(editorCode, 'python', projectFiles.length > 0 ? projectFiles : undefined);
         const data = result.data ?? { success: false, output: '', error: '执行结果为空' };
+        setRunStatus(data.success ? 'success' : 'error');
         // Streamlit 模式：直接 URL 预览
         if (data.mode === 'streamlit' && data.preview_url) {
           setRunResultUrl(data.preview_url);
@@ -1084,6 +1877,7 @@ export function Create() {
         setShowRunResultModal(true);
       } catch (error) {
         console.error('代码执行失败:', error);
+        setRunStatus('error');
         const errHtml = buildErrorHtml('连接服务器失败，请稍后重试');
         setRunResultUrl(null);
         setRunResultHtml(errHtml);
@@ -1094,6 +1888,7 @@ export function Create() {
       }
     } else {
       const html = buildHtmlFromCode(editorCode, editorLanguage);
+      setRunStatus('success');
       setRunResultUrl(null);
       setRunResultHtml(html);
       setPreviewHtml(html);
@@ -1101,7 +1896,7 @@ export function Create() {
       // HTML/JS 也弹出预览
       setShowRunResultModal(true);
     }
-  }, [editorCode, editorLanguage]);
+  }, [editorCode, editorLanguage, projectFiles]);
 
   /** 拖拽分割线：调整聊天区与代码区的宽度比例 */
   const handleResizeStart = useCallback((e: React.MouseEvent) => {
@@ -1130,6 +1925,36 @@ export function Create() {
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
   }, [editorWidth]);
+
+  /** 选择文件加载到编辑器 */
+  const handleSelectFile = useCallback((file: FileEntry) => {
+    setProjectFiles((prev) => upsertWorkspaceFiles(prev, activeFileName, editorCode, editorLanguage));
+    if (file.content) {
+      setEditorCode(file.content);
+    }
+    setEditorLanguage(toEditorLanguage(file.language));
+    setActiveFileName(file.name);
+    setEditorTab('code');
+  }, [activeFileName, editorCode, editorLanguage]);
+
+  /** 导出项目 ZIP */
+  const handleExportZip = useCallback(async () => {
+    if (!projectContext.projectId) return;
+    try {
+      const res = await projectsApi.exportFile(projectContext.projectId, 'zip');
+      // 创建下载链接
+      const url = window.URL.createObjectURL(res.blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = res.fileName || `${projectContext.projectName || '项目'}_资料包.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('[export] 导出失败:', error);
+    }
+  }, [projectContext.projectId, projectContext.projectName]);
 
   /** ESC 键关闭运行结果模态框 */
   useEffect(() => {
@@ -1210,7 +2035,10 @@ export function Create() {
       else if (extractedCode.includes('<html') || extractedCode.includes('<div') || extractedCode.includes('<style')) extractedLang = 'html';
     }
 
-    return extractedCode.length > 10 ? { code: extractedCode, language: extractedLang || 'text' } : null;
+    // 关键修复：DSML 提取的代码也必须经过可执行语言校验
+    // 避免 evaluation.json 等结构化数据被当成可运行代码
+    if (!extractedLang || !isExecutableCodeLanguage(extractedLang)) return null;
+    return extractedCode.length > 10 ? { code: extractedCode, language: extractedLang } : null;
   }, []);
 
   const extractCodeFromResponse = useCallback((content: string): { code: string; language: string } | null => {
@@ -1221,8 +2049,24 @@ export function Create() {
     while ((match = codeBlockRegex.exec(content)) !== null) {
       const language = normalizeCodeLanguage(match[1] || 'text');
       const code = match[2].trim();
-      if (code.length > 10) {
+      // 关键修复：只保留可执行语言（python/javascript/typescript/html/css）
+      // 避免把 ```json (evaluation.json)、```markdown 等阶段文档/配置数据当成代码塞进编辑器
+      if (code.length > 10 && isExecutableCodeLanguage(language)) {
         matches.push({ code, language });
+      }
+    }
+    // 兜底：如果未找到完整代码块，尝试解析"未闭合"的代码块（流式中断常见）
+    // 例如：```python\nprint('hi')<EOF>  ← 流式截断没有结束 ```
+    if (matches.length === 0) {
+      const openBlockRegex = /```(\w+)?\n([\s\S]+)$/;
+      const openMatch = content.match(openBlockRegex);
+      if (openMatch) {
+        const language = normalizeCodeLanguage(openMatch[1] || 'text');
+        // 移除末尾可能的孤悬残片（如 < / </）
+        const code = openMatch[2].replace(/[\s\n]*<\/?[\s\S]{0,20}$/u, '').trim();
+        if (code.length > 10 && isExecutableCodeLanguage(language)) {
+          matches.push({ code, language });
+        }
       }
     }
     if (matches.length === 0) {
@@ -1258,7 +2102,7 @@ export function Create() {
       }
       return current.code.length > best.code.length ? current : best;
     }, null as { code: string; language: string } | null);
-  }, []);
+  }, [extractCodeFromDsmlTags]);
 
   const handleAdvanceStage = useCallback(async () => {
     const activeProject = await ensureActiveProjectForAdvance();
@@ -1357,17 +2201,28 @@ export function Create() {
     const historyMessages = buildStreamHistory(messages);
     type StreamedProjectInfo = { project_id: string; project_name: string; current_stage?: string };
     const streamedProjectState: { current?: StreamedProjectInfo } = {};
+    let streamedCodeGenerated: CodeGeneratedEvent | null = null;
     let effectiveProjectId = requestOverrides?.projectId ?? projectContext.projectId ?? undefined;
     let effectiveContext: Record<string, unknown> = {
       page: 'create',
       scene: sceneOverride || activeScene,
       authenticated: !!user,
       project_id: effectiveProjectId,
+      project_name: projectContext.projectName,
       teaching_mode: projectContext.teachingMode,
       current_stage: projectContext.currentStage,
       ...(requestOverrides?.context || {}),
     };
-    if (directCodingIntent) {
+    // 与 stem-pbl-guide Skill 状态机严格对齐：仅 stage_05_design / stage_07_execute / stage_08_evaluate 允许代码生成。
+    // stage_03_constraints 等阶段即使用户说"代码为空 / 没代码"也不进入 force_code_generation，
+    // 由后端系统提示词引导回当前阶段任务。
+    const ALLOWED_CODE_STAGES = ['stage_05_design', 'stage_07_execute', 'stage_08_evaluate'];
+    const stageAllowsCode = ALLOWED_CODE_STAGES.includes(String(effectiveContext.current_stage || ''));
+    const strongCodingIntent = hasStrongCodingIntent(message);
+    const shouldForceCodeGeneration = strongCodingIntent || (stageAllowsCode && (
+      directCodingIntent || effectiveContext.current_stage === 'stage_07_execute'
+    ));
+    if (shouldForceCodeGeneration) {
       effectiveContext = {
         ...effectiveContext,
         force_code_generation: true,
@@ -1410,10 +2265,29 @@ export function Create() {
       };
     }
 
+    if (strongCodingIntent && effectiveProjectId) {
+      const fallback = buildFallbackCode(requestedOutputLanguage);
+      handleWriteCodeToEditor(fallback.code, fallback.language);
+      setActiveFileName(fallback.filename);
+      setProjectFiles([{ name: fallback.filename, language: fallback.language, content: fallback.code, is_main: true }]);
+      setShowEditor(true);
+      setEditorTab('code');
+      await projectsApi.saveCode(effectiveProjectId, buildWorkspaceSavePayload(fallback.code, fallback.language, fallback.filename));
+    }
+
     const userMsg: Message = { id: nextMessageId(), role: 'user', content: message };
     setMessages((prev) => [...prev, userMsg]);
     setInputValue('');
     setShowChatHistory(true);
+    const isStructuredQuestionAnswer = /^\[选择\]\s/.test(message);
+    // 普通新对话需要清空旧 question 流；但 QuestionCard 自动提交的结构化回答必须保留题目栈，
+    // 否则第三问虽然能显示“上一步”，点击后也回不到第二问。
+    if (!isStructuredQuestionAnswer) {
+      clearQuestionFlow();
+    } else {
+      pendingQuestionRef.current = null;
+      setPendingQuestion(null);
+    }
     setIsLoading(true);
     let rawAssistantContent = '';
     let assistantContent = '';
@@ -1421,6 +2295,8 @@ export function Create() {
     let receivedContentUpdate = false;
     // 保存 content_update 之前累积的最大可见内容，防止被清空
     let maxVisibleContent = '';
+    // 追踪最近一次的未清理累积内容（用于 parseQuestionFromText 解析 option 标签）
+    let lastRawAccumulated = '';
     setMessages((prev) => [...prev, { id: nextMessageId(), role: 'assistant', content: '' }]);
 
     try {
@@ -1478,10 +2354,46 @@ export function Create() {
               currentStage: data.current_stage || prev.currentStage,
             }));
           },
+          onCodeGenerated: (data) => {
+            if (!data.code || data.code.trim().length <= 10) return;
+            streamedCodeGenerated = data;
+            handleWriteCodeToEditor(data.code, data.language || 'html');
+            if (data.filename) setActiveFileName(data.filename);
+            if (Array.isArray(data.files) && data.files.length > 0) {
+              setProjectFiles(data.files.map((file) => ({
+                name: file.name,
+                language: file.language,
+                content: file.content,
+                is_main: file.is_main === true,
+              })));
+            }
+            if (data.project_id) {
+              effectiveProjectId = data.project_id;
+              setProjectContext(prev => ({
+                ...prev,
+                projectId: data.project_id || prev.projectId,
+              }));
+            }
+            setShowEditor(true);
+            setEditorTab('code');
+          },
+          onCodeGenerationFailed: (data) => {
+            console.warn('[handleSend] 服务端代码生成失败:', data.reason, data.message);
+          },
           onToolCall: (data) => {
             if (data.tool_name === 'project_creator' && data.success) {
               setShowEditor(true);
               setEditorTab('code');
+            }
+            if (data.tool_name === 'achievement_card' && data.success) {
+              const toolMessage = typeof data.data === 'object' && data.data && 'message' in data.data
+                ? String((data.data as { message?: unknown }).message || '')
+                : '';
+              const content = toolMessage || '成果档案卡已生成，你可以回到项目详情或成果卡页面查看。';
+              setMessages((prev) => [
+                ...prev,
+                { id: nextMessageId(), role: 'assistant', content },
+              ]);
             }
           },
           onStageChanged: (data) => {
@@ -1492,11 +2404,12 @@ export function Create() {
           },
           onQuestion: (data) => {
             if (!requestOverrides?.suppressQuestionCard) {
-              setPendingQuestion(data);
+              showPendingQuestion(data);
             }
           },
           onContentUpdate: (dedupedContent) => {
             receivedContentUpdate = true;
+            lastRawAccumulated = dedupedContent;
             const cleanedDeduped = cleanAssistantMessageContent(dedupedContent);
             // 智能合并：只有当 content_update 的内容比当前累积的内容更有价值时才使用
             // 防止 content_update 发送纯工具标记（清理后变空）导致可见内容被清空
@@ -1518,19 +2431,41 @@ export function Create() {
               }
               return updated;
             });
-            if (!requestOverrides?.suppressQuestionCard && !pendingQuestion) {
-              const fallback = parseQuestionFromText(assistantContent || maxVisibleContent);
-              if (fallback) setPendingQuestion(fallback);
+            if (!requestOverrides?.suppressQuestionCard && !pendingQuestionRef.current) {
+              // 关键修复：必须用**未清理的 dedupedContent** 解析 question，
+              // 因为 assistantContent（清理后）已经删除了 option 标签
+              const fallback = parseQuestionFromText(dedupedContent);
+              if (fallback) {
+                showPendingQuestion(fallback);
+              }
+            }
+          },
+          onEnd: (finalContent) => {
+            // 流末兜底：服务端最终事件抵达时，立即尝试代码提取并写入编辑器
+            // 这是修复"AI 说生成了代码但编辑器为空"的关键路径
+            try {
+              const finalRaw = finalContent || lastRawAccumulated || rawAssistantContent;
+              if (!finalRaw) return;
+              const codeResult = extractCodeFromResponse(finalRaw);
+              if (codeResult && codeResult.code.trim().length > 10) {
+                console.log('[handleSend][onEnd] 流末兜底：提取到代码', codeResult.language, codeResult.code.length, '字符');
+                handleWriteCodeToEditor(codeResult.code, codeResult.language);
+                setShowEditor(true);
+              } else {
+                console.warn('[handleSend][onEnd] 流末兜底：未从最终内容中提取到代码');
+              }
+            } catch (err) {
+              console.error('[handleSend][onEnd] 流末兜底执行失败', err);
             }
           },
         },
       );
 
-      // 最终内容：优先使用 streamResult.content，fallback 到 token 累积的内容，再 fallback 到 maxVisibleContent
-      const rawFinal = streamResult.content || assistantContent || rawAssistantContent;
+      // 最终内容以服务端 final/content_update 的清理结果为准，避免把流式中途的 UUID/Skill 等脏片段
+      // 因为“最长可见内容”策略重新带回聊天气泡。
+      const rawFinal = streamResult.content || lastRawAccumulated || rawAssistantContent || assistantContent;
       const finalCleaned = cleanAssistantMessageContent(rawFinal);
-      // 如果最终清理后的内容比之前追踪的最大可见内容还短，使用较长的那个
-      assistantContent = finalCleaned.length >= maxVisibleContent.length ? finalCleaned : maxVisibleContent;
+      assistantContent = finalCleaned || maxVisibleContent;
       if (receivedContentUpdate && assistantContent.length === 0 && maxVisibleContent.length > 0) {
         console.warn('[handleSend] 最终内容为空但存在历史可见内容，恢复历史内容');
         assistantContent = maxVisibleContent;
@@ -1544,25 +2479,97 @@ export function Create() {
         return updated;
       });
 
-      if (!requestOverrides?.suppressQuestionCard && !pendingQuestion) {
-        const finalFallback = parseQuestionFromText(assistantContent);
-        if (finalFallback) setPendingQuestion(finalFallback);
+      if (!requestOverrides?.suppressQuestionCard && !pendingQuestionRef.current) {
+        // 关键修复：必须用**未清理的累积内容**解析 question
+        // 优先用 lastRawAccumulated（onContentUpdate 累积），fallback 到 rawFinal
+        const finalFallback = parseQuestionFromText(lastRawAccumulated || rawFinal);
+        if (finalFallback) {
+          showPendingQuestion(finalFallback);
+        }
       }
 
       // 代码提取必须基于原始内容（rawFinal），因为代码可能被包裹在 DSML 标签中
       // 清理后的内容（assistantContent）已移除 DSML 标签，会导致代码丢失
-      const codeResult = extractCodeFromResponse(rawFinal);
+      const codeResult = streamedCodeGenerated ? null : extractCodeFromResponse(rawFinal);
       if (codeResult) {
         handleWriteCodeToEditor(codeResult.code, codeResult.language);
         if (effectiveProjectId) {
-          await projectsApi.saveCode(effectiveProjectId, {
-            code: codeResult.code,
-            language: codeResult.language,
-          });
+          await projectsApi.saveCode(
+            effectiveProjectId,
+            buildWorkspaceSavePayload(codeResult.code, codeResult.language, activeFileName),
+          );
         } else {
           await ensureProjectCreated(message, codeResult);
         }
         setShowEditor(true);
+      } else if (!streamedCodeGenerated) {
+        let restoredFromWorkspace = false;
+        let workspaceProjectId = effectiveProjectId;
+        if (!workspaceProjectId && user) {
+          try {
+            const projectListRes = await projectsApi.list({ page: 1, page_size: 1 });
+            workspaceProjectId = projectListRes.data?.items?.[0]?.id;
+          } catch (error) {
+            console.warn('[handleSend] 获取最近项目失败:', error);
+          }
+        }
+        if (workspaceProjectId) {
+          try {
+            const workspaceRes = await projectsApi.getWorkspace(workspaceProjectId);
+            const workspace = workspaceRes.data?.workspace;
+            const workspaceCode = workspace?.code || '';
+            const isPlaceholder = workspaceCode.includes('在这里查看或修改 AI 生成的代码');
+            let restoredCode = workspaceCode;
+            let restoredLanguage = workspace?.language || 'html';
+            let restoredFilename = workspace?.filename || (restoredLanguage === 'python' ? 'main.py' : 'index.html');
+            let restoredFiles = workspace?.files;
+            if ((workspaceCode.trim().length <= 80 || isPlaceholder) && shouldForceCodeGeneration) {
+              const fallback = buildFallbackCode(requestedOutputLanguage);
+              restoredCode = fallback.code;
+              restoredLanguage = fallback.language;
+              restoredFilename = fallback.filename;
+              restoredFiles = [{ name: fallback.filename, language: fallback.language, content: fallback.code, is_main: true }];
+              await projectsApi.saveCode(workspaceProjectId, buildWorkspaceSavePayload(fallback.code, fallback.language, fallback.filename));
+            }
+            if (restoredCode.trim().length > 80 && !restoredCode.includes('在这里查看或修改 AI 生成的代码')) {
+              handleWriteCodeToEditor(restoredCode, restoredLanguage);
+              if (restoredFilename) setActiveFileName(restoredFilename);
+              if (Array.isArray(restoredFiles) && restoredFiles.length > 0) {
+                setProjectFiles(restoredFiles.map((file) => ({
+                  name: file.name,
+                  language: file.language,
+                  content: file.content,
+                  is_main: file.is_main === true,
+                })));
+              }
+              setShowEditor(true);
+              setEditorTab('code');
+              restoredFromWorkspace = true;
+            }
+          } catch (error) {
+            console.warn('[handleSend] 工作区代码回读失败:', error);
+          }
+        }
+        if (restoredFromWorkspace) {
+          // 后端已经通过工具或兜底写入代码，本轮不再提示重试。
+        } else {
+        // 兜底提示：在编码阶段（stage_07_execute）但未提取到代码块时，给出明确反馈
+        // 避免用户看到"已生成代码"的叙述但编辑器仍是空的
+        const isExecuteStage = typeof effectiveContext.current_stage === 'string'
+          && effectiveContext.current_stage === 'stage_07_execute';
+        const forcedCode = (effectiveContext as Record<string, unknown>).force_code_generation === true;
+        if (isExecuteStage || forcedCode) {
+          console.warn('[handleSend] 编码阶段未提取到代码，提示用户重试');
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: nextMessageId(),
+              role: 'assistant',
+              content: 'AI 已尝试生成代码，但本轮未输出可写入编辑器的代码块（可能因流式输出被中途截断）。请再发送一次"请直接给出完整可运行代码"以重试。',
+            },
+          ]);
+        }
+        }
       }
 
       let fallbackProject: Awaited<ReturnType<typeof ensureProjectCreated>> = null;
@@ -1616,12 +2623,12 @@ export function Create() {
   useEffect(() => {
     function onMessage(e: MessageEvent) {
       if (e.data && e.data.type === 'code-error' && e.data.msg) {
-        handleSend(`我的代码运行出错了，错误信息是：${e.data.msg}\n\n请帮我修复这个错误。`);
+        handleSendRef.current?.(`我的代码运行出错了，错误信息是：${e.data.msg}\n\n请帮我修复这个错误。`);
       }
     }
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
-  }, [handleSend]);
+  }, []);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
@@ -1639,7 +2646,7 @@ export function Create() {
   };
 
   return (
-    <div className="h-[calc(100vh-88px)] flex">
+    <div className="h-[calc(100vh-56px)] flex">
       <div className="w-48 flex-shrink-0 space-y-2">
         <Card className="p-0 overflow-hidden">
           <div className="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
@@ -1702,7 +2709,7 @@ export function Create() {
           )}
           <div className="p-2 space-y-1 max-h-[200px] overflow-y-auto">
             {userProjects.length > 0 && userProjects.map((proj) => (
-              <div key={proj.id} className={`group rounded-lg transition-colors ${
+              <div key={proj.id} data-project-id={proj.id} className={`group rounded-lg transition-colors ${
                 projectContext.projectId === proj.id ? 'bg-teal-50 border border-teal-200' : ''
               }`}>
                 {editingProjectId === proj.id ? (
@@ -1745,7 +2752,7 @@ export function Create() {
                             setShowEditor(true);
                             setEditorTab('code');
                             setMessages([]);
-                            setPendingQuestion(null);
+                            clearQuestionFlow();
                             setIsLoading(false);
                             setShowChatHistory(true);
                           });
@@ -1881,12 +2888,36 @@ export function Create() {
 
       <div className="flex-1 flex flex-col min-w-0">
         <Card className="flex-1 flex flex-col p-0 overflow-hidden border-gray-200 shadow-sm">
+          {/* 聊天区顶部工具栏：项目文件面板入口 */}
+          {projectContext.projectId && (
+            <div className="flex items-center gap-1 px-3 py-1.5 bg-gray-50 border-b border-gray-100">
+              <button
+                onClick={() => setShowFilesPanel(!showFilesPanel)}
+                className={`flex items-center gap-1 px-2 py-1 rounded text-[11px] transition-colors ${
+                  showFilesPanel ? 'bg-teal-100 text-teal-700 font-medium' : 'text-gray-500 hover:bg-gray-200'
+                }`}
+                title={showFilesPanel ? '收起项目资源' : '查看项目资源'}
+              >
+                <FolderOpen className="w-3.5 h-3.5" />
+                {showFilesPanel ? '资源' : '项目资源'}
+              </button>
+              <span className="text-[10px] text-gray-300">|</span>
+              <span className="text-[10px] text-gray-400 truncate">{projectContext.projectName}</span>
+            </div>
+          )}
           {projectContext.mode && showChatHistory && <StageProgressBar projectContext={projectContext} />}
 
           {showChatHistory ? (
             <div className="flex-1 overflow-y-auto">
               <div className="p-4 space-y-3 bg-white">
-                {messages.map((msg) => (
+                {messages.map((msg, msgIdx) => {
+                  // 当前问题：仅最后一条 assistant 消息且其后无 user 回复
+                  const isLastAssistant = msg.role === 'assistant' &&
+                    msgIdx === messages.length - 1;
+                  const hasUserReply = msgIdx < messages.length - 1 &&
+                    messages.slice(msgIdx + 1).some(m => m.role === 'user');
+                  const isCurrentQuestion = isLastAssistant && !hasUserReply;
+                  return (
                   <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                     <div className={`max-w-[85%] rounded-2xl px-4 py-2.5 ${
                       msg.role === 'user' ? 'bg-teal-600 text-white rounded-br-sm' : 'bg-gray-50 text-gray-800 rounded-bl-sm border border-gray-100'
@@ -1898,6 +2929,7 @@ export function Create() {
                       {msg.role === 'assistant' ? (
                         <EnhancedMarkdownText
                           content={msg.content}
+                          isCurrentQuestion={isCurrentQuestion}
                           projectId={projectContext.projectId?.startsWith('local-') ? null : projectContext.projectId}
                           onWriteCode={handleWriteCodeToEditor}
                           onRunCode={handleRunCode}
@@ -1907,7 +2939,8 @@ export function Create() {
                       )}
                     </div>
                   </div>
-                ))}
+                  );
+                })}
                 {isLoading && (
                   <div className="flex justify-start">
                     <div className="bg-gray-50 rounded-2xl rounded-bl-sm px-4 py-3 border border-gray-100 flex items-center gap-2">
@@ -1922,6 +2955,7 @@ export function Create() {
                     data={pendingQuestion}
                     onAnswer={handleQuestionAnswer}
                     onCancel={dismissQuestion}
+                    onBack={handleQuestionBack}
                     onDismiss={dismissQuestion}
                   />
                 )}
@@ -1981,6 +3015,24 @@ export function Create() {
         </Card>
       </div>
 
+      {/* 项目文件面板（可折叠） */}
+      {showFilesPanel && projectContext.projectId && (
+        <div className="flex-shrink-0 h-full" style={{ width: 220 }}>
+          <ProjectFilesPanel
+            projectId={projectContext.projectId}
+            projectName={projectContext.projectName}
+            projectMode={projectContext.mode || 'light'}
+            currentStage={projectContext.currentStage}
+            files={projectFiles}
+            activeFileName={activeFileName}
+            chatMessages={messages}
+            onSelectFile={handleSelectFile}
+            onExportZip={handleExportZip}
+            onClose={() => setShowFilesPanel(false)}
+          />
+        </div>
+      )}
+
       {/* 拖拽分割线：仅在编辑器展开时显示 */}
       {showEditor && (
         <div
@@ -1992,20 +3044,41 @@ export function Create() {
 
       {/* 代码编辑器区 */}
       <div
-        className={`flex-shrink-0 transition-all duration-300 ${showEditor ? 'h-full' : 'w-10'}`}
-        style={showEditor ? { width: editorWidth, display: 'grid', gridTemplateRows: 'auto 1fr' } : undefined}
+        className={`flex-shrink-0 transition-all duration-300 self-stretch ${showEditor ? '' : 'w-10'}`}
+        style={showEditor ? { width: editorWidth, height: '100%', display: 'grid', gridTemplateRows: 'auto 1fr' } : undefined}
       >
         {showEditor ? (
           <>
             {/* 工具栏 - grid auto 行，高度由内容决定，Monaco 无法影响 */}
             <div className="flex items-center justify-between px-3 py-2 border-b border-gray-100 bg-gray-100 rounded-t-xl border-x border-t border-gray-200">
               <div className="flex items-center gap-2">
+                {/* 项目文件面板切换 */}
+                {projectContext.projectId && (
+                  <button
+                    onClick={() => setShowFilesPanel(!showFilesPanel)}
+                    className={`p-1 rounded transition-colors ${showFilesPanel ? 'bg-teal-100 text-teal-600' : 'text-gray-400 hover:bg-gray-200'}`}
+                    title="项目资源"
+                  >
+                    <PanelLeft className="w-3.5 h-3.5" />
+                  </button>
+                )}
                 <button onClick={() => setEditorTab('code')} className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors ${editorTab === 'code' ? 'bg-gray-700 text-white' : 'text-gray-500 hover:bg-gray-200'}`}>
                   <Terminal className="w-3 h-3" /> 代码
                 </button>
                 <button onClick={() => setEditorTab('preview')} className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors ${editorTab === 'preview' ? 'bg-gray-700 text-white' : 'text-gray-500 hover:bg-gray-200'}`}>
                   <Eye className="w-3 h-3" /> 预览
                 </button>
+                {/* 运行状态徽章 */}
+                {runStatus === 'success' && (
+                  <span className="flex items-center gap-0.5 text-[10px] text-green-600 bg-green-50 px-1.5 py-0.5 rounded" title="上次运行成功">
+                    <span className="w-1.5 h-1.5 bg-green-500 rounded-full" /> 通过
+                  </span>
+                )}
+                {runStatus === 'error' && (
+                  <span className="flex items-center gap-0.5 text-[10px] text-red-600 bg-red-50 px-1.5 py-0.5 rounded" title="上次运行失败">
+                    <span className="w-1.5 h-1.5 bg-red-500 rounded-full" /> 有错误
+                  </span>
+                )}
               </div>
               <div className="flex items-center gap-1">
                 <select value={editorLanguage} onChange={(e) => setEditorLanguage(e.target.value)}
@@ -2025,7 +3098,6 @@ export function Create() {
                 {editorTab === 'preview' && previewHtml && (
                   <button
                     onClick={() => {
-                      // 找到当前预览的 iframe 并请求全屏
                       const iframe = document.querySelector('iframe[title="运行结果"]') as HTMLIFrameElement | null;
                       const target = iframe?.contentDocument?.documentElement;
                       if (target?.requestFullscreen) {
@@ -2045,8 +3117,8 @@ export function Create() {
                 </button>
               </div>
             </div>
-            {/* 内容区 - grid 1fr 行，填满剩余空间，与工具栏行完全独立 */}
-            <div className={`min-h-[500px] overflow-hidden ${editorTab === 'code' ? 'bg-[#1e1e1e]' : 'bg-white'} rounded-b-xl border-x border-b border-gray-200`}>
+            {/* 内容区 - flex-1 填满剩余空间 */}
+            <div className={`flex-1 min-h-0 ${editorTab === 'code' ? 'bg-[#1e1e1e]' : 'bg-white'} rounded-b-xl border-x border-b border-gray-200 overflow-hidden`}>
               {editorTab === 'code' ? (
                 <CodeEditor code={editorCode} language={editorLanguage} onChange={(v) => setEditorCode(v)} />
               ) : (

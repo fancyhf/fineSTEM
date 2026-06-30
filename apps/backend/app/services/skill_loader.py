@@ -18,9 +18,9 @@ import json
 import os
 import re
 from dataclasses import dataclass, field
-from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from app.core.time_utils import utc_now_millis_z
 
 
 @dataclass
@@ -148,12 +148,11 @@ class SkillLoader:
         """
         stages = {}
         
-        pattern = r'## 阶段\s+(\d+):\s*(.+?)\s*\(stage_(\d+)_[^\)]+\)\s*\n(.*?)(?=\n## 阶段|\n## 导航|\n## 启动指令|\Z)'
+        pattern = r'## 阶段\s+(\d+):\s*(.+?)\s*\((stage_\d+_[^\)]+)\)\s*\n(.*?)(?=\n## 阶段|\n## 导航|\n## 启动指令|\Z)'
         
         matches = re.findall(pattern, content, re.DOTALL)
         
-        for stage_num, stage_name, stage_id_suffix, stage_content in matches:
-            stage_id = f"stage_{stage_num.zfill(2)}_{stage_id_suffix}"
+        for stage_num, stage_name, stage_id, stage_content in matches:
             
             triggers = self._extract_triggers_from_content(stage_content, stage_name)
             artifacts = self._extract_output_artifacts(stage_content)
@@ -308,7 +307,7 @@ class SkillLoader:
                 entrypoint=f"{skill_path.parent.name}/SKILL.md",
                 tags=frontmatter.get('tags', ['pbl']),
                 file_path=str(skill_path),
-                loaded_at=datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S.fffZ'),
+                loaded_at=utc_now_millis_z(),
                 content_hash=content_hash,
             )
             

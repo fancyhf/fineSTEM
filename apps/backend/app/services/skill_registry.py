@@ -140,8 +140,11 @@ class DynamicSkillDefinition:
             elif "execute" in stage_id or "07" in stage_id:
                 base_tools.append("code_runner")
                 base_tools.append("evidence_saver")
+            elif "evaluate" in stage_id or "08" in stage_id:
+                base_tools.append("resource_searcher")
+                base_tools.append("achievement_card")
         
-        return base_tools
+        return list(dict.fromkeys(base_tools))
     
     def to_dict(self) -> Dict[str, Any]:
         """序列化为字典（用于 API 响应）"""

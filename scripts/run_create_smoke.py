@@ -39,9 +39,14 @@ BACKEND_SMOKE_TARGETS = [
 
 FRONTEND_SMOKE_TARGETS = [
     "specs/create-history-restore.spec.ts",
+    "specs/create-multifile-restore.spec.ts",
+    "specs/create-question-options-restore.spec.ts",
     "specs/create-guided-pbl-mainline.spec.ts",
     "specs/create-development-preview.spec.ts",
     "specs/project-detail-final-report.spec.ts",
+    "specs/project-detail-achievement-draft.spec.ts",
+    "specs/project-detail-generate-achievement.spec.ts",
+    "specs/project-detail-stage08-hydration.spec.ts",
     "specs/create-teaching-mode.spec.ts",
 ]
 

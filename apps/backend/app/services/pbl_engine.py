@@ -221,7 +221,22 @@ def save_artifact(project_id: str, artifact_name: str, content: str, db) -> dict
     data = _ensure_dict(state.standard_step_data)
     data[blob_key] = content
     data["last_updated_at"] = datetime.now(timezone.utc).isoformat()
-    db.update_skill_state(project_id, {"standard_step_data": data})
+
+    updates: dict[str, Any] = {"standard_step_data": data}
+    stages = _ensure_dict(getattr(state, "stages", {}))
+    stage_id = next((stage for stage, artifact in ARTIFACT_FOR_STAGE.items() if artifact == artifact_name), None)
+    if stage_id:
+        stage_record = stages.get(stage_id) if isinstance(stages.get(stage_id), dict) else {}
+        stage_record.update({
+            "status": "completed",
+            "schema_valid": True,
+            "rubric_passed": True,
+            "last_updated_at": data["last_updated_at"],
+        })
+        stages[stage_id] = stage_record
+        updates["stages"] = stages
+
+    db.update_skill_state(project_id, updates)
 
     disk_path = save_artifact_to_disk(project_id, artifact_name, content, db)
 

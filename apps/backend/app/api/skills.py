@@ -5,7 +5,6 @@ Skill 管理 API 路由（v2 - 动态加载版）
 维护者：AI Agent
 """
 
-from datetime import datetime
 from typing import List
 import uuid
 
@@ -21,6 +20,7 @@ from app.schemas.skills import (
     SkillRecord,
     SkillToggleRequest,
 )
+from app.core.time_utils import utc_now
 from app.services.skill_registry import skill_registry_v2
 
 
@@ -64,7 +64,7 @@ async def install_skill(
     if existing:
         existing.status = "enabled"
         existing.config = req.config
-        existing.updated_at = datetime.utcnow()
+        existing.updated_at = utc_now()
         db.upsert_installed_skill(current_user.id, existing)
         return ApiResponse(data=existing, message="已重新启用")
 
@@ -75,9 +75,9 @@ async def install_skill(
         status="enabled",
         manifest=manifest,
         config=req.config,
-        install_date=datetime.utcnow(),
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow(),
+        install_date=utc_now(),
+        created_at=utc_now(),
+        updated_at=utc_now(),
     )
     db.upsert_installed_skill(current_user.id, record)
     return ApiResponse(data=record, message="安装成功")
@@ -127,18 +127,18 @@ async def toggle_skill(
     req: SkillToggleRequest,
     current_user: UserResponse = Depends(get_current_user),
 ):
-    record = db.get_installed_skill(skill_id, current_user.id)
+    record = db.get_installed_skill(current_user.id, skill_id)
     if not record:
         raise HTTPException(status_code=404, detail="Skill 未安装")
     record.status = "enabled" if req.enabled else "disabled"
-    record.updated_at = datetime.utcnow()
+    record.updated_at = utc_now()
     db.upsert_installed_skill(current_user.id, record)
     return ApiResponse(data=record, message="更新成功")
 
 
 @router.delete("/{skill_id}")
 async def uninstall_skill(skill_id: str, current_user: UserResponse = Depends(get_current_user)):
-    ok = db.uninstall_skill(skill_id, current_user.id)
+    ok = db.remove_installed_skill(current_user.id, skill_id)
     if not ok:
         raise HTTPException(status_code=404, detail="Skill 未卸载")
     return ApiResponse(data=True, message="卸载成功")

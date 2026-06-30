@@ -6,7 +6,7 @@
 links: .trae/documents/api-specs/v1/spec.json
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List, Literal
 from datetime import datetime
 from .common import AuditFields, PublishFields
@@ -55,8 +55,7 @@ class AchievementCard(AchievementCardBase, AuditFields, PublishFields):
     author_id: str = Field(description="作者 ID")
     share_token: Optional[str] = Field(None, description="私有分享令牌")
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ShareTokenResponse(BaseModel):

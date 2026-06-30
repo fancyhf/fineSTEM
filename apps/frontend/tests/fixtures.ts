@@ -53,8 +53,8 @@ async function registerUser(page: Page, suffix: string): Promise<TestUser> {
 }
 
 async function loginViaUI(page: Page, email: string, password: string) {
-  await page.goto('/login');
-  await page.waitForLoadState('networkidle');
+  await page.goto('/login', { waitUntil: 'domcontentloaded', timeout: 30000 });
+  await expect(page.locator('input[type="email"]')).toBeVisible({ timeout: 15000 });
   await page.fill('input[type="email"]', email);
   await page.fill('input[type="password"]', password);
   await page.click('button[type="submit"]');
@@ -65,9 +65,9 @@ export const test = base.extend<{
   testUser: TestUser;
   authenticatedPage: Page;
 }>({
-  browser: async ({ browser, playwright }, use) => {
+  browser: async ({ browser, playwright }, fixtureUse) => {
     if (!systemChromiumExecutablePath) {
-      await use(browser);
+      await fixtureUse(browser);
       return;
     }
 
@@ -77,18 +77,18 @@ export const test = base.extend<{
     });
 
     try {
-      await use(launchedBrowser);
+      await fixtureUse(launchedBrowser);
     } finally {
       await launchedBrowser.close();
     }
   },
-  testUser: async ({ page }, use) => {
+  testUser: async ({ page }, fixtureUse) => {
     const user = await registerUser(page, 'auto');
-    await use(user);
+    await fixtureUse(user);
   },
-  authenticatedPage: async ({ page, testUser }, use) => {
+  authenticatedPage: async ({ page, testUser }, fixtureUse) => {
     await loginViaUI(page, testUser.email, testUser.password);
-    await use(page);
+    await fixtureUse(page);
   },
 });
 

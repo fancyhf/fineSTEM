@@ -16,12 +16,13 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: 1,
+  grepInvert: process.env.RUN_AI_E2E === '1' ? undefined : /@ai/,
   reporter: [
     ['html', { outputFolder: '../test-results/e2e-report' }],
     ['list'],
   ],
   use: {
-    baseURL: process.env.E2E_BASE_URL || 'http://localhost:5184',
+    baseURL: process.env.E2E_BASE_URL || 'http://localhost:5284',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: videoMode,

@@ -7,10 +7,9 @@ Skill 记录 Repository
 
 from __future__ import annotations
 
-from datetime import datetime
-
 from sqlalchemy import text
 
+from app.core.time_utils import utc_now
 from app.db.models import SkillRecordModel
 from app.repositories.base import BaseRepository
 from app.repositories.utils import json_dumps, json_loads
@@ -69,7 +68,7 @@ class SkillRecordRepo(BaseRepository):
             status=skill.status,
             manifest=json_dumps(skill.manifest.model_dump()),
             config=json_dumps(skill.config),
-            install_date=skill.install_date or datetime.utcnow(),
+            install_date=skill.install_date or utc_now(),
             last_used_at=skill.last_used_at,
             created_at=skill.created_at,
             updated_at=skill.updated_at,
@@ -84,7 +83,7 @@ class SkillRecordRepo(BaseRepository):
         if not row:
             return None
         row.status = status
-        row.updated_at = datetime.utcnow()
+        row.updated_at = utc_now()
         self.db.commit()
         self.db.refresh(row)
         return _to_schema(row)
@@ -94,7 +93,7 @@ class SkillRecordRepo(BaseRepository):
         if not row:
             return False
         row.is_deleted = True
-        row.deleted_at = datetime.utcnow()
+        row.deleted_at = utc_now()
         row.deleted_by = owner_id
         self.db.commit()
         return True

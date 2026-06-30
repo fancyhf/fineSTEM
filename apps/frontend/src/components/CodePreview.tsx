@@ -36,12 +36,12 @@ export const CodePreview: React.FC<CodePreviewProps> = ({
           </button>
         </div>
       </div>
-      <div className="flex-1 min-h-[500px] bg-white overflow-auto">
+      <div className="flex-1 min-h-0 bg-white overflow-auto">
         <iframe
           srcDoc={htmlContent}
           title={title}
-          className="w-full h-full min-h-[500px] border-0 block"
-          style={{ minHeight: 500, height: '100%' }}
+          className="w-full h-full border-0 block"
+          style={{ minHeight: '100%', height: '100%' }}
           sandbox="allow-scripts allow-modals allow-same-origin allow-forms allow-popups"
           loading="lazy"
         />

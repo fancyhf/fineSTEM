@@ -1,11 +1,11 @@
 // API 响应基础类型
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   data?: T;
   message: string;
 }
 
 // 分页结果类型
-export interface PaginationResult<T = any> {
+export interface PaginationResult<T = unknown> {
   items: T[];
   total: number;
   page: number;
@@ -207,6 +207,13 @@ export interface ProjectProgress {
   teaching_mode?: 'guided' | 'demo' | 'hands_on' | 'lecture';
 }
 
+export interface FileEntry {
+  name: string;
+  language: string;
+  content: string;
+  is_main: boolean;
+}
+
 export interface ProjectWorkspaceData {
   code: string;
   language: string;
@@ -215,12 +222,56 @@ export interface ProjectWorkspaceData {
   preview_html: string;
   saved_at?: string | null;
   chat_saved_at?: string | null;
+  files?: FileEntry[];
 }
 
 export interface ProjectWorkspaceResponse {
   project: Project;
   progress: ProjectProgress;
   workspace: ProjectWorkspaceData;
+}
+
+// 项目阶段文档
+export interface ProjectDocument {
+  stage: string;
+  name: string;
+  filename: string;
+  has_content: boolean;
+  summary: string;
+  content_length: number;
+}
+
+export interface ProjectDocumentDetail {
+  stage: string;
+  name: string;
+  filename: string;
+  content: string;
+  has_content: boolean;
+}
+
+// 代码模板
+export interface CodeTemplate {
+  id: string;
+  title: string;
+  description: string;
+  language: string;
+  icon: string;
+  difficulty: string;
+}
+
+export interface CodeTemplateDetail extends CodeTemplate {
+  code: string;
+}
+
+// 代码运行历史（前端 localStorage）
+export interface RunHistoryEntry {
+  id: string;
+  timestamp: number;
+  success: boolean;
+  language: string;
+  output: string;
+  error?: string;
+  code_preview: string;
 }
 
 export interface SkillState {

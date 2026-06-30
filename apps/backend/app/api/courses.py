@@ -17,7 +17,7 @@ router = APIRouter(prefix="/courses", tags=["课程库"])
 
 @router.get("", response_model=ApiResponse[list[Course]])
 async def list_courses(user: dict = Depends(get_current_user)):
-    courses = db.list_courses(owner_id=user["id"])
+    courses = db.list_courses(owner_id=user.id)
     return ApiResponse(data=courses)
 
 
@@ -25,7 +25,7 @@ async def list_courses(user: dict = Depends(get_current_user)):
 async def create_course(data: CourseCreate, user: dict = Depends(get_current_user)):
     course = Course(
         id="",
-        owner_id=user["id"],
+        owner_id=user.id,
         title=data.title,
         summary=data.summary,
         subject=data.subject,

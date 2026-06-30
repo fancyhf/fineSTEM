@@ -6,7 +6,7 @@
 links: .trae/documents/api-specs/v1/spec.json
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, Literal
 from .common import AuditFields
 
@@ -72,5 +72,4 @@ class Evidence(EvidenceBase, AuditFields):
     project_id: str = Field(..., description="所属项目 ID")
     author_id: str = Field(..., description="作者 ID")
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

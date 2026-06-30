@@ -13,7 +13,7 @@ export function ProjectStageBar({ currentStage, mode }: ProjectStageBarProps) {
     { id: 'step3', label: '展示与反思', description: '展示成果并总结反思' },
   ];
 
-  const standardStages = SKILL_STAGES.map((stage, idx) => ({
+  const standardStages = SKILL_STAGES.map((stage) => ({
     id: stage,
     label: getStageLabel(stage),
     description: getStageDescription(stage),
@@ -80,22 +80,22 @@ export function ProjectStageBar({ currentStage, mode }: ProjectStageBarProps) {
 
 function getStageLabel(stage: SkillStage): string {
   const stageMap: Record<string, string> = {
-    'stage_00_bootstrap': '准备阶段',
-    'stage_01_brainstorm': '脑爆选题',
-    'stage_02_brief': '开题立项',
-    'stage_03_constraints': '范围裁剪',
-    'stage_04_track': '轨道选择',
-    'stage_05_design': '设计蓝图',
-    'stage_06_step_plan': '分步计划',
-    'stage_07_execute': '执行开发',
-    'stage_08_evaluate': '评估阶段',
+    'stage_00_bootstrap': '第 1 阶段：准备阶段',
+    'stage_01_brainstorm': '第 2 阶段：脑暴选题',
+    'stage_02_brief': '第 3 阶段：开题立项',
+    'stage_03_constraints': '第 4 阶段：范围裁剪',
+    'stage_04_track': '第 5 阶段：轨道选择',
+    'stage_05_design': '第 6 阶段：设计蓝图',
+    'stage_06_step_plan': '第 7 阶段：分步计划',
+    'stage_07_execute': '第 8 阶段：执行开发',
+    'stage_08_evaluate': '第 9 阶段：评估展示',
   };
   return stageMap[stage] || stage;
 }
 
 function getStageDescription(stage: SkillStage): string {
   const stageMap: Record<string, string> = {
-    'stage_00_bootstrap': '项目初始化',
+    'stage_00_bootstrap': '完成准备启动',
     'stage_01_brainstorm': '产出候选方向',
     'stage_02_brief': '明确目标标准',
     'stage_03_constraints': '锁定范围边界',

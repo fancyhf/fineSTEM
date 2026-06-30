@@ -48,18 +48,20 @@ export default function ProjectAchievement() {
       } else {
         setAchievement(null);
         setRecommendations([]);
-        // 如果 URL 带 ?action=create 且没有 achievement，自动显示创建表单
-        if (wantCreate) {
-          setShowCreateForm(true);
-        }
         // DB 无记录 → 检查 AI 是否已经生成了草稿文件
         try {
           const draftRes = await achievementCardsApi.getDraft(projectId);
           if (draftRes.data && typeof draftRes.data === 'object' && Object.keys(draftRes.data).length > 0) {
             setDraft(draftRes.data);
+            setShowCreateForm(false);
+          } else if (wantCreate) {
+            setShowCreateForm(true);
           }
         } catch {
           // 草稿接口不可用时静默忽略
+          if (wantCreate) {
+            setShowCreateForm(true);
+          }
         }
       }
     } catch (err) {
@@ -69,12 +71,12 @@ export default function ProjectAchievement() {
     }
   };
 
-  /* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps -- 异步加载成就卡数据，loadAchievement 依赖 projectId，无需重复触发 */
+  /* eslint-disable react-hooks/exhaustive-deps -- 异步加载成就卡数据，loadAchievement 依赖 projectId，无需重复触发 */
   useEffect(() => {
     if (!projectId) return;
     loadAchievement();
   }, [projectId]);
-  /* eslint-enable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
+  /* eslint-enable react-hooks/exhaustive-deps */
 
   const handleGenerateShareLink = async () => {
     if (!achievement) return;

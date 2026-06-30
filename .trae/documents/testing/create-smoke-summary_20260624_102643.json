@@ -1,0 +1,25 @@
+{
+  "created_at": "2026-06-24 10:26:43.675",
+  "project_root": "G:\\mediaProjects\\fineSTEM",
+  "overall_passed": true,
+  "results": [
+    {
+      "module": "后端 /create 关键回归",
+      "command": "C:\\Python312\\python.exe -m pytest tests/test_agent.py tests/test_projects.py -q",
+      "exit_code": 0,
+      "elapsed_seconds": 15.47,
+      "passed": true,
+      "detail": "",
+      "log_path": "G:\\mediaProjects\\fineSTEM\\.trae\\documents\\testing\\create-smoke-backend-tests_20260624_102346.log"
+    },
+    {
+      "module": "前端 /create 关键 E2E",
+      "command": ".\\node_modules\\.bin\\playwright.cmd test specs/create-history-restore.spec.ts specs/create-question-options-restore.spec.ts specs/create-guided-pbl-mainline.spec.ts specs/create-development-preview.spec.ts specs/project-detail-final-report.spec.ts specs/project-detail-achievement-draft.spec.ts specs/project-detail-generate-achievement.spec.ts specs/project-detail-stage08-hydration.spec.ts specs/create-teaching-mode.spec.ts --project=chromium --reporter=list",
+      "exit_code": 0,
+      "elapsed_seconds": 161.92,
+      "passed": true,
+      "detail": "",
+      "log_path": "G:\\mediaProjects\\fineSTEM\\.trae\\documents\\testing\\create-smoke-frontend-tests_20260624_102401.log"
+    }
+  ]
+}

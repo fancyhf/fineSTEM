@@ -9,7 +9,9 @@ import { LightProjectStep1 } from './LightProjectStep1';
 import { LightProjectStep2 } from './LightProjectStep2';
 import { LightProjectStep3 } from './LightProjectStep3';
 import { projectsApi } from '../services/api';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
+
+type LightStepData = Partial<LightProjectStep1Data & LightProjectStep2Data & LightProjectStep3Data>;
 
 interface LightProjectStepsProps {
   progress: ProjectProgress;
@@ -19,28 +21,28 @@ interface LightProjectStepsProps {
 
 export function LightProjectSteps({ progress, onProgressUpdate, onCreateAchievement }: LightProjectStepsProps) {
   const { id: projectId } = useParams<{ id: string }>();
-  const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(1);
   const [saving, setSaving] = useState(false);
+  const lightStepData = progress.light_step_data as LightStepData | undefined;
 
   // 从 progress 中提取各步骤数据
-  const step1Data: LightProjectStep1Data | undefined = progress.light_step_data
+  const step1Data: LightProjectStep1Data | undefined = lightStepData
     ? {
-        topic: (progress.light_step_data as any).topic || '',
-        goal: (progress.light_step_data as any).goal || '',
+        topic: lightStepData.topic || '',
+        goal: lightStepData.goal || '',
       }
     : undefined;
 
-  const step2Data: LightProjectStep2Data | undefined = progress.light_step_data
+  const step2Data: LightProjectStep2Data | undefined = lightStepData
     ? {
-        steps: (progress.light_step_data as any).steps || [],
+        steps: lightStepData.steps || [],
       }
     : undefined;
 
-  const step3Data: LightProjectStep3Data | undefined = progress.light_step_data
+  const step3Data: LightProjectStep3Data | undefined = lightStepData
     ? {
-        result: (progress.light_step_data as any).result || '',
-        reflection: (progress.light_step_data as any).reflection || '',
+        result: lightStepData.result || '',
+        reflection: lightStepData.reflection || '',
       }
     : undefined;
 

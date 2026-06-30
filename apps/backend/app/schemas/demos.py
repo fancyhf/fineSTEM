@@ -6,7 +6,7 @@ Demo 项目数据模型
 links: .trae/documents/api-specs/v1/spec.json
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List, Literal
 from .common import AuditFields, PublishFields
 
@@ -68,8 +68,7 @@ class Demo(DemoBase, AuditFields, PublishFields):
     """
     id: str = Field(description="Demo ID")
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class DemoListQuery(BaseModel):

@@ -6,7 +6,7 @@
 links: .trae/documents/api-specs/v1/spec.json
 """
 
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional
 from pathlib import Path
 
@@ -96,9 +96,10 @@ class Settings(BaseSettings):
         if not self.DEBUG and self.SECRET_KEY in insecure_values:
             raise ValueError("SECRET_KEY 未正确配置：生产环境必须使用强随机密钥")
     
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        case_sensitive=True,
+    )
 
 
 # 全局配置实例

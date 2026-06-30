@@ -10,11 +10,11 @@ from __future__ import annotations
 import io
 import json
 import zipfile
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from app.core.config import settings
+from app.core.time_utils import utc_now_iso, utc_now
 from app.repositories.runtime_db import db
 from app.schemas.documents import DocumentFormat, DocumentType
 
@@ -37,7 +37,7 @@ class DocumentService:
             "progress": progress.model_dump(mode="json") if progress else {},
             "evidence": [item.model_dump(mode="json") for item in evidence_list],
             "achievement_card": achievement.model_dump(mode="json") if achievement else None,
-            "generated_at": datetime.utcnow().isoformat(),
+            "generated_at": utc_now_iso(),
         }
 
     def _build_markdown(self, document_type: DocumentType, snapshot: dict[str, Any]) -> str:
@@ -249,7 +249,7 @@ class DocumentService:
     ) -> tuple[str, str, bytes | str]:
         snapshot = self._snapshot(project_id)
         markdown_text = self._build_markdown(document_type, snapshot)
-        ts = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+        ts = utc_now().strftime("%Y%m%d%H%M%S")
         basename = f"{project_id}_{document_type}_{ts}"
 
         if fmt == "md":

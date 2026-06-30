@@ -32,17 +32,17 @@ interface ChatMessage {
 /** 等待 workspace 恢复的稳定时间 */
 const RESTORE_SETTLE_MS = 3000;
 
-/** 前端 STANDARD_STAGES 中的阶段标签（与 Create.tsx 中 STANDARD_STAGES 一致） */
+/** 聊天页顶部阶段条在常见宽度下显示短标签 */
 const STAGE_LABELS: Record<string, string> = {
-  stage_00_bootstrap: '初始化',
-  stage_01_brainstorm: '脑爆选题',
-  stage_02_brief: '开题立项',
-  stage_03_constraints: '范围裁剪',
-  stage_04_track: '轨道选择',
-  stage_05_design: '设计蓝图',
-  stage_06_step_plan: '分步计划',
-  stage_07_execute: '编码实现',
-  stage_08_evaluate: '验收展示',
+  stage_00_bootstrap: '1. 准备阶段',
+  stage_01_brainstorm: '2. 脑暴选题',
+  stage_02_brief: '3. 开题立项',
+  stage_03_constraints: '4. 范围裁剪',
+  stage_04_track: '5. 轨道选择',
+  stage_05_design: '6. 设计蓝图',
+  stage_06_step_plan: '7. 分步计划',
+  stage_07_execute: '8. 编码实现',
+  stage_08_evaluate: '9. 评估展示',
 };
 
 /** 创建标准项目 */
@@ -112,6 +112,7 @@ async function selectProjectInSidebar(page: Page, projectName: string): Promise<
 
 test.describe('PBL 闭环确定性前端渲染', () => {
   test('确定性推进到 stage_07 后前端完整渲染', async ({ authenticatedPage, testUser }) => {
+    test.setTimeout(60000);
     const token = testUser.token;
     const projectName = 'PBL 闭环 E2E 测试';
 
@@ -141,9 +142,8 @@ test.describe('PBL 闭环确定性前端渲染', () => {
     await saveProjectChat(authenticatedPage, token, project.id, chatMessages);
 
     // 5. 导航到 /create
-    await authenticatedPage.goto('/create');
-    await authenticatedPage.waitForLoadState('domcontentloaded');
-    await authenticatedPage.waitForTimeout(RESTORE_SETTLE_MS);
+    await authenticatedPage.goto('/create', { waitUntil: 'domcontentloaded' });
+    await expect(authenticatedPage.locator(`text=${projectName}`).first()).toBeVisible({ timeout: 15000 });
 
     // 6. 点击侧边栏项目名来选中项目（触发 workspace 恢复）
     await selectProjectInSidebar(authenticatedPage, projectName);
@@ -166,7 +166,8 @@ test.describe('PBL 闭环确定性前端渲染', () => {
     await expect(codeTab.first()).toBeVisible({ timeout: 10000 });
   });
 
-  test('确定性推进到 stage_08 后前端渲染验收阶段', async ({ authenticatedPage, testUser }) => {
+  test('确定性推进到 stage_08 后前端渲染评估展示阶段', async ({ authenticatedPage, testUser }) => {
+    test.setTimeout(60000);
     const token = testUser.token;
     const projectName = 'PBL 验收阶段 E2E';
 
@@ -186,14 +187,13 @@ test.describe('PBL 闭环确定性前端渲染', () => {
     await drivePblStages(authenticatedPage, token, project.id, stages);
 
     // 2. 导航到 /create
-    await authenticatedPage.goto('/create');
-    await authenticatedPage.waitForLoadState('domcontentloaded');
-    await authenticatedPage.waitForTimeout(RESTORE_SETTLE_MS);
+    await authenticatedPage.goto('/create', { waitUntil: 'domcontentloaded' });
+    await expect(authenticatedPage.locator(`text=${projectName}`).first()).toBeVisible({ timeout: 15000 });
 
     // 3. 点击侧边栏项目名来选中项目
     await selectProjectInSidebar(authenticatedPage, projectName);
 
-    // 4. 断言：阶段进度条显示验收阶段（"评估阶段"）
+    // 4. 断言：阶段进度条显示第 9 阶段：评估展示
     const stageLabel = STAGE_LABELS['stage_08_evaluate'];
     const evaluateStage = authenticatedPage.locator(`text=${stageLabel}`);
     await expect(evaluateStage).toBeVisible({ timeout: 15000 });

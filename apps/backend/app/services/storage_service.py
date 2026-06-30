@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 import json
 from pathlib import Path
 import uuid
@@ -16,6 +15,7 @@ from typing import Any, Dict, Optional
 from fastapi import UploadFile
 
 from app.core.config import settings
+from app.core.time_utils import utc_now_iso
 
 
 class FileStorageService:
@@ -56,7 +56,7 @@ class FileStorageService:
             "stored_path": str(target_path),
             "content_type": file.content_type or "application/octet-stream",
             "size": len(content),
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": utc_now_iso(),
         }
         self._index[file_id] = meta
         self._persist_index()

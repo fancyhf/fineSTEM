@@ -6,7 +6,7 @@
 links: .trae/documents/api-specs/v1/spec.json
 """
 
-from datetime import datetime
+from app.core.time_utils import utc_now_iso
 from typing import Optional
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from app.schemas.evidence import (
@@ -233,7 +233,7 @@ async def upload_screenshot_evidence(
         author_id=current_user.id,
         type="screenshot",
         title=related_step or "screenshot",
-        content=f"截图上传：{file.filename or 'image'} @ {datetime.utcnow().isoformat()}",
+        content=f"截图上传：{file.filename or 'image'} @ {utc_now_iso()}",
         content_url=f"/api/v1/files/{meta['id']}",
         related_step=related_step,
         created_by=current_user.id,

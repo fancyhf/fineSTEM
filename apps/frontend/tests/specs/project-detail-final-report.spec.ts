@@ -28,7 +28,7 @@ async function createProject(page: Page, token: string, name: string): Promise<P
     data: {
       name,
       mode: 'standard',
-      description: '用于验收展示与结题报告回归测试',
+      description: '用于评估展示与结题报告回归测试',
     },
   });
 
@@ -68,7 +68,7 @@ test.describe('项目详情页结题报告', () => {
       authenticatedPage,
       testUser.token,
       project.id,
-      `<!DOCTYPE html><html lang="zh-CN"><body><h1>${codeMarker}</h1><p>验收展示回归项目</p></body></html>`,
+      `<!DOCTYPE html><html lang="zh-CN"><body><h1>${codeMarker}</h1><p>评估展示回归项目</p></body></html>`,
       'html',
     );
 

@@ -9,6 +9,7 @@ links: .trae/documents/api-specs/v1/spec.json
 from pydantic import BaseModel, Field
 from typing import Generic, TypeVar, Optional
 from datetime import datetime
+from app.core.time_utils import utc_now
 
 T = TypeVar('T')
 
@@ -32,9 +33,9 @@ class AuditFields(BaseModel):
     所有核心数据模型都继承此类
     时间格式统一使用 MCP 格式：YYYY-MM-DD HH:MM:SS.fff
     """
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utc_now)
     created_by: Optional[str] = None
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=utc_now)
     updated_by: Optional[str] = None
     deleted_at: Optional[datetime] = None
     deleted_by: Optional[str] = None

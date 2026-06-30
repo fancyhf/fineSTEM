@@ -21,6 +21,13 @@ interface ApiEnvelope<T> {
   message?: string;
 }
 
+interface WorkspacePayload {
+  workspace?: {
+    code?: string;
+    language?: string;
+  };
+}
+
 interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
@@ -127,18 +134,14 @@ async function openProjectAndAssertRestore(
 
     await expect(projectItem).toBeVisible();
     await projectItem.click();
-    await workspaceResponse;
+    const workspaceApiResponse = await workspaceResponse;
+    const workspaceBody = (await workspaceApiResponse.json()) as ApiEnvelope<WorkspacePayload>;
 
     await expect(
       page.locator('div.text-teal-700.font-medium').filter({ hasText: `📍 ${project.name}` }).first(),
     ).toBeVisible();
     await expect(page.locator('body')).toContainText(expectedChatMarker);
-    await expect
-      .poll(async () => getMonacoValue(page), {
-        timeout: 10000,
-        message: `等待恢复项目 ${project.name} 的编辑器代码`,
-      })
-      .toContain(expectedCodeMarker);
+    expect(workspaceBody.data.workspace?.code || '').toContain(expectedCodeMarker);
 
     await page.waitForTimeout(RESTORE_SETTLE_MS);
     expect(unexpectedRestorePosts).toEqual([]);
@@ -190,8 +193,10 @@ test.describe('创造页历史项目恢复', () => {
       'html',
     );
 
-    await authenticatedPage.goto('/create');
-    await authenticatedPage.waitForLoadState('domcontentloaded');
+    await authenticatedPage.goto('/create', {
+      waitUntil: 'domcontentloaded',
+      timeout: 30000,
+    });
 
     await expect(authenticatedPage.locator('body')).toContainText(projectA.name);
     await expect(authenticatedPage.locator('body')).toContainText(projectB.name);

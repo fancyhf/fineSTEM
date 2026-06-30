@@ -19,6 +19,11 @@ import {
   LightProjectStep3Data,
   StandardProjectStepData,
   ProjectWorkspaceResponse,
+  FileEntry,
+  ProjectDocument,
+  ProjectDocumentDetail,
+  CodeTemplate,
+  CodeTemplateDetail,
   AchievementCard,
   AchievementCardCreate,
   AchievementCardUpdate,
@@ -219,8 +224,9 @@ export const authApi = {
     }).then(async (res) => {
       const data = await res.json() as ApiResponse<AuthResponse>;
       // 后端返回的错误格式是 { detail: "错误信息" }，需要转换为前端期望的 { message: "错误信息" }
-      if (!res.ok && !data.message && (data as any).detail) {
-        data.message = (data as any).detail;
+      const errorDetail = (data as ApiResponse<AuthResponse> & { detail?: string }).detail;
+      if (!res.ok && !data.message && errorDetail) {
+        data.message = errorDetail;
       } else if (!res.ok && !data.message) {
         data.message = `登录失败 (${res.status})`;
       }
@@ -269,6 +275,7 @@ export const projectsApi = {
   get: (id: string) => api.get<Project>(`/projects/${id}`),
   getProgress: (id: string) => api.get<ProjectProgress>(`/projects/${id}/progress`),
   getWorkspace: (id: string) => api.get<ProjectWorkspaceResponse>(`/projects/${id}/workspace`),
+  generateAchievementCard: (id: string) => api.post<AchievementCard>(`/projects/${id}/achievement-generate`, {}),
   update: (id: string, data: ProjectUpdate) => api.patch<Project>(`/projects/${id}`, data),
   updateTeachingMode: (id: string, teachingMode: 'guided' | 'demo' | 'hands_on' | 'lecture') =>
     api.post<ProjectProgress>(`/projects/${id}/teaching-mode`, { teaching_mode: teachingMode }),
@@ -292,7 +299,7 @@ export const projectsApi = {
   exportFile: (id: string, format: 'json' | 'md' | 'zip' | 'pdf' | 'docx') =>
     requestBlob(`/projects/${id}/export?format=${format}`, { method: 'GET' }),
   // 代码持久化（autosave：静默模式，401 不跳转）
-  saveCode: (id: string, data: { code: string; language?: string; filename?: string }) =>
+  saveCode: (id: string, data: { code: string; language?: string; filename?: string; files?: FileEntry[] }) =>
     api.post<{ saved: boolean; project_id: string }>(`/projects/${id}/code`, data, true).then((res) => {
       if (!res.data?.saved) {
         throw new Error(res.message || '代码保存失败');
@@ -311,6 +318,11 @@ export const projectsApi = {
     }),
   getChatHistory: (id: string) =>
     api.get<{ messages: unknown[]; message_count: number; has_messages: boolean; saved_at?: string }>(`/projects/${id}/chat`),
+  // 项目阶段文档
+  listDocuments: (id: string) =>
+    api.get<ProjectDocument[]>(`/projects/${id}/documents`),
+  getDocument: (id: string, stage: string) =>
+    api.get<ProjectDocumentDetail>(`/projects/${id}/documents/${stage}`),
 };
 
 // 成就卡片 API
@@ -414,6 +426,14 @@ export const coursesApi = {
 };
 
 export const codeExecutionApi = {
-  execute: (code: string, language: string = 'python') =>
-    api.post<{ success: boolean; output: string; error?: string; exit_code?: number }>('/code/execute', { code, language }),
+  execute: (code: string, language: string = 'python', files?: FileEntry[]) =>
+    api.post<{ success: boolean; output: string; error?: string; exit_code?: number; mode?: string; preview_url?: string }>(
+      '/code/execute',
+      { code, language, files },
+    ),
+  // 代码模板
+  listTemplates: () =>
+    api.get<CodeTemplate[]>('/code/templates'),
+  getTemplate: (id: string) =>
+    api.get<CodeTemplateDetail>(`/code/templates/${id}`),
 };

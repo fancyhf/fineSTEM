@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useParams } from 'react-router-dom';
 import { achievementCardsApi } from '../services/api';
 import { AchievementCard } from '../types';
 import { AchievementCardView } from '../components/AchievementCardView';
@@ -12,12 +12,7 @@ export default function SharedAchievement() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!token) return;
-    loadSharedAchievement();
-  }, [token]);
-
-  const loadSharedAchievement = async () => {
+  const loadSharedAchievement = useCallback(async () => {
     if (!token) return;
     try {
       setLoading(true);
@@ -30,7 +25,11 @@ export default function SharedAchievement() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [token]);
+
+  useEffect(() => {
+    void loadSharedAchievement();
+  }, [loadSharedAchievement]);
 
   if (loading) {
     return (

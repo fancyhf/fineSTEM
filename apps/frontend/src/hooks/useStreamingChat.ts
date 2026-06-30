@@ -16,13 +16,32 @@ interface StreamResult {
   sessionId?: string;
 }
 
+export interface CodeGeneratedEvent {
+  project_id?: string;
+  code: string;
+  language: string;
+  filename?: string;
+  files?: Array<{ name: string; language: string; content: string; is_main?: boolean }>;
+  saved_at?: string;
+  source?: string;
+}
+
+export interface CodeGenerationFailedEvent {
+  project_id?: string;
+  reason: string;
+  message: string;
+}
+
 interface StreamEvents {
   onSkillActivated?: (data: { skill_id: string; skill_name: string; sub_skill_id?: string; sub_skill_name?: string }) => void;
   onProjectCreated?: (data: { project_id: string; project_name: string; current_stage?: string }) => void;
   onToolCall?: (data: { tool_name: string; success: boolean; data?: unknown }) => void;
   onStageChanged?: (data: { stage: string; stage_name: string }) => void;
   onQuestion?: (data: QuestionData) => void;
+  onCodeGenerated?: (data: CodeGeneratedEvent) => void;
+  onCodeGenerationFailed?: (data: CodeGenerationFailedEvent) => void;
   onContentUpdate?: (content: string) => void;
+  onEnd?: (content: string) => void;
 }
 
 function getAnonymousId(): string {
@@ -78,7 +97,7 @@ export function useStreamingChat() {
         clearTimeout(timeout);
         resolve();
       };
-      ws.onerror = (event) => {
+      ws.onerror = () => {
         clearTimeout(timeout);
         reject(new Error('WebSocket 连接失败'));
       };
@@ -132,7 +151,9 @@ export function useStreamingChat() {
               id: qData.id as string || `q-${Date.now()}`,
               title: qData.title as string || '',
               subtitle: qData.subtitle as string | undefined,
-              options: (qData.options as Array<{ id: string; label: string; description?: string; recommended?: boolean }>) || [],
+              options: (qData.options as QuestionData['options']) || [],
+              optionGroups: qData.optionGroups as QuestionData['optionGroups'] | undefined,
+              requireEachGroup: qData.requireEachGroup as boolean | undefined,
               multiple: qData.multiple as boolean | undefined,
               allowCustom: qData.allow_custom as boolean | undefined,
               step: qData.step as number | undefined,
@@ -140,6 +161,14 @@ export function useStreamingChat() {
               stage: qData.stage as string | undefined,
               isStageFinal: qData.is_stage_final === true,
             });
+          }
+
+          if (data.event === 'code_generated' && events?.onCodeGenerated && data.data) {
+            events.onCodeGenerated(data.data as unknown as CodeGeneratedEvent);
+          }
+
+          if (data.event === 'code_generation_failed' && events?.onCodeGenerationFailed && data.data) {
+            events.onCodeGenerationFailed(data.data as unknown as CodeGenerationFailedEvent);
           }
 
           if (data.event === 'content_update' && events?.onContentUpdate && data.data?.content) {
@@ -152,6 +181,11 @@ export function useStreamingChat() {
             finalContent = (data.data?.content as string) || finalContent;
             finalSessionId = (data.data?.session_id as string) || finalSessionId;
             ws.close();
+            try {
+              events?.onEnd?.(finalContent);
+            } catch (e) {
+              console.error('[useStreamingChat] onEnd 回调执行失败', e);
+            }
             resolve({ content: finalContent, sessionId: finalSessionId });
           }
 
