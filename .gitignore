@@ -54,6 +54,18 @@ Desktop.ini
 logs/
 *.log
 
+# Runtime state and generated outputs
+apps/backend/runtime/
+apps/backend/projects/[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]-*/
+apps/frontend/tests/test-results/
+
+# Test artifacts
+.trae/documents/testing/**/screenshots/
+.trae/documents/testing/**/test-results/
+*.trace.zip
+test-failed-*.png
+error-context.md
+
 # Trae/AI (if needed to exclude specific temp files, but keeping docs)
 # .trae/  <-- keeping this as it has project docs
 

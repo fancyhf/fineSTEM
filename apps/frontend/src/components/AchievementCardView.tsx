@@ -3,6 +3,7 @@ import { Card, CardContent } from './ui/Card';
 import { Badge } from './ui/Badge';
 import { MarkdownText } from './MarkdownText';
 import { AchievementCard } from '../types';
+import { resolveImageUrl } from '../lib/image';
 import { Award, Calendar } from 'lucide-react';
 
 interface AchievementCardViewProps {
@@ -12,8 +13,16 @@ interface AchievementCardViewProps {
 }
 
 export function AchievementCardView({ achievement }: AchievementCardViewProps) {
+  const cover = achievement.screenshots && achievement.screenshots.length > 0
+    ? resolveImageUrl(achievement.screenshots[0]) : null;
+
   return (
     <Card className="overflow-hidden">
+      {cover && (
+        <div className="w-full h-48 overflow-hidden">
+          <img src={cover} alt={achievement.title} className="w-full h-full object-cover" />
+        </div>
+      )}
       <div className="bg-gradient-to-r from-teal-500 to-teal-600 px-6 py-8">
         <div className="flex items-center gap-3 mb-4">
           <Award className="h-12 w-12 text-white" />

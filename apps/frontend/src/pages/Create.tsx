@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { MessageSquare, Code, Rocket, FileText, ChevronUp, Paperclip, Link2, FolderOpen, Plus, Sparkles, User, Zap, Play, Copy, Check, ArrowRight, BookOpen, PanelLeftClose, PanelLeftOpen, Terminal, Eye, Pencil, MoreHorizontal, Maximize2, PanelLeft } from 'lucide-react';
+import { MessageSquare, Code, Rocket, FileText, ChevronUp, Paperclip, Link2, FolderOpen, Plus, Sparkles, User, Zap, Play, Copy, Check, ArrowRight, BookOpen, PanelLeftClose, PanelLeftOpen, Terminal, Eye, Pencil, MoreHorizontal, Maximize2, PanelLeft, Loader2 } from 'lucide-react';
+import { ContinueButton } from '../components/ContinueButton';
 import { Card } from '../components/ui/Card';
 import { CodeGeneratedEvent, useStreamingChat } from '../hooks/useStreamingChat';
 import { MarkdownText } from '../components/MarkdownText';
@@ -458,81 +459,10 @@ function inferRequestedOutputLanguage(message: string): string {
   return 'auto';
 }
 
-function buildFallbackCode(language: string): { code: string; language: string; filename: string } {
-  if (language === 'python') {
-    return {
-      language: 'python',
-      filename: 'main.py',
-      code: `import random
-
-
-def main():
-    answer = random.randint(1, 100)
-    tries = 0
-    print("欢迎来到猜数字游戏！我已经想好了 1 到 100 之间的一个整数。")
-    while True:
-        raw_value = input("请输入你的猜测：")
-        if raw_value.lower() in {"q", "quit", "exit"}:
-            print(f"游戏结束，正确答案是 {answer}。")
-            break
-        try:
-            guess = int(raw_value)
-        except ValueError:
-            print("请输入整数，或输入 q 退出。")
-            continue
-        tries += 1
-        if guess < answer:
-            print("低了，再试试。")
-        elif guess > answer:
-            print("高了，再试试。")
-        else:
-            print(f"恭喜你猜对了！一共用了 {tries} 次。")
-            break
-
-
-if __name__ == "__main__":
-    main()
-`,
-    };
-  }
-
-  return {
-    language: 'html',
-    filename: 'index.html',
-    code: `<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>fineSTEM MVP</title>
-  <style>
-    body { font-family: system-ui, sans-serif; margin: 0; min-height: 100vh; display: grid; place-items: center; background: #ecfeff; }
-    main { width: min(560px, 92vw); padding: 28px; border-radius: 18px; background: white; box-shadow: 0 18px 50px rgba(15, 118, 110, 0.18); }
-    h1 { margin-top: 0; color: #0f766e; }
-    button { border: 0; border-radius: 10px; padding: 10px 16px; background: #0d9488; color: white; cursor: pointer; }
-    #result { margin-top: 16px; font-weight: 700; }
-  </style>
-</head>
-<body>
-  <main>
-    <h1>我的 STEM 项目 MVP</h1>
-    <p>这是一个可运行的最小版本，你可以继续让 AI 按你的项目主题扩展功能。</p>
-    <button id="actionButton">点击验证交互</button>
-    <div id="result">等待操作...</div>
-  </main>
-  <script>
-    const button = document.querySelector('#actionButton');
-    const result = document.querySelector('#result');
-    let count = 0;
-    button.addEventListener('click', () => {
-      count += 1;
-      result.textContent = '已成功运行 ' + count + ' 次。';
-    });
-  </script>
-</body>
-</html>
-`,
-  };
+function buildFallbackCode(language: string): { code: string; language: string; filename: string } | null {
+  // 不再返回硬编码的 MVP 模板代码
+  // 返回 null 让调用方知道没有 fallback 代码可用
+  return null;
 }
 
 function StageProgressBar({ projectContext }: { projectContext: ProjectContext }) {
@@ -1052,13 +982,38 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;p
   try { (new Function(${JSON.stringify(code)}))(); if(!has) add('OK - no output','ok'); }
   catch(e) {
     var d=document.createElement('div');d.className='err';
-    d.innerHTML='<b>SyntaxError / Runtime Error:</b><br>'+_escHtml(e.message)+'<br><br><button class="btn" onclick="window.parent&&window.parent.postMessage({type:\\'code-error\\',msg:e.message},\\'*\\')">Ask AI to fix this error</button>';
+    var btnId = '__fix_err_btn_' + Date.now();
+    d.innerHTML='<b>语法错误 / 运行错误：</b><br>'+_escHtml(e.message)+'<br><br><button class="btn" id="'+btnId+'">让 AI 修复此错误</button>';
+    setTimeout(function() {
+      var btn = document.getElementById(btnId);
+      if (btn) {
+        btn.onclick = function() {
+          window.parent && window.parent.postMessage({type: 'code-error', msg: e.message}, '*');
+          btn.textContent = '已发送给AI...';
+          btn.disabled = true;
+          btn.style.background = '#94a3b8';
+        };
+      }
+    }, 0);
     out.appendChild(d);
     window.__codeError=e.message;
   }
   function _escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
 })();
 </script></body></html>`;
+  }
+  if (language === 'css') {
+    // CSS 代码：创建一个示例 HTML 来展示样式效果
+    return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${code}</style></head><body>
+<div style="padding:20px;font-family:-apple-system,sans-serif;">
+<h3>CSS 预览</h3>
+<div class="css-preview-demo" style="border:1px solid #e5e7eb;border-radius:8px;padding:20px;background:#fff;">
+  <h4>标题示例 (h4)</h4>
+  <p>段落示例 - 这是一段文字用来展示 CSS 样式效果。</p>
+  <button class="btn-demo">按钮示例</button>
+  <div class="box-demo">盒子示例</div>
+</div>
+</div></body></html>`;
   }
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body{font-family:monospace;padding:20px;background:#f9fafb}pre{background:#1f2937;color:#e5e7eb;padding:16px;border-radius:8px;overflow-x:auto;white-space:pre-wrap}</style></head><body><pre>${_escHtml(code)}</pre></body></html>`;
 }
@@ -1084,7 +1039,7 @@ function buildExecutionResultHtml(result: { success: boolean; output: string; er
       <div style="margin-bottom: 12px;">
         <div style="font-size: 12px; color: #dc2626; margin-bottom: 4px;">错误 / 警告：</div>
         <pre style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 12px; font-size: 12px; line-height: 1.5; white-space: pre-wrap; word-break: break-all; overflow-x: auto; color: #dc2626;">${escapedError}</pre>
-        <button id="__ask_ai_btn" style="display:inline-block;margin-top:8px;padding:8px 16px;background:#0ea5e9;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;" onclick="(function(){window.parent.postMessage({type:'code-error',msg:${JSON.stringify(result.error)}},'*');this.textContent='已发送给AI...';this.disabled=true;this.style.background='#94a3b8';})()">Ask AI to fix this error</button>
+        <button id="__ask_ai_btn" style="display:inline-block;margin-top:8px;padding:8px 16px;background:#0ea5e9;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;" onclick="(function(){window.parent.postMessage({type:'code-error',msg:${JSON.stringify(result.error)}},'*');this.textContent='已发送给AI...';this.disabled=true;this.style.background='#94a3b8';})()">让 AI 修复此错误</button>
       </div>` : ''}
       ${!result.output && !hasError ? `<div style="font-size:12px;color:#9ca3af;margin-bottom:12px;">(无标准输出)</div>
       <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px;">
@@ -1197,8 +1152,9 @@ export function Create() {
   const [editorTab, setEditorTab] = useState<'code' | 'preview'>('code');
   const [runningCode, setRunningCode] = useState(false);
   const [showRunResultModal, setShowRunResultModal] = useState(false);
-  const [runResultHtml, setRunResultHtml] = useState('');
-  const [runResultUrl, setRunResultUrl] = useState<string | null>(null); // Streamlit 等直接 URL 预览
+const [runResultHtml, setRunResultHtml] = useState('');
+const [runResultUrl, setRunResultUrl] = useState<string | null>(null); // Streamlit 等直接 URL 预览
+const [runResultBlobUrl, setRunResultBlobUrl] = useState<string | null>(null); // Blob URL 用于 HTML/JS/CSS 预览
   const [projectFiles, setProjectFiles] = useState<FileEntry[]>([]);
   const [activeFileName, setActiveFileName] = useState('main.py');
   const [showFilesPanel, setShowFilesPanel] = useState(false);
@@ -1212,8 +1168,11 @@ export function Create() {
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [editProjectName, setEditProjectName] = useState('');
   const [moreMenuProjectId, setMoreMenuProjectId] = useState<string | null>(null);
-  const [pendingQuestion, setPendingQuestion] = useState<QuestionData | null>(null);
-  const [questionStack, setQuestionStack] = useState<QuestionData[]>([]);
+    const [pendingQuestion, setPendingQuestion] = useState<QuestionData | null>(null);
+    const [questionStack, setQuestionStack] = useState<QuestionData[]>([]);
+    const [showContinueButton, setShowContinueButton] = useState(false);
+    const [isContinuing, setIsContinuing] = useState(false);
+    const lastMessageRef = useRef<string>('');
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -1302,8 +1261,10 @@ export function Create() {
       language,
       filename: fileName,
       files: filesSnapshot.length > 0 ? filesSnapshot : undefined,
+      // 始终带上当前 previewHtml，让后端 workspace 保持最新（用于成果卡封面自动截图）
+      preview_html: previewHtml || '',
     };
-  }, [projectFiles]);
+  }, [projectFiles, previewHtml]);
   const applyWorkspaceRestore = useCallback((payload: ProjectWorkspaceResponse) => {
     const { project, progress, workspace } = payload;
     const wsFiles = (workspace as { files?: FileEntry[] }).files;
@@ -1510,6 +1471,42 @@ export function Create() {
   }, [applyWorkspaceRestore]);
 
   useEffect(() => { const q = searchParams.get('q'); if (q && messages.length === 0) handleSendRef.current?.(q); }, [messages.length, searchParams]);
+
+  /** 处理 URL 中的 file 参数：自动在代码编辑器中打开指定文件 */
+  useEffect(() => {
+    const fileParam = searchParams.get('file');
+    if (!fileParam || !projectContext.projectId || projectFiles.length === 0) return;
+
+    // 解码文件路径
+    const targetPath = decodeURIComponent(fileParam);
+    
+    // 在项目文件列表中查找匹配的文件
+    // 支持精确匹配和模糊匹配（如 docs/05_step_plan.json）
+    const matchedFile = projectFiles.find(f =>
+      f.name === targetPath ||
+      f.name.endsWith('/' + targetPath) ||
+      f.name.endsWith(targetPath)
+    );
+
+    if (matchedFile) {
+      console.log('[file-param] 找到文件，正在打开:', matchedFile.name);
+      // 延迟执行，确保 UI 已完全渲染
+      setTimeout(() => {
+        handleSelectFile(matchedFile);
+        setShowFilesPanel(true); // 同时展开文件面板，让用户看到文件位置
+      }, 300);
+    } else {
+      console.warn('[file-param] 未找到文件:', targetPath, '可用文件:', projectFiles.map(f => f.name));
+      
+      // 如果是 docs/ 路径的文件但不在项目文件中，尝试从后端获取
+      if (targetPath.startsWith('docs/') || targetPath.startsWith('reports/')) {
+        console.log('[file-param] 尝试从后端获取文档文件...');
+        // 这里可以扩展：调用 API 获取文档内容并显示
+      }
+    }
+    // 只执行一次，清理 URL 参数避免重复触发
+    // 注意：不在这里清除参数，因为用户可能需要分享链接
+  }, [searchParams, projectContext.projectId, projectFiles]);
 
   /** 场景驱动：从 sessionStorage 恢复后，根据 scene 标识触发对应 AI 引导 */
   useEffect(() => {
@@ -1797,12 +1794,55 @@ export function Create() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [moreMenuProjectId]);
 
-  const handleWriteCodeToEditor = useCallback((code: string, language: string) => {
+const handleWriteCodeToEditor = useCallback((code: string, language: string) => {
+  const normalizedLang = normalizeCodeLanguage(language);
+  const currentLang = normalizeCodeLanguage(editorLanguage);
+  
+  console.log('[handleWriteCodeToEditor] 接收代码:', { language: normalizedLang, codeLength: code.length, currentLang, editorCodeLength: editorCode.length });
+  
+  // 智能合并：如果编辑器已有 HTML 代码，新来的 CSS/JS 应该合并进去而非覆盖
+  const isValidEditorCode = editorCode && editorCode.trim().length > 50 && !editorCode.includes('在这里查看或修改');
+  const shouldMerge = currentLang === 'html' && isValidEditorCode
+    && (normalizedLang === 'css' || normalizedLang === 'javascript' || normalizedLang === 'typescript');
+  console.log('[handleWriteCodeToEditor] 是否合并:', shouldMerge, { currentLang, editorCodeLength: editorCode?.length, isValidEditorCode, normalizedLang });
+
+  if (shouldMerge) {
+    let merged = editorCode;
+    if (normalizedLang === 'css' && !/<style[\s>]/i.test(editorCode)) {
+      // 注入 CSS - 优先注入到 </head> 前，如果没有 head 则注入到开头
+      const styleBlock = `<style>\n${code}\n</style>`;
+      if (/<\/head>/i.test(editorCode)) {
+        merged = editorCode.replace(/<\/head>/i, `${styleBlock}\n</head>`);
+      } else if (/<head>/i.test(editorCode)) {
+        merged = editorCode.replace(/<head>/i, `<head>\n${styleBlock}`);
+      } else {
+        // 没有 head 标签，在开头添加
+        merged = styleBlock + '\n' + editorCode;
+      }
+      console.log('[handleWriteCodeToEditor] CSS 已合并到现有 HTML，新长度:', merged.length);
+    } else if ((normalizedLang === 'javascript' || normalizedLang === 'typescript') && !/<script[\s>]/i.test(editorCode)) {
+      // 注入 JS - 优先注入到 </body> 前，如果没有 body 则追加到末尾
+      const scriptBlock = `<script>\n${code}\n</script>`;
+      if (/<\/body>/i.test(editorCode)) {
+        merged = editorCode.replace(/<\/body>/i, `${scriptBlock}\n</body>`);
+      } else {
+        merged = editorCode + '\n' + scriptBlock;
+      }
+      console.log('[handleWriteCodeToEditor] JS 已合并到现有 HTML，新长度:', merged.length);
+    } else {
+      console.log('[handleWriteCodeToEditor] 已有 style/script 标签或不是 CSS/JS，跳过合并');
+    }
+    setEditorCode(merged);
+    setEditorLanguage('html');
+  } else {
+    // 直接覆盖（新 HTML、Python，或编辑器为空/占位符时）
+    console.log('[handleWriteCodeToEditor] 直接覆盖编辑器内容');
     setEditorCode(code);
     setEditorLanguage(toEditorLanguage(language));
-    setShowEditor(true);
-    setEditorTab('code');
-  }, []);
+  }
+  setShowEditor(true);
+  setEditorTab('code');
+}, [editorCode, editorLanguage]);
 
   const handleRunCode = useCallback(async (code: string, language: string) => {
     setEditorCode(code);
@@ -1824,12 +1864,20 @@ export function Create() {
           setRunResultHtml(buildExecutionResultHtml(data, code));
         }
         // 同时更新编辑器预览标签
-        setPreviewHtml(data.mode === 'streamlit' && data.preview_url
+        const newPreviewHtml = data.mode === 'streamlit' && data.preview_url
           ? buildStreamlitIframeHtml(data.preview_url, data.output)
-          : buildExecutionResultHtml(data, code));
+          : buildExecutionResultHtml(data, code);
+        setPreviewHtml(newPreviewHtml);
         setEditorTab('preview');
         // 弹出运行结果模态框
         setShowRunResultModal(true);
+        // 运行成功后立即把 preview_html 持久化到 workspace，供成果卡封面自动截图使用
+        if (projectContext.projectId && !projectContext.projectId.startsWith('local-') && newPreviewHtml) {
+          projectsApi.saveCode(projectContext.projectId, {
+            ...buildWorkspaceSavePayload(code, 'python', activeFileName),
+            preview_html: newPreviewHtml,
+          }).catch(() => {/* 静默：预览持久化失败不阻断运行 */});
+        }
       } catch (error) {
         console.error('代码执行失败:', error);
         setRunStatus('error');
@@ -1850,8 +1898,15 @@ export function Create() {
       setEditorTab('preview');
       // HTML/JS 也弹出预览
       setShowRunResultModal(true);
+      // 同样持久化 preview_html
+      if (projectContext.projectId && !projectContext.projectId.startsWith('local-')) {
+        projectsApi.saveCode(projectContext.projectId, {
+          ...buildWorkspaceSavePayload(code, language, activeFileName),
+          preview_html: html,
+        }).catch(() => {/* 静默 */});
+      }
     }
-  }, [projectFiles]);
+  }, [projectFiles, projectContext.projectId, activeFileName, buildWorkspaceSavePayload]);
 
   const handleRunEditorCode = useCallback(async () => {
     if (editorLanguage === 'python' || editorLanguage === 'py') {
@@ -1869,12 +1924,20 @@ export function Create() {
           setRunResultHtml(buildExecutionResultHtml(data, editorCode));
         }
         // 同时更新编辑器预览标签
-        setPreviewHtml(data.mode === 'streamlit' && data.preview_url
+        const newPreviewHtml = data.mode === 'streamlit' && data.preview_url
           ? buildStreamlitIframeHtml(data.preview_url, data.output)
-          : buildExecutionResultHtml(data, editorCode));
+          : buildExecutionResultHtml(data, editorCode);
+        setPreviewHtml(newPreviewHtml);
         setEditorTab('preview');
         // 弹出运行结果模态框
         setShowRunResultModal(true);
+        // 运行成功后立即把 preview_html 持久化到 workspace，供成果卡封面自动截图使用
+        if (projectContext.projectId && !projectContext.projectId.startsWith('local-') && newPreviewHtml) {
+          projectsApi.saveCode(projectContext.projectId, {
+            ...buildWorkspaceSavePayload(editorCode, 'python', activeFileName),
+            preview_html: newPreviewHtml,
+          }).catch(() => {/* 静默 */});
+        }
       } catch (error) {
         console.error('代码执行失败:', error);
         setRunStatus('error');
@@ -1886,17 +1949,26 @@ export function Create() {
       } finally {
         setRunningCode(false);
       }
-    } else {
+} else {
       const html = buildHtmlFromCode(editorCode, editorLanguage);
+      console.log('[handleRunEditorCode] 生成的 HTML 预览，长度:', html.length, '前200字符:', html.substring(0, 200));
       setRunStatus('success');
       setRunResultUrl(null);
+      setRunResultBlobUrl(null); // 清除 Blob URL
       setRunResultHtml(html);
       setPreviewHtml(html);
       setEditorTab('preview');
       // HTML/JS 也弹出预览
       setShowRunResultModal(true);
+      // 同样持久化 preview_html
+      if (projectContext.projectId && !projectContext.projectId.startsWith('local-')) {
+        projectsApi.saveCode(projectContext.projectId, {
+          ...buildWorkspaceSavePayload(editorCode, editorLanguage, activeFileName),
+          preview_html: html,
+        }).catch(() => {/* 静默 */});
+      }
     }
-  }, [editorCode, editorLanguage, projectFiles]);
+  }, [editorCode, editorLanguage, projectFiles, projectContext.projectId, activeFileName, buildWorkspaceSavePayload]);
 
   /** 拖拽分割线：调整聊天区与代码区的宽度比例 */
   const handleResizeStart = useCallback((e: React.MouseEvent) => {
@@ -2056,16 +2128,40 @@ export function Create() {
       }
     }
     // 兜底：如果未找到完整代码块，尝试解析"未闭合"的代码块（流式中断常见）
-    // 例如：```python\nprint('hi')<EOF>  ← 流式截断没有结束 ```
     if (matches.length === 0) {
       const openBlockRegex = /```(\w+)?\n([\s\S]+)$/;
       const openMatch = content.match(openBlockRegex);
       if (openMatch) {
         const language = normalizeCodeLanguage(openMatch[1] || 'text');
-        // 移除末尾可能的孤悬残片（如 < / </）
         const code = openMatch[2].replace(/[\s\n]*<\/?[\s\S]{0,20}$/u, '').trim();
         if (code.length > 10 && isExecutableCodeLanguage(language)) {
           matches.push({ code, language });
+        }
+      }
+    }
+    // 兜底2：没有 markdown 代码块时，尝试通过特征匹配提取裸 CSS/JS 代码
+    // 例如 AI 直接贴出 CSS 样式代码而没有 ```css 包裹
+    if (matches.length === 0) {
+      // 匹配 CSS 代码块：查找包含多个 CSS 规则的大段代码
+      // 策略：找包含 * { ... } 或 body { ... } 或 .class { ... } 的大段文本
+      const cssBlockPattern = /(?:\/\*[\s\S]{0,200}?\*\/\s*)?(?:\*|[\w#\.\-:\[\]]+)\s*\{[\s\S]{100,}?\}(?:\s*(?:[\w#\.\-:\[\]]+)\s*\{[\s\S]*?\})*/;
+      const cssMatch = content.match(cssBlockPattern);
+      if (cssMatch && cssMatch[0].length > 100) {
+        const cssCode = cssMatch[0].trim();
+        // 验证确实是 CSS（包含至少2个典型 CSS 属性）
+        const cssProps = (cssCode.match(/\b(margin|padding|background|color|font-size|display|border|position|width|height|flex|grid|opacity|transform|transition|animation|z-index|overflow|text-align|line-height|font-family|box-shadow|border-radius):/gi) || []);
+        if (cssProps.length >= 2) {
+          console.log('[extractCodeFromResponse] 通过特征匹配提取到裸 CSS 代码，长度:', cssCode.length);
+          matches.push({ code: cssCode, language: 'css' });
+        }
+      }
+      // 匹配 JS 代码块：包含函数定义或变量声明
+      if (matches.length === 0) {
+        const jsPattern = /(?:const\s+\w+\s*=\s*(?:function|\([^)]*\)\s*=>)|function\s+\w+\s*\([^)]*\))[\s\S]{50,}/;
+        const jsMatch = content.match(jsPattern);
+        if (jsMatch && jsMatch[0].length > 60) {
+          console.log('[extractCodeFromResponse] 通过特征匹配提取到裸 JS 代码，长度:', jsMatch[0].length);
+          matches.push({ code: jsMatch[0].trim(), language: 'javascript' });
         }
       }
     }
@@ -2185,17 +2281,26 @@ export function Create() {
     }
   }, [projectContext.projectId]);
 
-  const handleSend = async (
-    text?: string,
-    sceneOverride?: string,
-    requestOverrides?: {
-      projectId?: string;
-      context?: Record<string, unknown>;
-      suppressQuestionCard?: boolean;
-    },
-  ) => {
-    const message = (text || inputValue).trim();
-    if (!message || isLoading) return;
+const handleSend = async (
+      text?: string,
+      sceneOverride?: string,
+      requestOverrides?: {
+        projectId?: string;
+        context?: Record<string, unknown>;
+        suppressQuestionCard?: boolean;
+        isContinue?: boolean;
+      },
+    ) => {
+      const message = (text || inputValue).trim();
+      if (!message || isLoading) return;
+      
+      // 保存最后一条消息用于续接
+      if (!requestOverrides?.isContinue) {
+        lastMessageRef.current = message;
+      }
+      
+      // 隐藏继续按钮
+      setShowContinueButton(false);
     const directCodingIntent = hasDirectCodingIntent(message);
     const requestedOutputLanguage = inferRequestedOutputLanguage(message);
     const historyMessages = buildStreamHistory(messages);
@@ -2267,12 +2372,15 @@ export function Create() {
 
     if (strongCodingIntent && effectiveProjectId) {
       const fallback = buildFallbackCode(requestedOutputLanguage);
-      handleWriteCodeToEditor(fallback.code, fallback.language);
-      setActiveFileName(fallback.filename);
-      setProjectFiles([{ name: fallback.filename, language: fallback.language, content: fallback.code, is_main: true }]);
-      setShowEditor(true);
-      setEditorTab('code');
-      await projectsApi.saveCode(effectiveProjectId, buildWorkspaceSavePayload(fallback.code, fallback.language, fallback.filename));
+      // 不再使用硬编码的 MVP 模板，等待 AI 生成真正的项目代码
+      if (fallback) {
+        handleWriteCodeToEditor(fallback.code, fallback.language);
+        setActiveFileName(fallback.filename);
+        setProjectFiles([{ name: fallback.filename, language: fallback.language, content: fallback.code, is_main: true }]);
+        setShowEditor(true);
+        setEditorTab('code');
+        await projectsApi.saveCode(effectiveProjectId, buildWorkspaceSavePayload(fallback.code, fallback.language, fallback.filename));
+      }
     }
 
     const userMsg: Message = { id: nextMessageId(), role: 'user', content: message };
@@ -2490,8 +2598,14 @@ export function Create() {
 
       // 代码提取必须基于原始内容（rawFinal），因为代码可能被包裹在 DSML 标签中
       // 清理后的内容（assistantContent）已移除 DSML 标签，会导致代码丢失
-      const codeResult = streamedCodeGenerated ? null : extractCodeFromResponse(rawFinal);
+      // 注意：即使 streamedCodeGenerated 已有值（之前的 code_generated 事件），仍需尝试提取
+      // 因为 AI 可能在后续文本中给出了 CSS/JS 修复代码
+      console.log('[handleSend][onEnd] rawFinal 长度:', rawFinal?.length || 0);
+      console.log('[handleSend][onEnd] rawFinal 前500字符:', rawFinal?.substring(0, 500) || 'empty');
+      const codeResult = extractCodeFromResponse(rawFinal);
+      console.log('[handleSend][onEnd] codeResult:', codeResult ? `${codeResult.language} (${codeResult.code.length} chars)` : 'null');
       if (codeResult) {
+        console.log('[handleSend][onEnd] 提取到代码，准备写入编辑器');
         handleWriteCodeToEditor(codeResult.code, codeResult.language);
         if (effectiveProjectId) {
           await projectsApi.saveCode(
@@ -2502,6 +2616,8 @@ export function Create() {
           await ensureProjectCreated(message, codeResult);
         }
         setShowEditor(true);
+        // 写入代码后自动运行预览，让用户立即看到效果
+        setTimeout(() => handleRunEditorCode(), 300);
       } else if (!streamedCodeGenerated) {
         let restoredFromWorkspace = false;
         let workspaceProjectId = effectiveProjectId;
@@ -2525,11 +2641,14 @@ export function Create() {
             let restoredFiles = workspace?.files;
             if ((workspaceCode.trim().length <= 80 || isPlaceholder) && shouldForceCodeGeneration) {
               const fallback = buildFallbackCode(requestedOutputLanguage);
-              restoredCode = fallback.code;
-              restoredLanguage = fallback.language;
-              restoredFilename = fallback.filename;
-              restoredFiles = [{ name: fallback.filename, language: fallback.language, content: fallback.code, is_main: true }];
-              await projectsApi.saveCode(workspaceProjectId, buildWorkspaceSavePayload(fallback.code, fallback.language, fallback.filename));
+              // 不再使用硬编码的 MVP 模板，保持代码区为空等待 AI 生成
+              if (fallback) {
+                restoredCode = fallback.code;
+                restoredLanguage = fallback.language;
+                restoredFilename = fallback.filename;
+                restoredFiles = [{ name: fallback.filename, language: fallback.language, content: fallback.code, is_main: true }];
+                await projectsApi.saveCode(workspaceProjectId, buildWorkspaceSavePayload(fallback.code, fallback.language, fallback.filename));
+              }
             }
             if (restoredCode.trim().length > 80 && !restoredCode.includes('在这里查看或修改 AI 生成的代码')) {
               handleWriteCodeToEditor(restoredCode, restoredLanguage);
@@ -2604,14 +2723,31 @@ export function Create() {
         if (next >= 5) setShowRegisterPrompt(true);
       }
       const errMsg = error instanceof Error ? error.message : '请求失败，请稍后重试';
+      
+      // 检查是否是超时或连接错误
+      const isTimeoutError = errMsg.includes('超时') || errMsg.includes('timeout') || errMsg.includes('aborted');
+      const isConnectionError = errMsg.includes('连接') || errMsg.includes('connection') || errMsg.includes('closed');
+      
       setMessages((prev) => {
         const copy = [...prev];
         const last = copy[copy.length - 1];
-        if (last && last.role === 'assistant') last.content = `请求失败：${errMsg}`;
+        if (last && last.role === 'assistant') {
+          if (isTimeoutError || isConnectionError) {
+            last.content = `${assistantContent}\n\n[输出被截断，请点击下方"继续生成"按钮]`;
+          } else {
+            last.content = `请求失败：${errMsg}`;
+          }
+        }
         return copy;
       });
+      
+      // 如果是超时或连接错误，显示继续按钮
+      if (isTimeoutError || isConnectionError) {
+        setShowContinueButton(true);
+      }
     } finally {
       setIsLoading(false);
+      setIsContinuing(false);
     }
   };
   // handleSendRef 更新放在 useEffect 中，避免 render 期间修改 ref
@@ -2619,11 +2755,33 @@ export function Create() {
     handleSendRef.current = handleSend;
   });
 
-  // Listen for code-error messages from preview iframe (Ask AI button)
+  // 处理继续生成
+  const handleContinue = useCallback(async () => {
+    if (!lastMessageRef.current || isLoading) return;
+    
+    setIsContinuing(true);
+    setShowContinueButton(false);
+    
+    // 发送续接请求
+    await handleSend('继续', undefined, {
+      isContinue: true,
+      suppressQuestionCard: true,
+    });
+  }, [handleSend, isLoading]);
+
+  // Listen for code-error messages from preview iframe (让 AI 修复此错误 按钮)
   useEffect(() => {
     function onMessage(e: MessageEvent) {
       if (e.data && e.data.type === 'code-error' && e.data.msg) {
-        handleSendRef.current?.(`我的代码运行出错了，错误信息是：${e.data.msg}\n\n请帮我修复这个错误。`);
+        const fn = handleSendRef.current;
+        if (fn) {
+          fn(`我的代码运行出错了，错误信息是：${e.data.msg}\n\n请帮我修复这个错误。`);
+        } else {
+          // ref 尚未就绪，延迟重试一次
+          setTimeout(() => {
+            handleSendRef.current?.(`我的代码运行出错了，错误信息是：${e.data.msg}\n\n请帮我修复这个错误。`);
+          }, 300);
+        }
       }
     }
     window.addEventListener('message', onMessage);
@@ -2950,16 +3108,28 @@ export function Create() {
                     </div>
                   </div>
                 )}
-                {pendingQuestion && (
-                  <QuestionCard
-                    data={pendingQuestion}
-                    onAnswer={handleQuestionAnswer}
-                    onCancel={dismissQuestion}
-                    onBack={handleQuestionBack}
-                    onDismiss={dismissQuestion}
+{pendingQuestion && (
+                <QuestionCard
+                  data={pendingQuestion}
+                  onAnswer={handleQuestionAnswer}
+                  onCancel={dismissQuestion}
+                  onBack={handleQuestionBack}
+                  onDismiss={dismissQuestion}
+                />
+              )}
+              
+              {/* 继续生成按钮 */}
+              {showContinueButton && (
+                <div className="flex justify-center py-4">
+                  <ContinueButton
+                    onContinue={handleContinue}
+                    isLoading={isContinuing}
+                    visible={showContinueButton}
                   />
-                )}
-                <div ref={messagesEndRef} />
+                </div>
+              )}
+              
+              <div ref={messagesEndRef} />
               </div>
             </div>
           ) : (
@@ -3177,8 +3347,16 @@ export function Create() {
                   title="应用预览"
                   sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-modals"
                 />
+              ) : runResultBlobUrl ? (
+                // HTML/JS/CSS 预览：使用 Blob URL
+                <iframe
+                  src={runResultBlobUrl}
+                  className="w-full h-full border-0 block"
+                  title="运行结果"
+                  sandbox="allow-scripts allow-modals allow-same-origin allow-forms allow-popups"
+                />
               ) : (
-                // 普通输出：srcDoc 渲染
+                // 普通输出（Python等）：srcDoc 渲染
                 <iframe
                   srcDoc={runResultHtml}
                   className="w-full h-full border-0 block"

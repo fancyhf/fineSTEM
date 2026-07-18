@@ -1,6 +1,7 @@
 import React from 'react';
 import { Outlet } from 'react-router-dom';
 import { Navbar } from './Navbar';
+import { Toaster } from '../Toaster';
 import { AuthProvider } from '../../contexts/AuthContext';
 
 export function Layout() {
@@ -11,6 +12,7 @@ export function Layout() {
         <main>
           <Outlet />
         </main>
+        <Toaster />
       </div>
     </AuthProvider>
   );

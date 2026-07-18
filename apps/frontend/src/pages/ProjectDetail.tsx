@@ -3,13 +3,14 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
-import { ArrowLeft, Check, Download, FileText, Pencil, Sparkles, Trash2, Award, TrendingUp, Code, X, FolderOpen } from 'lucide-react';
+import { ArrowLeft, Check, Download, FileText, Pencil, Sparkles, Trash2, Award, TrendingUp, Code, X, FolderOpen, Wand2 } from 'lucide-react';
 import { projectsApi, achievementCardsApi, documentsApi, capabilityTagsApi } from '../services/api';
 import { Project, ProjectProgress, AchievementCard } from '../types';
 import { ProjectStageBar } from '../components/ProjectStageBar';
 import { LightProjectSteps } from '../components/LightProjectSteps';
 import { StandardProjectSteps } from '../components/StandardProjectSteps';
 import { AchievementCardView } from '../components/AchievementCardView';
+import { CoverPicker } from '../components/CoverPicker';
 import { EvidencePanel } from '../components/EvidencePanel';
 import { CapabilityRadarChart } from '../components/CapabilityRadarChart';
 import { GrowthTimeline } from '../components/GrowthTimeline';
@@ -28,6 +29,8 @@ export default function ProjectDetail() {
   const [downloading, setDownloading] = useState<string>('');
   const [generatingAchievement, setGeneratingAchievement] = useState(false);
   const [upgrading, setUpgrading] = useState(false);
+  // 触发 CoverPicker 展开的信号（右侧菜单"设置/更换封面"按钮 → 滚动 + 自动展开）
+  const [coverPickerSignal, setCoverPickerSignal] = useState(0);
   const [searchParams] = useSearchParams();
   const referredFile = searchParams.get('file');
   const [workspaceFilename, setWorkspaceFilename] = useState<string | null>(null);
@@ -557,6 +560,27 @@ export default function ProjectDetail() {
                   <Button
                     variant="secondary"
                     className="w-full justify-start"
+                    disabled={!achievement}
+                    title={achievement ? '在下方成果卡预览区选择封面来源' : '请先创建成果卡后再设置封面'}
+                    onClick={() => {
+                      if (!achievement) return;
+                      const el = document.getElementById('achievement-cover-picker');
+                      if (el) {
+                        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        // 简短高亮提示用户封面选择器位置
+                        el.classList.add('ring-2', 'ring-teal-400', 'rounded-xl');
+                        setTimeout(() => el.classList.remove('ring-2', 'ring-teal-400', 'rounded-xl'), 1600);
+                      }
+                      // 滚动完成后触发 CoverPicker 自动展开（给浏览器一点时间完成滚动）
+                      setTimeout(() => setCoverPickerSignal((n) => n + 1), 350);
+                    }}
+                  >
+                    <Wand2 className="mr-2 h-4 w-4" />
+                    {achievement?.screenshots && achievement.screenshots.length > 0 ? '更换封面' : '设置封面'}
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    className="w-full justify-start"
                     onClick={() => void handleExportProject('zip')}
                     disabled={!!downloading}
                   >
@@ -636,6 +660,9 @@ export default function ProjectDetail() {
                 </CardHeader>
                 <CardContent>
                   <AchievementCardView achievement={achievement} />
+                  <div id="achievement-cover-picker" className="mt-4 pt-4 border-t border-gray-100 transition-all">
+                    <CoverPicker card={achievement} projectId={project.id} onUpdated={setAchievement} openSignal={coverPickerSignal} />
+                  </div>
                 </CardContent>
               </Card>
             )}
@@ -655,6 +682,10 @@ export default function ProjectDetail() {
                   <Button className="w-full" onClick={handleOpenAchievement}>
                     <Award className="mr-2 h-4 w-4" />
                     打开草稿并确认保存
+                  </Button>
+                  <Button variant="secondary" className="w-full" disabled title="请先保存为成果卡后再生成封面">
+                    <Wand2 className="mr-2 h-4 w-4" />
+                    生成封面
                   </Button>
                 </CardContent>
               </Card>

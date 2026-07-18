@@ -28,7 +28,7 @@ REPORT_DIR.mkdir(parents=True, exist_ok=True)
 TEST_DATABASE_PATH = Path("D:/data/finestem/test_finestem.db")
 
 BACKEND_HEALTH_URL = "http://127.0.0.1:3200/health"
-FRONTEND_CREATE_URL = "http://127.0.0.1:5284/create"
+FRONTEND_CREATE_URL = "http://127.0.0.1:5184/create"
 BACKEND_START_TIMEOUT_SECONDS = 30
 FRONTEND_START_TIMEOUT_SECONDS = 45
 
@@ -283,7 +283,7 @@ def run_frontend_pbl_e2e() -> PblLoopResult:
                 "--host",
                 "127.0.0.1",
                 "--port",
-                "5284",
+                "5184",
             ],
             cwd=PROJECT_ROOT / "apps" / "frontend",
             timeout_seconds=FRONTEND_START_TIMEOUT_SECONDS,
@@ -321,7 +321,7 @@ def run_frontend_pbl_e2e() -> PblLoopResult:
             cwd=FRONTEND_E2E_DIR,
             env_overrides={
                 "E2E_API_URL": "http://127.0.0.1:3200/api/v1",
-                "E2E_BASE_URL": "http://127.0.0.1:5284",
+                "E2E_BASE_URL": "http://127.0.0.1:5184",
             },
             log_path=REPORT_DIR / f"pbl-loop-frontend-tests_{timestamp}.log",
         )

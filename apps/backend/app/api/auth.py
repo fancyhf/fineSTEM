@@ -120,6 +120,16 @@ async def get_optional_current_user(token: str | None = Depends(oauth2_scheme_op
     )
 
 
+async def require_admin(current_user: UserResponse = Depends(get_current_user)) -> UserResponse:
+    """要求当前用户具有管理员权限"""
+    if current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="需要管理员权限",
+        )
+    return current_user
+
+
 @router.post("/register", response_model=ApiResponse[AuthResponse])
 async def register(user_data: UserCreate):
     """

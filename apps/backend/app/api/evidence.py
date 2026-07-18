@@ -228,13 +228,19 @@ async def upload_screenshot_evidence(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="仅支持图片文件")
 
     meta = await storage_service.save_upload(owner_id=current_user.id, file=file, project_id=project_id)
+    # 拼出可匿名公开访问的 /uploads/ 相对路径（与 main.py 的静态挂载对应）
+    from pathlib import Path as _Path
+    from app.core.config import settings as _settings
+    uploads_base = _Path(_settings.STORAGE_BASE_PATH) / _settings.STORAGE_UPLOAD_DIR
+    rel_path = _Path(meta["stored_path"]).relative_to(uploads_base)
+    public_url = f"/uploads/{rel_path.as_posix()}"
     evidence = Evidence(
         project_id=project_id,
         author_id=current_user.id,
         type="screenshot",
         title=related_step or "screenshot",
         content=f"截图上传：{file.filename or 'image'} @ {utc_now_iso()}",
-        content_url=f"/api/v1/files/{meta['id']}",
+        content_url=public_url,
         related_step=related_step,
         created_by=current_user.id,
     )

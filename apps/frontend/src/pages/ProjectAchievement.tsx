@@ -3,11 +3,12 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { achievementCardsApi, projectsApi } from '../services/api';
 import { AchievementCard, AchievementRecommendation, Project } from '../types';
 import { AchievementCardView } from '../components/AchievementCardView';
+import { CoverPicker } from '../components/CoverPicker';
 import { MarkdownText } from '../components/MarkdownText';
 import { Button } from '../components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
-import { ArrowLeft, Share2, Copy, ExternalLink, Globe, EyeOff, FileText, Save } from 'lucide-react';
+import { ArrowLeft, Share2, Copy, ExternalLink, Globe, EyeOff, FileText, Save, Wand2 } from 'lucide-react';
 
 export default function ProjectAchievement() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -282,6 +283,10 @@ export default function ProjectAchievement() {
               <Button variant="secondary" onClick={() => navigate(`/research/projects/${projectId}/achievement?action=create`)}>
                 手动编辑后创建
               </Button>
+              <Button variant="secondary" disabled title="请先保存为成果卡后再生成封面">
+                <Wand2 className="w-4 h-4 mr-2" />
+                生成封面
+              </Button>
               <Button variant="ghost" onClick={() => navigate(`/research/projects/${projectId}`)}>
                 去项目详情
               </Button>
@@ -308,6 +313,10 @@ export default function ProjectAchievement() {
             <div className="flex flex-wrap gap-3">
               <Button onClick={() => setShowCreateForm(true)}>
                 直接创建成果卡
+              </Button>
+              <Button variant="secondary" disabled title="请先创建成果卡后再生成封面">
+                <Wand2 className="w-4 h-4 mr-2" />
+                生成封面
               </Button>
               <Button variant="secondary" onClick={() => navigate(`/research/projects/${projectId}`)}>
                 去项目详情
@@ -352,6 +361,20 @@ export default function ProjectAchievement() {
         </Button>
 
         <AchievementCardView achievement={achievement} />
+
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle className="text-lg">封面图</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-gray-600 mb-4">
+              {achievement.screenshots && achievement.screenshots.length > 0
+                ? '当前已有封面图。可以选择项目运行截图、AI 生成或上传图片来更换。'
+                : '选择封面来源：项目运行截图（默认）、AI 生成或上传图片。封面展示在灵感墙和首页精选区。'}
+            </p>
+            <CoverPicker card={achievement} projectId={projectId!} onUpdated={setAchievement} />
+          </CardContent>
+        </Card>
 
         <Card className="mt-6">
           <CardHeader>
@@ -583,6 +606,10 @@ function AchievementCreateForm({
 
             <div className="flex justify-end gap-3 pt-4">
               <Button variant="secondary" onClick={onBack}>取消</Button>
+              <Button variant="secondary" disabled title="请先生成档案卡后再生成封面">
+                <Wand2 className="w-4 h-4 mr-2" />
+                生成封面
+              </Button>
               <Button
                 className="bg-teal-600 hover:bg-teal-700"
                 onClick={handleCreate}

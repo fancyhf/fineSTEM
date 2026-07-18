@@ -265,6 +265,7 @@ class ProjectCodeSave(BaseModel):
     language: str = Field(default="python", description="编程语言")
     filename: Optional[str] = Field(default=None, description="文件名")
     files: Optional[List[FileEntry]] = Field(default=None, description="多文件列表（可选，保存时覆盖）")
+    preview_html: Optional[str] = Field(default=None, description="最近一次运行预览的 HTML（用于成果卡封面自动截图）")
 
 
 class ProjectChatSave(BaseModel):

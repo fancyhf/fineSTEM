@@ -73,6 +73,17 @@ DEMOS_STATIC_DIR = os.environ.get("DEMOS_STATIC_DIR", r"D:\data\finestem\demos")
 if os.path.isdir(DEMOS_STATIC_DIR):
     app.mount("/demos", StaticFiles(directory=DEMOS_STATIC_DIR), name="demos-static")
 
+# AI 生成的封面图静态目录（匿名公开访问，用于灵感墙/精选/分享页）
+# 确保目录存在再挂载，避免启动时目录未创建导致挂载被跳过
+MEDIA_STATIC_DIR = os.path.join(settings.STORAGE_BASE_PATH, "generated")
+os.makedirs(MEDIA_STATIC_DIR, exist_ok=True)
+app.mount("/media", StaticFiles(directory=MEDIA_STATIC_DIR), name="media-static")
+
+# 用户上传文件静态目录（匿名公开访问，用于成果卡封面/截图等）
+UPLOADS_STATIC_DIR = os.path.join(settings.STORAGE_BASE_PATH, settings.STORAGE_UPLOAD_DIR)
+os.makedirs(UPLOADS_STATIC_DIR, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=UPLOADS_STATIC_DIR), name="uploads-static")
+
 
 @app.get("/")
 async def root():

@@ -77,7 +77,7 @@ SCENE_SYSTEM_PROMPTS = {
 1. 询问项目方向（Web应用/数据分析/游戏/AI/硬件）
 2. 评估难度是否匹配学生水平
 3. 推荐合适的 Demo 模板作为起点
-4. 如果没有合适模板，给出最小可行方案
+4. 如果没有合适模板，给出完整可运行的项目方案
 5. 引导学生使用"我也做一个"功能 Fork Demo
 
 项目创建后的第一步建议：
@@ -255,10 +255,13 @@ class ZeroClawProvider:
         return "api.deepseek.com" in gateway_url
 
     def _build_request_payload(self, payload: Dict[str, Any], gateway_url: str) -> Dict[str, Any]:
+        from app.core.config import settings
+
         if "messages" in payload:
             result = {
                 "model": str(payload.get("model") or "deepseek-chat"),
                 "messages": payload["messages"],
+                "max_tokens": settings.ZEROCLAW_MAX_TOKENS,
             }
             if payload.get("stream") is not None:
                 result["stream"] = payload["stream"]

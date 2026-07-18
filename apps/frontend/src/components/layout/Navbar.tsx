@@ -12,6 +12,7 @@ import {
   ClipboardList,
   Link2,
   UserCircle,
+  Star,
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -94,6 +95,16 @@ export function Navbar({ children }: NavbarProps) {
                       <p className="text-sm text-gray-600">{user.email}</p>
                     </div>
                     <div className="p-2">
+                      {user.role === 'admin' && (
+                        <Link
+                          to="/admin/featured"
+                          onClick={() => setShowMenu(false)}
+                          className="flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg w-full"
+                        >
+                          <Star className="h-4 w-4" />
+                          精选管理
+                        </Link>
+                      )}
                       <Link
                         to="/profile"
                         onClick={() => setShowMenu(false)}

@@ -27,8 +27,10 @@ import {
   AchievementCard,
   AchievementCardCreate,
   AchievementCardUpdate,
+  FeaturedCard,
   ShareTokenResponse,
   SubmitPublicRequest,
+  ScreenshotOption,
   AchievementRecommendation,
   Evidence,
   EvidenceCreate,
@@ -299,7 +301,7 @@ export const projectsApi = {
   exportFile: (id: string, format: 'json' | 'md' | 'zip' | 'pdf' | 'docx') =>
     requestBlob(`/projects/${id}/export?format=${format}`, { method: 'GET' }),
   // 代码持久化（autosave：静默模式，401 不跳转）
-  saveCode: (id: string, data: { code: string; language?: string; filename?: string; files?: FileEntry[] }) =>
+  saveCode: (id: string, data: { code: string; language?: string; filename?: string; files?: FileEntry[]; preview_html?: string }) =>
     api.post<{ saved: boolean; project_id: string }>(`/projects/${id}/code`, data, true).then((res) => {
       if (!res.data?.saved) {
         throw new Error(res.message || '代码保存失败');
@@ -357,6 +359,31 @@ export const achievementCardsApi = {
     }
     return api.get<PaginationResult<AchievementCard>>(`/achievement-cards/inspiration-wall${query.toString() ? `?${query.toString()}` : ''}`);
   },
+  /** 首页精选作品（无需登录） */
+  listFeatured: (params?: { page?: number; page_size?: number }) => {
+    const query = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) query.append(key, String(value));
+      });
+    }
+    return api.get<PaginationResult<FeaturedCard>>(`/achievement-cards/featured${query.toString() ? `?${query.toString()}` : ''}`);
+  },
+  /** 管理员设置/取消精选 */
+  setFeatured: (id: string, featured: boolean, sortOrder = 0) =>
+    api.post<AchievementCard>(`/achievement-cards/${id}/feature`, { featured, sort_order: sortOrder }),
+  /** 生成 AI 封面图（作者本人） */
+  generateCover: (id: string) =>
+    api.post<AchievementCard>(`/achievement-cards/${id}/generate-cover`, {}),
+  /** 上传图片作为封面（作者本人） */
+  uploadCover: (id: string, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.postForm<AchievementCard>(`/achievement-cards/${id}/upload-cover`, formData);
+  },
+  /** 获取项目截图列表（用于选择封面） */
+  listProjectScreenshots: (projectId: string) =>
+    api.get<ScreenshotOption[]>(`/achievement-cards/projects/${projectId}/screenshots`),
 };
 
 // 证据 API
@@ -436,4 +463,16 @@ export const codeExecutionApi = {
     api.get<CodeTemplate[]>('/code/templates'),
   getTemplate: (id: string) =>
     api.get<CodeTemplateDetail>(`/code/templates/${id}`),
+  /** 对当前项目运行预览自动截图，并登记为项目 screenshot 证据 */
+  capturePreview: (projectId: string, opts?: { previewUrl?: string; html?: string; relatedStep?: string; fullPage?: boolean }) =>
+    api.post<ScreenshotOption>(
+      '/code/capture-preview',
+      {
+        project_id: projectId,
+        preview_url: opts?.previewUrl,
+        html: opts?.html,
+        related_step: opts?.relatedStep,
+        full_page: opts?.fullPage ?? false,
+      },
+    ),
 };

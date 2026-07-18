@@ -20,6 +20,19 @@ from typing import IO, Sequence
 from urllib import error, request
 
 
+# ── Windows 控制台 UTF-8 兼容 ──
+# 子进程（pytest / playwright 等）输出可能含 emoji / 中文括号等非 GBK 字符；
+# Windows 默认控制台编码 GBK 直接 print 会触发 UnicodeEncodeError。
+# 强制 stdout/stderr 重新配置为 utf-8、不可编码字符替换为 ?，避免脚本因输出炸掉。
+for _stream_name in ("stdout", "stderr"):
+    _stream = getattr(sys, _stream_name, None)
+    if _stream is not None and hasattr(_stream, "reconfigure"):
+        try:
+            _stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 BACKEND_DIR = PROJECT_ROOT / "apps" / "backend"
 FRONTEND_E2E_DIR = PROJECT_ROOT / "apps" / "frontend" / "tests"
@@ -28,7 +41,7 @@ REPORT_DIR.mkdir(parents=True, exist_ok=True)
 TEST_DATABASE_PATH = Path("D:/data/finestem/test_finestem.db")
 
 BACKEND_HEALTH_URL = "http://127.0.0.1:3200/health"
-FRONTEND_CREATE_URL = "http://127.0.0.1:5284/create"
+FRONTEND_CREATE_URL = "http://127.0.0.1:5184/create"
 BACKEND_START_TIMEOUT_SECONDS = 30
 FRONTEND_START_TIMEOUT_SECONDS = 45
 
@@ -266,7 +279,7 @@ def run_frontend_smoke() -> SmokeResult:
                 "--host",
                 "127.0.0.1",
                 "--port",
-                "5284",
+                "5184",
             ],
             cwd=PROJECT_ROOT / "apps" / "frontend",
             timeout_seconds=FRONTEND_START_TIMEOUT_SECONDS,
@@ -301,7 +314,7 @@ def run_frontend_smoke() -> SmokeResult:
             cwd=FRONTEND_E2E_DIR,
             env_overrides={
                 "E2E_API_URL": "http://127.0.0.1:3200/api/v1",
-                "E2E_BASE_URL": "http://127.0.0.1:5284",
+                "E2E_BASE_URL": "http://127.0.0.1:5184",
             },
             log_path=REPORT_DIR / f"create-smoke-frontend-tests_{timestamp}.log",
         )

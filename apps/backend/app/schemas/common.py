@@ -52,6 +52,17 @@ class PublishFields(BaseModel):
     submitted_at: Optional[datetime] = None
 
 
+class FeatureFields(BaseModel):
+    """
+    精选字段基类
+
+    用于管理员标记的首页精选内容（如成果档案卡）
+    """
+    is_featured: bool = False
+    featured_sort_order: int = 0
+    featured_at: Optional[datetime] = None
+
+
 class PaginationParams(BaseModel):
     """
     分页查询参数

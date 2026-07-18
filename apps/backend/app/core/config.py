@@ -40,7 +40,8 @@ class Settings(BaseSettings):
     ZEROCLAW_FALLBACK_MODEL: str = "qwen-plus"
     ZEROCLAW_LOCAL_SAFE_MODEL: str = "local-safe"
     ZEROCLAW_ENABLE_MOCK_FALLBACK: bool = False
-    ZEROCLAW_TIMEOUT_SECONDS: int = 30
+    ZEROCLAW_TIMEOUT_SECONDS: int = 120
+    ZEROCLAW_MAX_TOKENS: int = 16384
     glm_key: Optional[str] = None
     deepseek_key: Optional[str] = None
     AGENT_SKILL_TIMEOUT_MS: int = 15000

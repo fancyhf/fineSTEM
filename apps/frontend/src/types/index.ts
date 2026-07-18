@@ -17,7 +17,7 @@ export interface PaginationResult<T = unknown> {
 export interface UserBase {
   name: string;
   email: string;
-  role: 'student';
+  role: 'student' | 'admin';
   level: 1 | 2 | 3 | 4 | 5;
   capability_tags: string[];
 }
@@ -305,6 +305,9 @@ export interface AchievementCard {
   is_public: boolean;
   visibility: 'private' | 'link' | 'wall';
   shared_at?: string;
+  is_featured?: boolean;
+  featured_sort_order?: number;
+  featured_at?: string;
   created_at: string;
   updated_at: string;
   created_by: string;
@@ -334,6 +337,12 @@ export interface AchievementCardUpdate {
   is_public?: boolean;
 }
 
+// 精选作品卡片（首页展示用，附带关联项目信息）
+export interface FeaturedCard extends AchievementCard {
+  project_name?: string;
+  project_stage?: string;
+}
+
 export interface ShareTokenResponse {
   share_token: string;
   share_url: string;
@@ -341,6 +350,13 @@ export interface ShareTokenResponse {
 
 export interface SubmitPublicRequest {
   submit_public: boolean;
+}
+
+// 项目截图候选项（来自 evidence 的 screenshot 类型）
+export interface ScreenshotOption {
+  id: string;
+  title: string;
+  url: string;
 }
 
 export interface AchievementRecommendation {

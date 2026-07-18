@@ -958,7 +958,7 @@ def process_video(video_url):
 好的！接下来告诉我：
 
 <question type="single" title="你打算花多长时间完成？" step="2" total_steps="3">
-  <option id="2h" label="2小时">做一个超简单的MVP，快速体验</option>
+  <option id="2h" label="2小时">做一个可快速完成的项目，快速体验</option>
   <option id="6h" label="6小时">做一个完整的小项目</option>
   <option id="12h" label="12小时+">做一个有挑战性的项目</option>
 </question>

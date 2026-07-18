@@ -17,10 +17,18 @@ import shutil
 from typing import Optional
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
 from app.schemas.common import ApiResponse
+from app.schemas.evidence import Evidence
+from app.schemas.auth import UserResponse
+from app.repositories.runtime_db import db
+from app.api.auth import get_current_user
+from app.services.storage_service import storage_service
+from app.services.screenshot_service import screenshot_service
+from app.core.config import settings
+from app.core.time_utils import utc_now_iso
 
 
 router = APIRouter(prefix="/code", tags=["代码执行"])
@@ -906,3 +914,146 @@ async def _execute_javascript(code: str, timeout: int = 10):
             os.unlink(temp_path)
         except Exception:
             pass
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 运行预览自动截图（用于成果卡封面来源）
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class CapturePreviewRequest(BaseModel):
+    project_id: str
+    # 可选：当前预览 URL（如 Streamlit preview_url），不传则尝试当前运行中的 streamlit
+    preview_url: Optional[str] = None
+    # 可选：HTML 预览内容（同源 srcDoc/Blob 预览），不传则尝试项目工作区保存的 preview_html
+    html: Optional[str] = None
+    related_step: Optional[str] = None
+    full_page: bool = False
+
+
+def _resolve_preview_source(payload: CapturePreviewRequest) -> tuple[Optional[str], Optional[str]]:
+    """返回 (preview_url, html)，无法确定来源时均为 None。"""
+    url, html = payload.preview_url, payload.html
+    if url or html:
+        return url, html
+
+    # 1) 当前正在运行的 Streamlit 服务
+    if (
+        _streamlit_process
+        and _streamlit_process.poll() is None
+        and _is_port_listening(_streamlit_port)
+    ):
+        return f"http://localhost:{_streamlit_port}", None
+
+    try:
+        workspace = db.get_project_workspace(payload.project_id) or {}
+    except Exception:
+        workspace = {}
+
+    # 2) 项目工作区保存的 preview_html（运行代码后持久化的预览页）
+    saved_html = str(workspace.get("preview_html") or "")
+    if saved_html.strip():
+        return None, saved_html
+
+    # 3) 回退：工作区代码本身就是 HTML/JS（旧项目未保存 preview_html 时）
+    code = str(workspace.get("code") or "")
+    language = str(workspace.get("language") or "").lower()
+    if code.strip() and (language in ("html", "htm") or code.lstrip().lower().startswith("<!doctype html") or "<html" in code.lower()[:500]):
+        return None, code
+
+    # 4) 回退：多文件工作区里找 HTML 主文件
+    files = workspace.get("files") or []
+    if isinstance(files, list):
+        for f in files:
+            if not isinstance(f, dict):
+                continue
+            fname = str(f.get("name") or "").lower()
+            content = str(f.get("content") or "")
+            if (fname.endswith((".html", ".htm")) or content.lstrip().lower().startswith("<!doctype html")) and content.strip():
+                return None, content
+
+    return None, None
+
+
+@router.post("/capture-preview", response_model=ApiResponse[dict])
+async def capture_preview(
+    payload: CapturePreviewRequest,
+    current_user: UserResponse = Depends(get_current_user),
+):
+    """
+    对当前项目运行预览自动截图，并登记为项目 screenshot 证据（供成果卡封面选择）。
+
+    截图来源优先级：payload.preview_url / payload.html > 当前运行中的 Streamlit > 项目工作区保存的 preview_html。
+    """
+    import logging as _logging
+    _log = _logging.getLogger("app.api.code_execution.capture_preview")
+    _log.info("capture_preview called project_id=%s user=%s preview_url=%s html_len=%d",
+              payload.project_id, current_user.id, payload.preview_url, len(payload.html or ""))
+    project = db.get_project(payload.project_id)
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
+    if project.author_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权操作此项目")
+
+    preview_url, html = _resolve_preview_source(payload)
+    if not preview_url and not html:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="当前没有可截图的运行预览，请先在创建页运行项目代码后再采集",
+        )
+
+    loop = asyncio.get_running_loop()
+    try:
+        if preview_url:
+            png = await loop.run_in_executor(
+                None, screenshot_service.capture_url, preview_url, payload.full_page
+            )
+        else:
+            png = await loop.run_in_executor(
+                None, screenshot_service.capture_html, html, payload.full_page
+            )
+    except RuntimeError as e:
+        # playwright 的 Error 也是 RuntimeError 子类，把类型名带上避免 detail 为空
+        detail = str(e) or e.__class__.__name__
+        _log.exception("capture_preview 截图失败(RuntimeError) project_id=%s", payload.project_id)
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=detail)
+    except Exception as e:
+        _log.exception("capture_preview 截图失败 project_id=%s", payload.project_id)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"截图失败：{e}",
+        )
+
+    if not png:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="截图为空",
+        )
+
+    meta = storage_service.save_screenshot_bytes(
+        owner_id=current_user.id,
+        project_id=payload.project_id,
+        content=png,
+    )
+    uploads_base = Path(settings.STORAGE_BASE_PATH) / settings.STORAGE_UPLOAD_DIR
+    try:
+        rel_path = Path(meta["stored_path"]).relative_to(uploads_base)
+    except ValueError:
+        rel_path = Path(meta["stored_path"]).name
+    public_url = f"/uploads/{rel_path.as_posix()}"
+
+    evidence = Evidence(
+        project_id=payload.project_id,
+        author_id=current_user.id,
+        type="screenshot",
+        title=payload.related_step or "项目运行截图",
+        content=f"运行截图自动采集 @ {utc_now_iso()}",
+        content_url=public_url,
+        related_step=payload.related_step,
+        created_by=current_user.id,
+    )
+    created = db.create_evidence(evidence)
+    return ApiResponse(
+        data={"id": created.id, "title": created.title, "url": created.content_url},
+        message="运行截图已自动采集",
+    )

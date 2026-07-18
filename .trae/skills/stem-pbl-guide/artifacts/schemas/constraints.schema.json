@@ -8,7 +8,7 @@
   "properties": {
     "must_have": {
       "type": "array",
-      "description": "必须有的功能 (MVP)",
+      "description": "必须有的功能 (核心功能)",
       "minItems": 1,
       "maxItems": 5,
       "items": {

@@ -19,7 +19,7 @@
  *   npx playwright test pbl-conversation-flow.spec.ts -g "完整PBL流程"
  *
  * 配置：
- *   BASE_URL: 前端地址（默认 http://localhost:5284/create）
+ *   BASE_URL: 前端地址（默认 http://localhost:5184/create）
  *   API_BASE: 后端 API 地址（默认 http://localhost:3200/api/v1）
  */
 
@@ -27,7 +27,7 @@ import { expect, Page, Locator } from '@playwright/test';
 import { test } from '../fixtures';
 
 const CONFIG = {
-  BASE_URL: process.env.BASE_URL || 'http://localhost:5284/create',
+  BASE_URL: process.env.BASE_URL || 'http://localhost:5184/create',
   API_BASE: process.env.API_BASE || 'http://localhost:3200/api/v1',
   TIMEOUTS: {
     AI_RESPONSE: 45000,

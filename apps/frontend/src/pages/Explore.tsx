@@ -9,6 +9,7 @@ import { AchievementCard, Course, Demo } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { LightRegisterPrompt } from '../components/LightRegisterPrompt';
 import { useNavigate } from 'react-router-dom';
+import { resolveImageUrl } from '../lib/image';
 
 type TabType = 'demos' | 'courses' | 'inspiration';
 
@@ -116,9 +117,16 @@ export function Explore() {
 function DemosContent({ demos }: { demos: Demo[] }) {
   return (
     <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-      {demos.map((demo) => (
+      {demos.map((demo) => {
+        const cover = demo.screenshots && demo.screenshots.length > 0
+          ? resolveImageUrl(demo.screenshots[0]) : null;
+        return (
         <Card key={demo.id} hoverable className="overflow-hidden">
-          <div className="h-40 bg-gradient-to-br from-gray-100 to-gray-200" />
+          {cover ? (
+            <img src={cover} alt={demo.name} className="h-40 w-full object-cover" loading="lazy" />
+          ) : (
+            <div className="h-40 bg-gradient-to-br from-gray-100 to-gray-200" />
+          )}
           <CardContent className="pt-4">
             <CardTitle className="text-base">{demo.name}</CardTitle>
             <p className="text-sm text-gray-500 mt-1 line-clamp-2">{demo.description}</p>
@@ -141,7 +149,8 @@ function DemosContent({ demos }: { demos: Demo[] }) {
             <Button className="w-full">我也做一个</Button>
           </div>
         </Card>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -183,9 +192,16 @@ function InspirationContent({
 }) {
   return (
     <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-      {cards.map((card) => (
+      {cards.map((card) => {
+        const cover = card.screenshots && card.screenshots.length > 0
+          ? resolveImageUrl(card.screenshots[0]) : null;
+        return (
         <Card key={card.id} hoverable className="overflow-hidden">
-          <div className="h-40 bg-gradient-to-br from-primary-50 to-primary-100" />
+          {cover ? (
+            <img src={cover} alt={card.title} className="h-40 w-full object-cover" loading="lazy" />
+          ) : (
+            <div className="h-40 bg-gradient-to-br from-primary-50 to-primary-100" />
+          )}
           <CardContent className="pt-4">
             <CardTitle className="text-base">{card.title}</CardTitle>
             <p className="text-sm text-gray-500 mt-1 line-clamp-2">{card.one_liner}</p>
@@ -204,7 +220,8 @@ function InspirationContent({
             )}
           </CardFooter>
         </Card>
-      ))}
+        );
+      })}
     </div>
   );
 }

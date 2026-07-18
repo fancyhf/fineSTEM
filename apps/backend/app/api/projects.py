@@ -44,6 +44,8 @@ from app.api.auth import get_current_user
 from app.services.document_service import document_service
 from app.services.pbl_engine import advance_with_gate, save_artifact
 from app.services.stage08_sync import build_stage08_payload, merge_stage08_into_standard_data
+from app.services.providers.image_provider import generate_cover_image
+from app.services.storage_service import storage_service
 from app.core.config import settings
 from app.core.time_utils import utc_now, utc_now_iso
 
@@ -695,6 +697,10 @@ async def save_project_code(
     # 多文件支持：如果传了 files 字段，一并保存
     if code_data.files is not None:
         workspace_payload["files"] = [f.model_dump() for f in code_data.files]
+    # 运行预览 HTML：用于成果卡封面自动截图（无头浏览器对预览页拍照）
+    # 只在显式传入时覆盖，避免 autosave 只存代码时把已有 preview_html 清空
+    if code_data.preview_html is not None:
+        workspace_payload["preview_html"] = code_data.preview_html
 
     db.save_project_workspace(
         project_id,
@@ -950,6 +956,14 @@ async def generate_project_achievement_card(
 
     existing_card = db.get_achievement_card_by_project(project_id)
     if existing_card:
+        final_screenshots = screenshots or existing_card.screenshots
+        # 封面图为空时自动生成
+        if not final_screenshots:
+            cover_url = await generate_cover_image(title, one_liner, capability_tags)
+            if cover_url:
+                local_path = await storage_service.save_cover_image(existing_card.id, cover_url)
+                if local_path:
+                    final_screenshots = [local_path]
         update_data = {
             "title": title,
             "one_liner": one_liner,
@@ -957,7 +971,7 @@ async def generate_project_achievement_card(
             "method_used": method_used,
             "reflection": reflection,
             "capability_tags": capability_tags or existing_card.capability_tags,
-            "screenshots": screenshots or existing_card.screenshots,
+            "screenshots": final_screenshots,
         }
         updated_card = db.update_achievement_card(existing_card.id, update_data)
         stage08_payload = build_stage08_payload(
@@ -989,6 +1003,15 @@ async def generate_project_achievement_card(
         created_by=current_user.id,
     )
     created_card = db.create_achievement_card(card)
+    # 封面图为空时自动生成
+    if not created_card.screenshots:
+        cover_url = await generate_cover_image(title, one_liner, capability_tags)
+        if cover_url:
+            local_path = await storage_service.save_cover_image(created_card.id, cover_url)
+            if local_path:
+                created_card = db.update_achievement_card(
+                    created_card.id, {"screenshots": [local_path]}
+                ) or created_card
     skill_state = db.get_skill_state(project_id)
     stage08_payload = build_stage08_payload(
         skill_state.standard_step_data if skill_state else {},

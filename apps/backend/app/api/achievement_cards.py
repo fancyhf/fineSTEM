@@ -7,17 +7,21 @@ links: .trae/documents/api-specs/v1/spec.json
 """
 
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from app.schemas.achievements import (
     AchievementCard,
     AchievementCardCreate,
     AchievementCardUpdate,
+    FeaturedCard,
+    FeatureRequest,
     ShareTokenResponse,
 )
 from app.schemas.common import ApiResponse, PaginationResult
 from app.schemas.auth import UserResponse
 from app.repositories.runtime_db import db
-from app.api.auth import get_current_user
+from app.api.auth import get_current_user, require_admin
+from app.services.providers.image_provider import generate_cover_image
+from app.services.storage_service import storage_service
 from app.schemas.projects import Project
 
 router = APIRouter(prefix="/achievement-cards", tags=["成果档案卡"])
@@ -264,6 +268,151 @@ async def get_inspiration_wall(
         ),
         message="获取成功",
     )
+
+
+@router.get("/featured", response_model=ApiResponse[PaginationResult[FeaturedCard]])
+async def get_featured_cards(
+    page: int = 1,
+    page_size: int = 20,
+):
+    """
+    首页精选作品（无需登录）
+
+    返回管理员精选的公开成果档案卡，并附带关联项目的关键信息。
+    """
+    skip = (page - 1) * page_size
+    cards = db.list_featured_cards(skip=skip, limit=page_size)
+    total = db.count_featured_cards()
+    total_pages = (total + page_size - 1) // page_size
+
+    featured_items: list[FeaturedCard] = []
+    for card in cards:
+        project = db.get_project(card.project_id) if card.project_id else None
+        featured_items.append(
+            FeaturedCard(
+                **card.model_dump(),
+                project_name=project.name if project else None,
+                project_stage=project.current_stage if project else None,
+            )
+        )
+
+    return ApiResponse(
+        data=PaginationResult(
+            items=featured_items,
+            total=total,
+            page=page,
+            page_size=page_size,
+            total_pages=total_pages,
+        ),
+        message="获取成功",
+    )
+
+
+@router.post("/{card_id}/feature", response_model=ApiResponse[AchievementCard])
+async def set_card_featured(
+    card_id: str,
+    payload: FeatureRequest,
+    admin: UserResponse = Depends(require_admin),
+):
+    """
+    管理员设置/取消精选（需管理员权限）
+    """
+    card = db.get_achievement_card(card_id)
+    if not card:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="档案卡不存在",
+        )
+    if payload.featured and not card.is_public:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="仅可精选已发布到灵感墙的档案卡",
+        )
+
+    updated_card = db.set_card_featured(
+        card_id,
+        featured=payload.featured,
+        sort_order=payload.sort_order,
+    )
+    if not updated_card:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="档案卡不存在",
+        )
+    return ApiResponse(data=updated_card, message="精选设置成功" if payload.featured else "已取消精选")
+
+
+@router.post("/{card_id}/generate-cover", response_model=ApiResponse[AchievementCard])
+async def generate_card_cover(card_id: str, current_user: UserResponse = Depends(get_current_user)):
+    """
+    为成果档案卡生成 AI 封面图（作者本人操作）
+    """
+    card = db.get_achievement_card(card_id)
+    if not card:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="档案卡不存在")
+    if card.author_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权操作此档案卡")
+
+    cover_url = await generate_cover_image(card.title, card.one_liner, card.capability_tags)
+    if not cover_url:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="封面图生成失败，请稍后重试")
+
+    local_path = await storage_service.save_cover_image(card_id, cover_url)
+    if not local_path:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="封面图保存失败")
+
+    updated_card = db.update_achievement_card(card_id, {"screenshots": [local_path]})
+    return ApiResponse(data=updated_card, message="封面图生成成功")
+
+
+@router.post("/{card_id}/upload-cover", response_model=ApiResponse[AchievementCard])
+async def upload_card_cover(
+    card_id: str,
+    file: UploadFile = File(...),
+    current_user: UserResponse = Depends(get_current_user),
+):
+    """
+    上传图片作为成果档案卡封面（作者本人操作）
+    """
+    card = db.get_achievement_card(card_id)
+    if not card:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="档案卡不存在")
+    if card.author_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权操作此档案卡")
+    if not (file.content_type or "").startswith("image/"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="仅支持图片文件")
+
+    # 复用 covers 目录，以 card_id 命名，覆盖旧封面
+    content = await file.read()
+    target_path = storage_service.covers_dir / f"{card_id}.png"
+    target_path.write_bytes(content)
+    public_path = f"/media/covers/{card_id}.png"
+
+    updated_card = db.update_achievement_card(card_id, {"screenshots": [public_path]})
+    return ApiResponse(data=updated_card, message="封面上传成功")
+
+
+@router.get("/projects/{project_id}/screenshots", response_model=ApiResponse[list[dict]])
+async def list_project_screenshots(
+    project_id: str,
+    current_user: UserResponse = Depends(get_current_user),
+):
+    """
+    获取项目的所有截图（type=screenshot 的证据），供成果卡选择封面
+    """
+    project = db.get_project(project_id)
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
+    if project.author_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权操作此项目")
+
+    evidence_list = db.list_evidence(project_id=project_id, skip=0, limit=100, type="screenshot")
+    screenshots = [
+        {"id": ev.id, "title": ev.title, "url": ev.content_url}
+        for ev in evidence_list
+        if ev.content_url
+    ]
+    return ApiResponse(data=screenshots, message="获取成功")
 
 
 @router.get("/{card_id}/recommendations", response_model=ApiResponse[list[dict]])

@@ -4,23 +4,27 @@ import { Search, Sparkles, ClipboardList, ArrowRight, MessageCircle, Paperclip, 
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '../components/ui/Card';
 import { useAuth } from '../contexts/AuthContext';
 import { achievementCardsApi, demosApi } from '../services/api';
-import { AchievementCard, Demo } from '../types';
+import { AchievementCard, Demo, FeaturedCard } from '../types';
+import { resolveImageUrl } from '../lib/image';
 
 export function Home() {
   useAuth();
   const navigate = useNavigate();
   const [demos, setDemos] = useState<Demo[]>([]);
   const [inspirationCards, setInspirationCards] = useState<AchievementCard[]>([]);
+  const [featuredCards, setFeaturedCards] = useState<FeaturedCard[]>([]);
   const [quickInput, setQuickInput] = useState('');
 
   useEffect(() => {
     const load = async () => {
-      const [demoRes, cardsRes] = await Promise.all([
+      const [demoRes, cardsRes, featuredRes] = await Promise.all([
         demosApi.list({ page: 1, page_size: 4 }),
         achievementCardsApi.listPublic({ page: 1, page_size: 4 }),
+        achievementCardsApi.listFeatured({ page: 1, page_size: 4 }),
       ]);
       setDemos(demoRes.data?.items ?? []);
       setInspirationCards(cardsRes.data?.items ?? []);
+      setFeaturedCards(featuredRes.data?.items ?? []);
     };
     void load();
   }, []);
@@ -168,17 +172,71 @@ export function Home() {
           </Link>
         </div>
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {demos.map((demo) => (
+          {demos.map((demo) => {
+            const cover = demo.screenshots && demo.screenshots.length > 0
+              ? resolveImageUrl(demo.screenshots[0]) : null;
+            return (
             <Card key={demo.id} hoverable className="overflow-hidden">
-              <div className="h-32 bg-gradient-to-br from-gray-100 to-gray-200" />
+              {cover ? (
+                <img src={cover} alt={demo.name} className="h-32 w-full object-cover" loading="lazy" />
+              ) : (
+                <div className="h-32 bg-gradient-to-br from-gray-100 to-gray-200" />
+              )}
               <CardContent className="pt-3">
                 <h3 className="font-semibold text-gray-800 text-sm">{demo.name}</h3>
                 <p className="text-xs text-gray-500 mt-1 line-clamp-2">{demo.description}</p>
               </CardContent>
             </Card>
-          ))}
+            );
+          })}
         </div>
       </section>
+
+      {featuredCards.length > 0 && (
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-bold text-gray-800">精选作品</h2>
+            <Link to="/explore/inspiration" className="text-teal-600 hover:text-teal-700 font-medium text-sm">
+              查看全部
+            </Link>
+          </div>
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {featuredCards.map((card) => {
+              const cover = card.screenshots && card.screenshots.length > 0
+                ? resolveImageUrl(card.screenshots[0]) : null;
+              return (
+              <Card key={card.id} hoverable className="overflow-hidden">
+                {cover ? (
+                  <img src={cover} alt={card.title} className="h-32 w-full object-cover" loading="lazy" />
+                ) : (
+                  <div className="h-32 bg-gradient-to-br from-purple-50 to-purple-100" />
+                )}
+                <CardContent className="pt-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="font-semibold text-gray-800 text-sm truncate flex-1">{card.title}</h3>
+                    {card.project_mode && (
+                      <span className="flex-shrink-0 px-1.5 py-0.5 bg-purple-50 text-purple-600 rounded text-[10px] font-medium">
+                        {card.project_mode === 'standard' ? '进阶' : '轻量'}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1 line-clamp-2">{card.one_liner}</p>
+                  {card.capability_tags && card.capability_tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {card.capability_tags.slice(0, 2).map((tag) => (
+                        <span key={tag} className="px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded text-[10px]">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       <section>
         <div className="flex items-center justify-between mb-4">
@@ -188,15 +246,23 @@ export function Home() {
           </Link>
         </div>
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {inspirationCards.map((card) => (
+          {inspirationCards.map((card) => {
+            const cover = card.screenshots && card.screenshots.length > 0
+              ? resolveImageUrl(card.screenshots[0]) : null;
+            return (
             <Card key={card.id} hoverable className="overflow-hidden">
-              <div className="h-32 bg-gradient-to-br from-teal-50 to-teal-100" />
+              {cover ? (
+                <img src={cover} alt={card.title} className="h-32 w-full object-cover" loading="lazy" />
+              ) : (
+                <div className="h-32 bg-gradient-to-br from-teal-50 to-teal-100" />
+              )}
               <CardContent className="pt-3">
                 <h3 className="font-semibold text-gray-800 text-sm">{card.title}</h3>
                 <p className="text-xs text-gray-500 mt-1 line-clamp-2">{card.one_liner}</p>
               </CardContent>
             </Card>
-          ))}
+            );
+          })}
         </div>
       </section>
     </div>

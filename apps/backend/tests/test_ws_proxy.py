@@ -4,7 +4,7 @@ import json
 
 async def test_ws_via_proxy():
     # 测试通过 Vite 代理的 WebSocket（模拟前端行为）
-    uri = 'ws://localhost:5284/api/v1/agent/ws'
+    uri = 'ws://localhost:5184/api/v1/agent/ws'
     try:
         print(f'Connecting to {uri}...')
         async with websockets.connect(uri, open_timeout=10) as ws:

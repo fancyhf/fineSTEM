@@ -189,13 +189,13 @@ class AgentOrchestratorService:
         instructions = {
             "guided": """
 ## 当前教学模式：guided（引导式）
-- 优先给学生一个最小代码框架、分步填空点或待完成的小目标，而不是一上来倾倒全部细节。
+- 优先给学生一个代码框架、分步填空点或待完成的小目标，而不是一上来倾倒全部细节。
 - 回答结构优先使用：先做什么 → 学生自己补哪一块 → 你再给关键提示。
 - 如果要给代码，优先给可运行骨架和关键片段，并明确指出“下一步你来补什么”。
 """.strip(),
             "demo": """
 ## 当前教学模式：demo（演示式）
-- 先展示完整、最小可运行版本，再解释整体结构与模仿路径。
+- 先展示完整可运行版本，再解释整体结构与模仿路径。
 - 回答结构优先使用：完整示例 → 模块拆解 → 建议学生照着改的 2-3 个点。
 - 不要把代码拆得太碎，重点让学生先看见完整结果。
 """.strip(),
@@ -266,8 +266,10 @@ class AgentOrchestratorService:
         }
         if current_stage not in ALLOWED_CODE_STAGES:
             return False
+        # stage_07_execute 不再无条件触发代码生成，必须用户明确要求代码相关操作
+        # 修复：用户问"现在什么阶段"等纯信息查询不应触发代码生成/覆盖
         if current_stage == "stage_07_execute":
-            return True
+            return _has_direct_code_intent(normalized_message)
         return _has_direct_code_intent(normalized_message)
 
     @staticmethod
@@ -293,7 +295,14 @@ class AgentOrchestratorService:
 
     @staticmethod
     def _extract_executable_code_block(content: str) -> dict[str, str] | None:
-        """提取最适合写入编辑器的可执行 Markdown 代码块。"""
+        """[已废弃 - 2026-07-18 事故修复] 从 AI 回复中提取可执行代码块。
+
+        危险：此函数无法区分代码块用途（项目代码 / 诊断脚本 / 示例 / 反例），
+        历史上被用于自动覆盖 workspace.code，导致用户已完成项目的代码被
+        AI 的诊断脚本永久覆盖。已从写库链路中移除，保留函数体仅供只读检查
+        或未来参考。代码写入 workspace 的唯一合法入口是 AI 显式调用
+        ``project_code_writer`` 工具。
+        """
         if not content:
             return None
         executable_langs = {
@@ -361,86 +370,40 @@ class AgentOrchestratorService:
         }
 
     @staticmethod
-    def _build_fallback_code(req: AgentChatRequest) -> dict[str, str]:
-        """强制编码但模型未产出源码时，生成最小可运行代码兜底。"""
-        context = req.context or {}
-        preferred = str(context.get("preferred_output_language") or "").lower()
-        message = AgentOrchestratorService._strip_skill_hint(req.message)
-        if preferred == "python" or re.search(r"python|猜数字|命令行", message, re.IGNORECASE):
-            return {
-                "language": "python",
-                "code": """import random
-
-
-def main():
-    answer = random.randint(1, 100)
-    tries = 0
-    print("欢迎来到猜数字游戏！我已经想好了 1 到 100 之间的一个整数。")
-    while True:
-        raw_value = input("请输入你的猜测：")
-        if raw_value.lower() in {"q", "quit", "exit"}:
-            print(f"游戏结束，正确答案是 {answer}。")
-            break
-        try:
-            guess = int(raw_value)
-        except ValueError:
-            print("请输入整数，或输入 q 退出。")
-            continue
-        tries += 1
-        if guess < answer:
-            print("低了，再试试。")
-        elif guess > answer:
-            print("高了，再试试。")
-        else:
-            print(f"恭喜你猜对了！一共用了 {tries} 次。")
-            break
-
-
-if __name__ == "__main__":
-    main()
-""",
-            }
-        return {
-            "language": "html",
-            "code": """<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>fineSTEM MVP</title>
-  <style>
-    body { font-family: system-ui, sans-serif; margin: 0; min-height: 100vh; display: grid; place-items: center; background: #ecfeff; }
-    main { width: min(560px, 92vw); padding: 28px; border-radius: 18px; background: white; box-shadow: 0 18px 50px rgba(15, 118, 110, 0.18); }
-    h1 { margin-top: 0; color: #0f766e; }
-    button { border: 0; border-radius: 10px; padding: 10px 16px; background: #0d9488; color: white; cursor: pointer; }
-    #result { margin-top: 16px; font-weight: 700; }
-  </style>
-</head>
-<body>
-  <main>
-    <h1>我的 STEM 项目 MVP</h1>
-    <p>这是一个可运行的最小版本，你可以继续让 AI 按你的项目主题扩展功能。</p>
-    <button id="actionButton">点击验证交互</button>
-    <div id="result">等待操作...</div>
-  </main>
-  <script>
-    const button = document.querySelector('#actionButton');
-    const result = document.querySelector('#result');
-    let count = 0;
-    button.addEventListener('click', () => {
-      count += 1;
-      result.textContent = `已成功运行 ${count} 次。`;
-    });
-  </script>
-</body>
-</html>
-""",
-        }
+    def _build_fallback_code(req: AgentChatRequest) -> dict[str, str] | None:
+        """强制编码但模型未产出源码时的兜底处理。
+        
+        注意：不再返回硬编码的 MVP 模板代码，而是返回 None
+        让调用方决定如何处理（保留现有代码或提示用户）
+        """
+        # 修复：不再生成 MVP 模板代码，返回 None 表示没有 fallback 代码
+        return None
 
     def _is_complete_missing_artifacts_request(self, req: AgentChatRequest) -> bool:
-        """识别“现在补/一次性补全”这类确定性补全文档请求。"""
+        """识别"现在补/一次性补全"这类确定性补全文档请求。
+
+        ⚠️ 重要限制：只有在 stage_06 (分步计划) 及之后的阶段才允许触发自动补全。
+        在早期阶段（stage_00 ~ stage_05）触发补全会导致严重的阶段跳跃问题。
+        """
         if not req.project_id:
             return False
+
+        # ========== 阶段门禁：早期阶段不允许自动补全 ==========
+        current_stage = self._get_current_stage(req) or ""
+        if current_stage:
+            try:
+                current_idx = self.STAGE_ORDER_LIST.index(current_stage)
+                # 只允许从 stage_06_step_plan (idx=6) 及之后触发自动补全
+                MIN_STAGE_FOR_AUTO_COMPLETE = 6
+                if current_idx < MIN_STAGE_FOR_AUTO_COMPLETE:
+                    logger.info(
+                        "auto_complete_blocked_by_early_stage stage=%s min_required=stage_06 message=%s",
+                        current_stage, req.message[:50],
+                    )
+                    return False  # 早期阶段拦截
+            except ValueError:
+                pass  # 阶段不在列表中（如轻量模式），放行
+
         normalized_message = self._strip_skill_hint(req.message)
         compact_message = re.sub(r"\s+", "", normalized_message)
         if not compact_message:
@@ -465,7 +428,7 @@ if __name__ == "__main__":
                 "id": f"q-bootstrap-time-{int(utc_now().timestamp())}",
                 "title": "你打算花多长时间完成这个项目？",
                 "options": [
-                    {"id": "time-2h", "label": "2小时", "description": "适合做最小可运行版本"},
+                    {"id": "time-2h", "label": "2小时", "description": "适合做可运行版本"},
                     {"id": "time-6h", "label": "6小时", "description": "适合完成完整小项目", "recommended": True},
                     {"id": "time-12h", "label": "12小时+", "description": "适合加入更多功能和展示效果"},
                 ],
@@ -529,19 +492,23 @@ if __name__ == "__main__":
             f"## 可用上下文\n{source_block}\n\n"
         )
         templates = {
-            "brainstorm": "## 脑爆记录\n- 核心方向：围绕项目名称和已确认想法展开。\n- 候选方向：待确认。\n- 推荐方向：优先选择最小可运行、可展示、可验收的方案。\n",
+            "brainstorm": "## 脑爆记录\n- 核心方向：围绕项目名称和已确认想法展开。\n- 候选方向：待确认。\n- 推荐方向：优先选择可运行、可展示、可验收的方案。\n",
             "project_brief": "## 项目立项书\n- 项目目标：完成一个可运行、可演示、可复盘的 STEM 项目。\n- 目标用户：待确认。\n- 成功标准：能运行、能说明原理、能展示结果。\n- 风险预案：若时间不足，优先保留核心功能，延后美化和扩展。\n",
             "constraints": "## 范围裁剪\n### must-have\n1. 可运行的核心功能。\n2. 清晰的输入、处理和输出流程。\n3. 可展示的结果或界面。\n\n### nice-to-have\n1. 更好的视觉样式。\n2. 更多交互反馈。\n\n### won't-have\n1. 暂不做复杂账号系统。\n2. 暂不接入未确认的第三方服务。\n",
             "track_plan": "## 技术轨道\n- 推荐轨道：轻量 Web / Python 原型，按项目已有代码形态确认。\n- 选择理由：依赖少、反馈快、适合课堂展示。\n- 替代方案：如果运行环境受限，先用单文件 HTML 或 Python 标准库版本。\n",
             "design": "## 设计蓝图\n- 页面/模块：输入区、核心处理区、结果展示区。\n- 数据流：用户输入 -> 核心逻辑处理 -> 展示/反馈。\n- 验收用例：\n  1. 正常输入时能得到结果。\n  2. 空输入或异常输入时有提示。\n  3. 结果能被学生解释和展示。\n",
-            "step_plan": "## 分步计划\n### 里程碑 1：基础框架\n- run：打开或运行项目入口。\n- check：能看到初始界面或输出。\n- rollback：回退到上一版入口文件。\n\n### 里程碑 2：核心功能\n- run：实现核心逻辑并运行。\n- check：核心用例通过。\n- rollback：保留最小可运行版本。\n\n### 里程碑 3：完善与验收\n- run：补充提示、样式和说明。\n- check：按验收用例逐条检查。\n- rollback：移除非必要扩展。\n",
+            "step_plan": "## 分步计划\n### 里程碑 1：基础框架\n- run：打开或运行项目入口。\n- check：能看到初始界面或输出。\n- rollback：回退到上一版入口文件。\n\n### 里程碑 2：核心功能\n- run：实现核心逻辑并运行。\n- check：核心用例通过。\n- rollback：回退到可运行版本。\n\n### 里程碑 3：完善与验收\n- run：补充提示、样式和说明。\n- check：按验收用例逐条检查。\n- rollback：移除非必要扩展。\n",
             "dev_log": "## 开发日志\n- 已完成：根据当前项目状态整理开发记录。\n- 当前证据：待补充运行截图、运行日志或演示记录。\n- 后续动作：运行核心用例并记录结果。\n",
-            "evaluate": "## 验收评估\n- 验收项 1：项目是否能运行。状态：待人工复核。\n- 验收项 2：核心功能是否符合目标。状态：待人工复核。\n- 反思 1：先完成最小可运行版本，再逐步扩展。\n- 反思 2：每一步都应保留运行证据。\n- 下一步：补充真实运行截图/日志后完成最终成果档案。\n",
+            "evaluate": "## 验收评估\n- 验收项 1：项目是否能运行。状态：待人工复核。\n- 验收项 2：核心功能是否符合目标。状态：待人工复核。\n- 反思 1：先完成可运行版本，再逐步扩展。\n- 反思 2：每一步都应保留运行证据。\n- 下一步：补充真实运行截图/日志后完成最终成果档案。\n",
         }
         return common_header + templates.get(artifact_name, "## 工件内容\n- 待确认。\n")
 
     def _complete_missing_artifacts(self, req: AgentChatRequest, owner_id: str) -> dict[str, Any]:
-        """确定性补齐 PBL 工件，并按门禁尽可能推进到验收阶段。"""
+        """确定性补齐 PBL 工件，并按门禁推进。
+
+        ⚠️ 重要修改：只补全当前阶段及之前的工件，不越权补全后续阶段工件。
+        阶段推进也只推进一个阶段，不一口气推到 stage_08。
+        """
         project_id = req.project_id
         if not project_id:
             return {"success": False, "message": "缺少项目 ID，无法补全文档。"}
@@ -570,7 +537,32 @@ if __name__ == "__main__":
         saved: list[dict[str, Any]] = []
         skipped: list[str] = []
 
+        # ========== 阶段限制：只补全当前阶段及之前的工件 ==========
+        ARTIFACT_STAGE_MAP = {
+            "brainstorm": 1,   # stage_01
+            "project_brief": 2,  # stage_02
+            "constraints": 3,   # stage_03
+            "track_plan": 4,     # stage_04
+            "design": 5,         # stage_05
+            "step_plan": 6,      # stage_06
+            "dev_log": 7,        # stage_07
+            "evaluate": 8,       # stage_08
+        }
+
+        try:
+            current_idx = self.STAGE_ORDER_LIST.index(current_stage)
+        except ValueError:
+            current_idx = 8  # 找不到则允许全部（向后兼容）
+
         for artifact_name, blob_key in ARTIFACT_TO_BLOB_KEY.items():
+            artifact_stage_idx = ARTIFACT_STAGE_MAP.get(artifact_name, 99)
+            if artifact_stage_idx > current_idx + 1:
+                logger.info(
+                    "auto_complete_skip_future_artifact artifact=%s current_stage=%s",
+                    artifact_name, current_stage,
+                )
+                continue
+
             existing_content = standard_data.get(blob_key)
             if isinstance(existing_content, str) and existing_content.strip():
                 skipped.append(artifact_name)
@@ -585,8 +577,10 @@ if __name__ == "__main__":
             saved.append(result)
             standard_data[blob_key] = content
 
+        # ========== 阶段推进：只推进一个阶段，不一口气推到终点 ==========
         transitions: list[dict[str, Any]] = []
-        for _ in range(10):
+        max_advances = 1  # 最多只推进 1 个阶段
+        for _ in range(max_advances):
             before_state = db.get_skill_state(project_id)
             before_stage = getattr(before_state, "current_stage", "") if before_state else ""
             advance_result = advance_with_gate(project_id, db)
@@ -594,7 +588,7 @@ if __name__ == "__main__":
                 break
             after_stage = str(advance_result.get("new_stage") or "")
             transitions.append(advance_result)
-            if not after_stage or after_stage == before_stage or after_stage == "stage_08_evaluate":
+            if not after_stage or after_stage == before_stage:
                 break
 
         final_state = db.get_skill_state(project_id)
@@ -606,7 +600,7 @@ if __name__ == "__main__":
             "skipped_existing": skipped,
             "transitions": transitions,
             "final_stage": final_stage,
-            "message": "已按当前可用信息补齐缺失工件，并按门禁推进阶段。",
+            "message": f"已补齐当前阶段（{current_stage}）及之前的缺失工件，并按门禁推进到下一阶段。",
         }
 
     @staticmethod
@@ -789,13 +783,9 @@ if __name__ == "__main__":
                         full_content += cleaned_content + "\n\n"
 
                         # 立即输出对话内容给前端（让用户看到对话过程）
-                        yield ("token", {"token": cleaned_content})
-
-                        # 检查是否包含question块，如果有立即发送
-                        if _contains_question_block(cleaned_content):
-                            question_data = _parse_question_block(cleaned_content)
-                            if question_data:
-                                yield ("question", question_data)
+                        # 注意：stream_chat 方法只 yield string，不 yield tuple
+                        # 如果需要发送结构化事件，请使用 stream_chat_with_events 方法
+                        yield cleaned_content
 
                 for tc in tool_calls:
                     tool_name = tc.get("function", {}).get("name", "")
@@ -1039,6 +1029,9 @@ if __name__ == "__main__":
                 chain.append((settings.ZEROCLAW_FALLBACK_GATEWAY_URL, settings.ZEROCLAW_FALLBACK_MODEL))
 
             streamed = False
+            active_gateway = None  # 记录实际使用的网关地址
+            active_model = None   # 记录实际使用的模型名称
+
             for gateway, model_name in chain:
                 if not gateway:
                     continue
@@ -1052,6 +1045,9 @@ if __name__ == "__main__":
                         full_content += token
                         yield ("token", {"token": token})
                         streamed = True
+                    # 记录成功使用的网关和模型
+                    active_gateway = gateway
+                    active_model = model_name
                     break
                 except (httpx.HTTPError, RuntimeError):
                     continue
@@ -1062,12 +1058,150 @@ if __name__ == "__main__":
                 for chunk in self.build_stream_tokens(fallback_content):
                     yield ("token", {"token": chunk})
 
+# ========== 检测输出是否被截断并自动续接 ==========
+            # 问题：AI 输出经常在代码块中间、句子中间被截断，导致用户需要不断输入"继续"
+            # 解决方案：检测截断特征（未闭合的代码块、不完整的语句），自动请求 AI 继续完成
+            is_truncated = False
+
+            # 在检测前先记录当前状态
+            if full_content:
+                logger.info(
+                    "checking_truncation length=%d last_50_chars=%s streamed=%s gateway=%s model=%s",
+                    len(full_content),
+                    repr(full_content[-50:]) if len(full_content) > 50 else repr(full_content),
+                    streamed,
+                    active_gateway,
+                    active_model,
+                )
+
+            if full_content and self._is_output_truncated(full_content):
+                is_truncated = True
+                logger.warning(
+                    "output_truncated_detected length=%d last_100_chars=%s will_attempt_auto_continue gateway=%s model=%s",
+                    len(full_content),
+                    repr(full_content[-100:]) if len(full_content) > 100 else repr(full_content),
+                    active_gateway,
+                    active_model,
+                )
+                print(f"[AUTO-CONTINUE] Truncation detected! length={len(full_content)}, gateway={active_gateway}, model={active_model}")  # 添加打印以便调试
+
+                # 使用记录的网关和模型创建新的 payload
+                if active_gateway and active_model:
+                    continue_payload = {
+                        "model": active_model,
+                        "messages": messages,
+                        "stream": True,
+                    }
+
+                    # 添加续接提示到消息列表
+                    continue_prompt = """请继续完成上面的输出。你的回复在中间被截断了。
+
+续接规则：
+1. **不要重复**已经输出的内容，直接从截断的地方继续
+2. **保持格式一致**：如果之前是代码块，继续输出代码；如果是文本，继续输出文本
+3. **确保完整性**：确保代码块正确闭合（```），语句完整
+4. **不要添加**"好的，我继续"之类的过渡语，直接输出内容"""
+
+                    messages.append({"role": "user", "content": continue_prompt})
+
+                    # 最多尝试续接 2 次
+                    max_continue_attempts = 2
+                    for attempt in range(max_continue_attempts):
+                        continued_content = ""
+                        try:
+                            async for token in self.provider.stream_complete(continue_payload, gateway_url=active_gateway):
+                                continued_content += token
+                                yield ("token", {"token": token})
+                                full_content += token
+                                streamed = True
+
+                            # 检查续接后是否仍然截断
+                            if not self._is_output_truncated(full_content):
+                                logger.info("auto_continue_success attempt=%d total_length=%d", attempt + 1, len(full_content))
+                                break
+                            else:
+                                logger.warning("auto_continue_still_truncated attempt=%d will_retry", attempt + 1)
+                                messages.append({"role": "assistant", "content": continued_content})
+                                messages.append({"role": "user", "content": "请继续完成，确保输出完整。"})
+                                # 更新 payload 以包含新的消息
+                                continue_payload["messages"] = messages.copy()
+                        except (httpx.HTTPError, RuntimeError) as e:
+                            logger.error("auto_continue_failed attempt=%d error=%s", attempt + 1, str(e))
+                            break
+                else:
+                    logger.error("auto_continue_skipped no_active_gateway model=%s", active_model)
+
+            # ========== 强制续接：确保输出完整性 ==========
+            # 即使 _is_output_truncated 没有检测到截断，如果输出看起来不完整（太短或以可疑模式结尾），
+            # 也尝试续接一次
+            if not is_truncated and full_content and active_gateway and active_model:
+                # 检查输出是否可能不完整
+                might_be_incomplete = False
+
+                # 检查 1：输出太短（少于 100 字符）且不是纯对话
+                if len(full_content.strip()) < 100 and '```' in full_content:
+                    might_be_incomplete = True
+                    logger.info("output_might_be_incomplete reason=too_short_with_code length=%d", len(full_content))
+
+                # 检查 2：输出以常见的编程语言名称结尾（可能是代码块标记被截断）
+                last_line = full_content.strip().split('\n')[-1].strip() if full_content.strip() else ""
+                lang_names = ['python', 'javascript', 'typescript', 'html', 'css', 'java',
+                               'c', 'cpp', 'go', 'rust', 'ruby', 'php', 'swift', 'kotlin', 'bash']
+                if last_line.lower() in lang_names and '```' in full_content:
+                    might_be_incomplete = True
+                    logger.info("output_might_be_incomplete reason=ends_with_lang_name last_line=%s", last_line)
+
+                if might_be_incomplete:
+                    continue_payload = {
+                        "model": active_model,
+                        "messages": messages + [{"role": "user", "content": "请继续完成上面的输出，确保代码块完整闭合。"}],
+                        "stream": True,
+                    }
+                    try:
+                        async for token in self.provider.stream_complete(continue_payload, gateway_url=active_gateway):
+                            yield ("token", {"token": token})
+                            full_content += token
+                        logger.info("force_continue_success total_length=%d", len(full_content))
+                    except (httpx.HTTPError, RuntimeError) as e:
+                        logger.error("force_continue_failed error=%s", str(e))
+
             full_content = _clean_dsml_content(full_content)
 
             # 输出层去重：修复 LLM 重复输出问题（如"好好想法想法"→"好想法"）
             deduped_content = self.deduplicate_repeated_text(full_content)
             if deduped_content != full_content and len(deduped_content) > 0:
                 full_content = deduped_content
+
+            # ========== 阶段越权检测与拦截（核心防御）==========
+            # 检测 AI 是否在非代码阶段输出了代码、跳跃了阶段、或生成了后续工件
+            # 关键修复：即使在 force_code_generation 模式（stage_07_execute），也要检测阶段跳跃和提前结案
+            if last_known_stage and full_content.strip():
+                violation = self._detect_stage_violation(last_known_stage, full_content, tool_traces, force_code_generation)
+                if violation:
+                    logger.warning(
+                        "stage_violation_detected stage=%s violation_type=%s will_intercept=True",
+                        last_known_stage, violation.get("type"),
+                    )
+                    # 生成纠正内容，替换 AI 的违规输出
+                    correction = self._generate_stage_violation_correction(
+                        last_known_stage, violation, skill_def, req
+                    )
+                    if correction:
+                        # 发送纠正内容给前端（覆盖 AI 的违规输出）
+                        yield ("content_update", {"content": correction})
+                        full_content = correction
+                        # 发送当前阶段的正确 question
+                        recovery_question = self._detect_incomplete_stage_and_recover(
+                            skill_def, req, correction, tool_traces, last_known_stage
+                        )
+                        if recovery_question:
+                            yield ("question", recovery_question)
+                        # 跳过后续的 question 检测逻辑，避免重复发送
+                        if req.project_id:
+                            self._write_auto_evidence(req.project_id, owner_id, full_content, tool_traces)
+                        yield ("final", {"status": "completed", "tools_used": len(tool_traces), "content": full_content})
+                        logger.info("agent_stream_events_success_with_violation_correction trace_id=%s", trace_id)
+                        return
 
             # 剥离 question XML 块（内部协议格式，不显示给用户）
             raw_for_question_parse = full_content
@@ -1101,60 +1235,54 @@ if __name__ == "__main__":
                             yield ("question", template_question)
                         elif has_question or _contains_question_block(raw_for_question_parse):
                             logger.warning("question_block_parse_failed_without_fallback stage=%s", last_known_stage)
+                        else:
+                            # 阶段完整性检测：AI 既没输出 question 也没调工具写工件
+                            # 从 SKILL.md 阶段定义中检测是否应该有 question，自动补发
+                            recovery_question = self._detect_incomplete_stage_and_recover(
+                                skill_def, req, full_content, tool_traces, last_known_stage
+                            )
+                            if recovery_question:
+                                yield ("question", recovery_question)
 
             if req.project_id:
                 self._write_auto_evidence(req.project_id, owner_id, full_content, tool_traces)
 
-            # 关键校验：在 force_code_generation 模式下，必须输出"完整可执行代码块"
-            # 防止 AI 谎称"已写入"但实际只输出 ```text 命令或纯叙述
+            # ========== 关键修复：移除自动结案检测 ==========
+            # 原因：阶段推进应该由 AI 主动控制，通过调用 stage_advancer 工具来完成
+            # 自动根据 AI 文本输出推进阶段会导致：
+            # 1. AI 可能口头上说"项目完成"但实际上还没满足门禁条件
+            # 2. 违背了 PBL Skill "门禁检查 → 工具调用 → 阶段推进"的流程设计
+            # 3. 导致 AI 擅自跳跃阶段，提前标记项目完成
+            #
+            # 正确做法：
+            # - AI 必须显式调用 stage_advancer 工具来推进阶段
+            # - 系统在 stage_advancer 中执行门禁检查
+            # - 如果 AI 口头说完成但没调用工具，系统应该提醒 AI 调用工具，而不是自动推进
+            #
+            # 已移除：self._auto_complete_project_if_needed(req.project_id, full_content, owner_id)
+
+            # ========== 代码写入 workspace 的唯一入口：AI 显式调用 project_code_writer 工具 ==========
+            # 历史 bug 修复（2026-07-18 事故）：
+            #   原实现会从 AI 回复文本里自动提取 ```python / ```html 代码块并覆盖 workspace.code。
+            #   但 AI 回复里的代码块有 4 种用途（项目代码 / 诊断脚本 / 示例 / 反例），系统无法区分。
+            #   当 AI 为"生成成果档案卡"等任务在回复里贴诊断脚本（os.walk 扫描目录）时，
+            #   原机制会误把脚本当作项目代码，永久覆盖原代码（且无历史快照可恢复）。
+            #
+            # 正确做法：代码落库必须由 AI 显式调用 project_code_writer 工具触发（工具执行环节已写库，
+            #   并在上方 tool_name == "project_code_writer" 分支发送 code_generated 事件）。
+            #   本处仅在 force_code_generation 下未交付代码时提示，绝不再自动捞取文本代码块。
             if force_code_generation and not code_generated_sent:
-                code_result = self._extract_executable_code_block(full_content)
-                if code_result and req.project_id:
-                    saved_at = utc_now().isoformat()
-                    payload = self._build_code_generated_payload(
-                        req.project_id,
-                        code_result["code"],
-                        code_result["language"],
-                        saved_at,
+                if req.project_id:
+                    logger.info(
+                        "force_code_generation_ai_no_writer_tool trace_id=%s "
+                        "workspace_unchanged (no auto-extract)",
+                        trace_id,
                     )
-                    db.save_project_workspace(req.project_id, {
-                        "code": payload["code"],
-                        "language": payload["language"],
-                        "filename": payload["filename"],
-                        "files": payload["files"],
-                        "saved_at": saved_at,
-                    }, updated_by=owner_id)
-                    code_generated_sent = True
-                    payload["source"] = "server_parse"
-                    yield ("code_generated", payload)
-                elif not code_result and req.project_id:
-                    fallback_code = self._build_fallback_code(req)
-                    saved_at = utc_now().isoformat()
-                    payload = self._build_code_generated_payload(
-                        req.project_id,
-                        fallback_code["code"],
-                        fallback_code["language"],
-                        saved_at,
-                    )
-                    db.save_project_workspace(req.project_id, {
-                        "code": payload["code"],
-                        "language": payload["language"],
-                        "filename": payload["filename"],
-                        "files": payload["files"],
-                        "saved_at": saved_at,
-                    }, updated_by=owner_id)
-                    full_content = (
-                        (full_content or "").strip()
-                        + "\n\n---\n\n已生成一个可运行的最小代码版本，并写入编辑器。"
-                    ).strip()
-                    yield ("content_update", {"content": full_content})
-                    logger.warning(
-                        "force_code_generation_fallback_saved trace_id=%s len=%s",
-                        trace_id, len(payload["code"]),
-                    )
-                    code_generated_sent = True
-                    payload["source"] = "server_fallback"
-                    yield ("code_generated", payload)
+                    yield ("code_generation_failed", {
+                        "project_id": req.project_id,
+                        "reason": "ai_did_not_use_writer_tool",
+                        "message": "代码尚未写入。请调用 project_code_writer 工具将项目代码写入工作区，而不是在回复中贴代码块。",
+                    })
                 else:
                     yield ("code_generation_failed", {
                         "project_id": req.project_id,
@@ -1172,40 +1300,43 @@ if __name__ == "__main__":
         teaching_mode_instruction = self._build_teaching_mode_instruction(req)
         scene_instruction = self._build_scene_instruction(req)
         if self._should_force_code_generation(req):
+            # ========== 关键修复：从"纯代码生成"改为"教学式编码" ==========
+            # 问题：原来的提示词让 AI 变成纯代码生成器，完全跳过 PBL 教学引导
+            # 修复：即使生成代码，也要保持"研学导师"角色，引导学生理解代码
             force_prompt = """
-你是 fineSTEM 的代码生成助手，现在必须直接完成编码实现。
+你是 fineSTEM 的 AI 研学导师，当前进入编码实现环节。
 
-## 强制目标
-- 用户已经明确要求直接生成代码
-- 当前项目已经处于执行或验收阶段
-- 本轮回复必须以“可运行代码”为核心产出
+## 角色定位（重要）
+你不是单纯的"代码生成器"，而是**引导学生学习编程的导师**。即使生成代码，也要：
+1. **先讲解设计思路** —— 这段代码要解决什么问题、关键逻辑是什么
+2. **再给出代码实现** —— 完整可运行的代码块
+3. **最后引导下一步** —— 如何测试、可能遇到的问题、如何改进
 
-## 强制规则
-- 禁止继续追问年级、基础、时间安排、偏好、方案选择
-- 禁止继续输出脑爆、开题、范围裁剪、计划确认之类内容
-- 禁止输出任何 XML、DSML、tool_calls、artifact、question 协议文本
-- 必须输出完整 Markdown 代码块，代码要尽量最小可运行
-- **代码块语言标签必须为 python / javascript / html / css / typescript 之一**
-- **禁止使用 ```text、```bash、```shell、```cmd、```markdown、```json 等非可执行语言标签**
-- **禁止仅输出运行命令（如 `streamlit run src/main.py`）而不附带完整源代码**
-- **禁止声称"代码已写入"但实际只输出命令或叙述；必须附上完整 Markdown 代码块作为证据**
-- 默认优先生成单文件、零配置、少依赖的版本，但不要默认收窄成 Python 小程序
-- 必须根据用户目标和项目类型主动选择最合适的技术形式：
-  - 如果是网页、可视化、交互界面、作品展示，优先生成 HTML/CSS/JavaScript 版本
-  - 如果是脚本、数据处理、命令行工具、算法演示，可以优先生成 Python 版本
-  - 如果用户明确指定语言、框架或已有工作区语言，就严格跟随，不要擅自改成别的语言
-- 如果生成 Python 代码，优先使用标准库；如果生成前端代码，优先生成可直接预览的原生 HTML/CSS/JavaScript
-- 不要为了"容易执行"把原本应做成网页/界面的需求强行改写成命令行程序
-- 若当前环境不适合运行某类程序，也要先给出正确技术方向的代码，再用简短说明交代运行方式
-- 先给完整代码，再给 3 条以内的简短运行说明
-- 如果工具 `project_code_writer` 可用，必须优先调用它保存同一份完整代码；工具参数必须包含 project_id、code、language、filename
+## 编码目标
+- 用户明确要求生成或修复代码
+- 当前项目处于执行或验收阶段
+- 产出完整可运行的代码，但**不要只给代码**
+
+## 教学式编码规则
+- ✅ **必须**：先简要说明代码的设计思路（2-3句话）
+- ✅ **必须**：代码要有清晰注释，解释关键逻辑
+- ✅ **必须**：给出后说明如何测试这段代码
+- ❌ **禁止**：直接丢代码不给任何解释
+- ❌ **禁止**：使用"MVP"、"最小版本"等模板化词汇
+- ❌ **禁止**：声称"已生成"、"已写入"等固定套话
+
+## 代码质量要求
+- 代码块语言标签：python / javascript / html / css / typescript
+- 禁止用 ```text / ```bash / ```markdown 等非代码块
+- 必须完整可运行，不要省略关键部分
+- 优先单文件、零配置版本，但功能要完整
 
 ## 输出格式
-1. 一句中文说明
-2. 一个完整 Markdown 代码块
-3. 最多 3 条运行说明
+1. **设计思路**（2-3句）：这段代码要解决什么、关键逻辑是什么
+2. **代码实现**（带注释的完整代码块）
+3. **测试引导**（1-2句）：如何验证代码、可能遇到的问题
 
-如果信息不完整，也不要继续追问，直接采用最稳妥默认值生成 MVP 代码。
+如果信息不完整，根据已有信息生成代码，并在注释中标注"TODO：需要确认..."
 """.strip()
             if teaching_mode_instruction:
                 force_prompt += f"\n\n{teaching_mode_instruction}"
@@ -1218,21 +1349,60 @@ if __name__ == "__main__":
             prompt = skill_def.get_system_prompt_for_stage(sub_skill_id)
             current_stage_id = self._get_current_stage(req) or ""
             stage_code_lock = ""
+            # 定义每个阶段允许到达的最大阶段索引（用于防止跳跃）
+            STAGE_ORDER = [
+                "stage_00_bootstrap", "stage_01_brainstorm", "stage_02_brief",
+                "stage_03_constraints", "stage_04_track", "stage_05_design",
+                "stage_06_step_plan", "stage_07_execute", "stage_08_evaluate",
+            ]
+            CURRENT_STAGE_IDX = STAGE_ORDER.index(current_stage_id) if current_stage_id in STAGE_ORDER else -1
+            # 代码生成只允许在 design 及之后
             CODE_ALLOWED_STAGES = {"stage_05_design", "stage_07_execute", "stage_08_evaluate"}
+            # 分步计划（step_plan）只允许在 design 之后
+            STEP_PLAN_ALLOWED_FROM = "stage_05_design"
+            # 验收/评估内容只允许在 evaluate 阶段
+            EVALUATE_ONLY_STAGE = "stage_08_evaluate"
+
             if current_stage_id and current_stage_id not in CODE_ALLOWED_STAGES:
+                # 根据当前阶段动态生成具体的任务描述
+                STAGE_TASK_MAP = {
+                    "stage_00_bootstrap": "完成项目初始化，收集项目名称、年级、时间预算、初步想法",
+                    "stage_01_brainstorm": "进行头脑风暴，探索多个创意方向并锁定一个",
+                    "stage_02_brief": "撰写开题立项书，定义问题陈述、目标用户、成功标准、风险预案",
+                    "stage_03_constraints": "裁剪项目范围，收集 must-have（必须做）、nice-to-have（可以做）、won't-have（不做）",
+                    "stage_04_track": "选择技术轨道（网页/硬件/数据建模等），确定技术栈方向",
+                }
+                current_task = STAGE_TASK_MAP.get(current_stage_id, "完成当前阶段的任务和工件")
+
                 stage_code_lock = f"""
 
 ---
 
-## 当前阶段代码生成硬约束（最高优先级）
+## ⚠️ 当前阶段硬约束（系统强制执行 — 违反将被拦截）
 
-当前阶段是 `{current_stage_id}`，根据 stem-pbl-guide Skill 状态机：
-- 本阶段**禁止**输出 ``` 包裹的可执行代码块（python / javascript / typescript / html / css 等）。
-- 本阶段**禁止**声称"我已经生成了代码 / 写入了 main.py / 代码已写入编辑器"等说法。
-- 即使用户说"代码为空 / 没代码 / 重新生成代码 / main.py 是空的"，也**禁止**直接输出代码；
-  必须先回应：当前阶段不产出完整代码，代码框架要在 stage_05_design 才会生成，正式开发在 stage_07_execute。
-- 必须先把当前阶段的工件（如 stage_03_constraints 的 must-have / nice-to-have / won't-have）补完，再进入下一阶段。
-- 如果用户连续要求生成代码，请引导：先回答当前阶段问题；阶段完成后会自动推进到设计与执行阶段。
+**当前阶段**: `{current_stage_id}`
+**本阶段任务**: {current_task}
+**阶段顺序**: {' → '.join(STAGE_ORDER[:CURRENT_STAGE_IDX+1])} → **下一步按顺序推进**
+
+### 🚫 绝对禁止（系统会检测并拦截）
+1. **禁止输出任何代码块**：不要输出 ```python / ```javascript / ```html / ```css 等任何可执行代码
+2. **禁止声称已生成代码**：不要说"已写入编辑器"、"代码已生成"、"main.py 已创建"等
+3. **禁止讨论后续阶段的内容**：
+   - 当前在 stage_00~stage_04，**禁止**讨论 step_plan（分步计划）、execute（编码实现）、evaluate（验收）
+   - 不要列出从当前到 stage_08 的所有步骤表格
+   - 不要说"即将生成 05_step_plan.json"或"准备进入执行阶段"
+4. **禁止调用工具写后续阶段的工件**：不要尝试用 artifact_writer 写不属于当前阶段的文件
+
+### ✅ 你应该做的事
+1. **聚焦当前阶段任务**：{current_task}
+2. **使用 <question> 与学生交互**：如果需要信息，输出选项让学生选择
+3. **调用 artifact_writer 写当前阶段工件**：如 02_constraints.json（stage_03）或 track 选择结果（stage_04）
+4. **完成后提示**：当前阶段工件写完后，简短说"本阶段已完成，下一步将进入 XX 阶段"
+
+### 💡 学生要求生成代码时的标准回复
+> "我理解你想看到代码！不过按照 PBL 流程，我们需要先完成当前的【{current_stage_id}】阶段（{current_task}）。\n> 这个阶段完成后，我们会自动进入设计阶段（stage_05），那时我会生成完整的代码框架。\n> 让我们先一起把当前阶段的工作做好，好吗？"
+
+**记住：你的每次回复都会被系统检测。如果在非代码阶段输出了代码或跳跃了阶段，你的回复会被自动纠正。**
 """
             # 追加 XML 交互格式指令，确保需要选择题时输出可解析的 <question> 标签。
             xml_instruction = """
@@ -1244,19 +1414,21 @@ if __name__ == "__main__":
 只有当你确实需要学生做选择、补充关键信息、或确认下一步方向时，才输出一个可解析的选项块。
 
 - 当前上下文已经给出的项目 ID、项目名称、当前阶段、年级、时间预算、项目想法都视为已确认信息，禁止再次提问确认。
-- 禁止把“项目名称 / 项目名 / 叫什么名字”作为 question，除非上下文明确没有项目名称且用户正在新建项目。
+- 禁止把"项目名称 / 项目名 / 叫什么名字"作为 question，除非上下文明确没有项目名称且用户正在新建项目。
 - 如果当前阶段是 stage_02_brief，问题必须围绕问题陈述、目标用户、成功标准、风险预案，不得回到项目名称。
 - 如果当前阶段是 stage_03_constraints，问题必须围绕 must-have / nice-to-have / won't-have，不得回到项目名称。
 - 如果当前阶段是 stage_05_design，问题必须围绕页面结构、模块、数据流、验收条件，不得回到项目名称。
 - 如果当前阶段是 stage_07_execute，禁止再输出 question；必须直接生成可运行代码。
 - 如果聊天历史或当前上下文里已经出现过年级、时间预算、初步想法，就不要重复问这三项。
 - 如果信息已经足够推进当前阶段，就直接继续推进，不要为了凑交互而重复提问。
-- 如果年级、时间预算、初步想法已经齐全，必须主动给出具体创意方向、MVP 方案或实现建议，不能继续停留在空泛提问。
-- 如果用户明确要求“直接进入编码实现 / 直接给代码 / 写入编辑器 / 直接做”，且当前上下文已明确要求跳过引导或当前已在执行/验收阶段，才切到编码实现；否则继续当前 PBL 阶段，先给创意收敛、方向选择或方案建议。
+- 如果年级、时间预算、初步想法已经齐全，必须主动给出具体创意方向、实现方案或建议，不能继续停留在空泛提问。
+- 如果用户明确要求"直接进入编码实现 / 直接给代码 / 写入编辑器 / 直接做"，且当前上下文已明确要求跳过引导或当前已在执行/验收阶段，才切到编码实现；否则继续当前 PBL 阶段，先给创意收敛、方向选择或方案建议。
 - 生成代码、给出设计方案、总结结果时，默认不要额外附带 `<question>`，除非下一步真的需要用户选择。
 - 同一轮回复最多包含一个 `<question>` 块。
-- 禁止输出通用标题，例如“接下来你想怎么做？”、“你想怎么继续？”、“请选择”。
-- 禁止输出通用按钮，例如“继续 / 详细说说 / 换个方向 / 了解更多”；按钮必须直接对应当前阶段、当前材料缺口或当前方案分支。
+- 禁止输出通用标题，例如"接下来你想怎么做？"、"你想怎么继续？"、"请选择"。
+- 禁止输出通用按钮，例如"继续 / 详细说说 / 换个方向 / 了解更多"；按钮必须对应当前阶段、当前材料缺口或当前方案分支。
+- **绝对禁止在回复末尾追加"已生成一个可运行的xxx版本，并写入编辑器"、"已成功运行"等固定套话**
+- **禁止使用"MVP"、"最小版本"、"最小代码"、"可运行的最小"等词汇描述你的产出**
 
 ```xml
 <question type="single" title="脑暴方向里，你更想先收敛哪一种？">
@@ -1274,7 +1446,59 @@ if __name__ == "__main__":
 - question 的 title 必须能单独成立，用户只看按钮区也能知道自己在选什么。
 - 不要把选项藏在大段散文里；要让系统能够从 XML、JSON 或编号列表中稳定提取出来。
 """
-            full_prompt = prompt + direct_code_override + xml_instruction + stage_code_lock
+
+            # 追加输出完整性和阶段推进约束（修复卡断 + 防跳跃）
+            output_integrity_instruction = f"""
+
+---
+
+## 输出完整性约束（最高优先级 — 防止回复卡断）
+
+- **每一轮回复都必须完整、自包含**。不要因为内容长就中途截断或省略关键部分。
+- 如果你发现要输出的内容很多，**优先保证核心结论和下一步动作完整输出**，细节可以后续补充。
+- **绝对禁止**在回复末尾输出"（继续...）"、"（未完待续）"、"请输入'继续'获取更多内容"之类的截断标记。
+- **绝对禁止**故意留一半内容不输出，诱导用户不断发"继续"。每轮回复必须是一个语义完整的单元。
+- **绝对禁止**说"由于篇幅限制"、"内容较长"、"这里只展示部分"等暗示输出被截断的话。
+- **绝对禁止**在代码块中间截断，如果代码较长，优先给出完整可运行的核心代码，注释说明"完整代码已写入编辑器"。
+- 如果同时需要：① 回答用户问题 ② 展示文档状态 ③ 给出选项 → 请把三者控制在合理长度内一起输出，而不是只输出其中一部分。
+- 回复结构建议：先给核心回答/结论（2-4句），再给文档状态表（紧凑格式），最后给 `<question>`（如果需要）。不要写长篇大论。
+- **关键原则**：宁可精简内容，也要保证输出的完整性。用户不需要输入"继续"就能看到完整的回复。
+"""
+
+            stage_progression_lock = f"""
+
+---
+
+## 🔒 阶段逐序推进硬约束（系统强制 — 违反将被自动纠正）
+
+**当前阶段**: `{current_stage_id}` (第 {CURRENT_STAGE_IDX + 1}/9 阶段)
+PBL 流程的核心价值在于**每个阶段的深度参与**，而非快速跳到终点。
+
+### 🚫 以下行为会被系统检测并拦截
+1. **阶段跳跃**：不要讨论或声称要进入比当前阶段更靠后的阶段
+2. **快进假象**：禁止列出从当前到 stage_08 的完整步骤表格（截图中的「步骤6.2: 生成分步计划」就是违规示例）
+3. **越权操作**：禁止在当前阶段生成后续阶段的工件（如在 stage_04 生成 step_plan）
+4. **验收前置**：禁止在 stage_07 之前讨论验收标准或展示内容
+
+### ✅ 正确的回复模式
+- **只聚焦当前阶段**：你的回复应该只围绕 {current_stage_id} 的任务展开
+- **工件导向**：当前阶段的任务是生成对应的工件（见上方硬约束部分）
+- **交互式引导**：使用 <question> 收集学生意见，而不是直接替学生做决定
+- **自然过渡**：只有当 artifact_writer 成功写入当前阶段工件后，才简短提示下一步
+
+### 📋 当前阶段可用的工具
+- `artifact_writer`: 写入**当前阶段**的工件文件
+- `skill_state_reader`: 读取项目状态（随时可用）
+- `stage_advancer`: **仅当当前阶段工件已完成后**才能调用
+- `project_code_writer`: **仅在 stage_05 及之后可用**
+
+### ⚠️ 常见错误示例（不要这样做）
+❌ "好的，让我们开始制定分步执行计划！步骤6.2..." （在 stage_04 说这话 = 跳跃）
+❌ "现在准备生成 05_step_plan.json 并更新状态" （越权写后续工件）
+❌ "验收选项卡：功能完整/基本可用/还需要继续开发" （在非 evaluate 阶段显示验收）
+✅ "好的！关于技术轨道选择，你更倾向于哪个方向？" （聚焦当前阶段）
+"""
+            full_prompt = prompt + direct_code_override + xml_instruction + output_integrity_instruction + stage_progression_lock + stage_code_lock
             if teaching_mode_instruction:
                 full_prompt += f"\n\n{teaching_mode_instruction}"
             if scene_instruction:
@@ -1439,7 +1663,7 @@ if __name__ == "__main__":
             if re.search(r"回答[:：]?(完全没想法|有个大概方向|已经有具体想法|需要脑爆)", user_text):
                 profile["idea"] = "需要脑爆" if "完全没想法" in user_text or "需要脑爆" in user_text else "已确认起点"
                 return profile
-            # idea 只能从用户表达中提取，避免把 assistant 的“做一个超简单的MVP”误判成已确认想法。
+# idea 只能从用户表达中提取，避免把 assistant 的"做一个超简单的项目"误判成已确认想法。
             idea_match = re.search(r"(?:想做一个项目[，,：:]?|做一个|项目主题是|主题是)([^。\n]{4,60})", user_text)
             if idea_match:
                 profile["idea"] = idea_match.group(1).strip(" ，,：:")
@@ -1491,7 +1715,17 @@ if __name__ == "__main__":
 
             try:
                 result = await self.provider.complete_with_tool_calls(payload, gateway_url=gateway)
-                return result["content"], result["tool_calls"], model
+                content = result["content"]
+                tool_calls = result["tool_calls"]
+                finish_reason = result.get("finish_reason", "")
+
+                # 检查输出是否被截断
+                if finish_reason == "length":
+                    logger.warning("llm_response_truncated finish_reason=length model=%s", model)
+                    # 添加截断警告到内容末尾
+                    content += "\n\n[系统提示：AI 回复可能因长度限制被截断。如需完整内容，请尝试简化请求或分批处理。]"
+
+                return content, tool_calls, model
             except (httpx.HTTPError, RuntimeError):
                 continue
 
@@ -1500,9 +1734,70 @@ if __name__ == "__main__":
         raise RuntimeError("ZeroClaw 网关调用失败，且已禁用 Mock 回退")
 
     async def _execute_tool(self, tool_name: str, params: Dict[str, Any], owner_id: str) -> ToolResult:
+        """
+        执行工具调用，增加阶段门禁检查。
+
+        防止 AI 在错误阶段调用不应该使用的工具：
+        - project_code_writer: 仅 stage_05 及之后可用
+        - artifact_writer 写特定工件: 需要在对应阶段或之后
+        - stage_advancer: 仅当当前阶段工件完成后可用
+        """
         tool = get_tool(tool_name)
         if not tool:
             return ToolResult(False, error=f"未知工具: {tool_name}")
+
+        # ========== 阶段门禁检查 ==========
+        project_id = params.get("project_id", "")
+        if project_id:
+            current_state = db.get_skill_state(project_id)
+            current_stage = getattr(current_state, "current_stage", "") if current_state else ""
+
+            if current_stage:
+                # 门禁 1: project_code_writer 只在 stage_05 及之后可用
+                if tool_name == "project_code_writer":
+                    CODE_WRITER_ALLOWED_FROM = "stage_05_design"
+                    try:
+                        current_idx = self.STAGE_ORDER_LIST.index(current_stage)
+                        allowed_idx = self.STAGE_ORDER_LIST.index(CODE_WRITER_ALLOWED_FROM)
+                        if current_idx < allowed_idx:
+                            logger.warning(
+                                "tool_stage_gate_blocked tool=%s current_stage=%s required_from=%s",
+                                tool_name, current_stage, CODE_WRITER_ALLOWED_FROM,
+                            )
+                            return ToolResult(False, error=(
+                                f"阶段门禁拦截：{tool_name} 工具只能在 {CODE_WRITER_ALLOWED_FROM} 及之后的阶段使用。"
+                                f"当前阶段是 {current_stage}，请先完成当前阶段的任务。"
+                                f"如果学生要求生成代码，请引导：当前阶段不产出代码，代码框架在 design 阶段才会生成。"
+                            ))
+                    except ValueError:
+                        pass  # 阶段不在列表中，放行
+
+                # 门禁 2: artifact_writer 写入后续阶段工件时拦截
+                if tool_name == "artifact_writer":
+                    artifact_path = str(params.get("path", "") or params.get("artifact_path", ""))
+                    ARTIFACT_STAGE_MAP = {
+                        "05_step_plan": (6, "stage_05_design"),
+                        "04_design": (5, "stage_05_design"),
+                        "06_code": (7, "stage_07_execute"),
+                    }
+                    for artifact_prefix, (required_idx, allowed_from) in ARTIFACT_STAGE_MAP.items():
+                        if artifact_prefix in artifact_path:
+                            try:
+                                current_idx = self.STAGE_ORDER_LIST.index(current_stage)
+                                if current_idx < required_idx:
+                                    logger.warning(
+                                        "artifact_stage_gate_blocked artifact=%s current_stage=%s required=%s",
+                                        artifact_path, current_stage, allowed_from,
+                                    )
+                                    return ToolResult(False, error=(
+                                        f"阶段门禁拦截：工件 {artifact_path} 属于后续阶段，当前 {current_stage} 不允许写入。"
+                                        f"请先完成当前阶段的工件，按顺序推进后再生成此文件。"
+                                    ))
+                            except ValueError:
+                                pass
+                            break
+
+        # 执行工具
         try:
             if tool_name == "project_creator":
                 params = {
@@ -1543,6 +1838,162 @@ if __name__ == "__main__":
             updated_at=utc_now(),
             created_by=user_id,
         ))
+
+    def _auto_complete_project_if_needed(
+        self,
+        project_id: str,
+        ai_reply_content: str,
+        owner_id: str,
+    ) -> None:
+        """
+        自动结案检测：当 AI 声称项目已结案/完成时，自动更新 current_stage 为最终阶段。
+
+        ⚠️ 重要修改（v2）：
+        1. 收紧阶段限制：只允许在 stage_07_execute 及之后触发，防止中间阶段误判
+        2. 添加排除规则：进度汇报类内容（里程碑、待完成等）不触发结案
+        3. 要求更强的结案信号：必须明确提到"结案/归档/验收通过"等最终状态词汇
+        """
+        import re
+
+        # ========== 排除规则：以下情况不触发自动结案 ==========
+        # 这些是进度汇报或中间状态描述，不是真正的结案声明
+        exclusion_patterns = [
+            r"里程碑.*?(?:完成|待完成|待达成|进行中)",  # 里程碑进度列表
+            r"待完成|待达成|待测试|待验证|待修复",         # 未完成任务列表
+            r"步骤\d+.*?(?:完成|待)",                       # 分步计划中的步骤状态
+            r"(?:框架|核心逻辑|基础功能).*?完成",           # 部分功能完成（非整体）
+            r"代码.*?(?:未测试|未运行|需要测试|需要调试)",   # 明确说代码还没测好
+            r"接下来.*?(?:继续|下一步|然后)",              # 还有后续动作
+            r"让我们.*?(?:继续|开始|进入)",                 # 引导继续工作
+            r"当前阶段|本阶段|这一步",                      # 强调当前阶段的表述
+        ]
+
+        for exclusion in exclusion_patterns:
+            if re.search(exclusion, ai_reply_content, re.IGNORECASE):
+                logger.info(
+                    "auto_complete_excluded project=%s reason=progress_report pattern=%s content_preview=%s",
+                    project_id, exclusion, ai_reply_content[:100],
+                )
+                return  # 排除：这是进度汇报，不是结案声明
+
+        # ========== 结案意图关键词模式（更严格，要求明确的项目级结案信号）==========
+        # 只匹配明确的项目完结声明，不包括中间进度的"完成"
+        completion_patterns = [
+            r"项目(?:已)?(?:正式)?(?:结[案案]|完[成结]|归档|封存)",  # 项目级完结
+            r"(?:恭喜|祝贺).*?项目.*?(?:完成|结[案案])",               # 祝贺项目完成
+            r"验收.*?(?:通过|完成).*(?:项目|PBL|流程)",                  # 验收通过
+            r"PBL.*?(?:流程|项目).*(?:完成|结束|结案)",                   # PBL 流程结束
+            r"已.*?(?:正式)?(?:提交|归档|存档).*?(?:报告|文档|成果)",     # 提交最终成果
+            r"项目.*?状态.*?(?:已)?(?:完结|完成|结案)",                   # 状态更新为完成
+        ]
+
+        # 检测是否有结案意图
+        has_completion_intent = False
+        matched_pattern = None
+        for pattern in completion_patterns:
+            if re.search(pattern, ai_reply_content, re.IGNORECASE):
+                has_completion_intent = True
+                matched_pattern = pattern
+                break
+
+        if not has_completion_intent:
+            return
+
+        # 获取当前项目信息（提前获取用于阶段检查）
+        project = db.get_project(project_id)
+        if not project:
+            logger.warning("auto_complete_skipped project=%s reason=project_not_found", project_id)
+            return
+
+        current_stage = getattr(project, "current_stage", "") or ""
+        project_mode = getattr(project, "mode", "") or "standard"
+
+        # ========== 阶段保护：收紧到只在执行和评估阶段允许自动结案 ==========
+        try:
+            current_idx = self.STAGE_ORDER_LIST.index(current_stage)
+            # 收紧：只允许从 stage_07_execute (idx=7) 及之后自动结案
+            # 因为 stage_06 只是分步计划，代码都还没写，不可能真正完成
+            MIN_AUTO_COMPLETE_STAGE_IDX = 7  # stage_07_execute
+            if current_idx < MIN_AUTO_COMPLETE_STAGE_IDX:
+                logger.warning(
+                    "auto_complete_blocked_by_strict_stage_gate project=%s current_stage=%s "
+                    "min_required=stage_07_execute pattern=%s content_preview=%s",
+                    project_id, current_stage, matched_pattern, ai_reply_content[:80],
+                )
+                return  # 在中期阶段拦截自动结案
+        except ValueError:
+            pass  # 阶段不在列表中（如轻量模式的 step_1/2/3），放行
+
+        logger.info(
+            "auto_complete_detected project=%s pattern=%s",
+            project_id, matched_pattern,
+        )
+
+        # 确定最终阶段
+        if project_mode == "light":
+            final_stage = "step_3"
+        else:
+            final_stage = "stage_08_evaluate"
+
+        # 如果已经在最终阶段，无需更新
+        if current_stage == final_stage:
+            logger.info(
+                "auto_complete_skipped project=%s reason=already_at_final_stage stage=%s",
+                project_id, current_stage,
+            )
+            return
+
+        # 阶段顺序检查 - 放宽限制：允许从分步计划阶段（stage_06）及之后都可以自动结案
+        # 因为用户已经明确要求结案/AI 已经确认结案
+        standard_stages = [
+            "stage_00_bootstrap", "stage_01_brainstorm", "stage_02_brief",
+            "stage_03_constraints", "stage_04_track", "stage_05_design",
+            "stage_06_step_plan", "stage_07_execute", "stage_08_evaluate",
+        ]
+        light_stages = ["step_1", "step_2", "step_3"]
+
+        stages_order = light_stages if project_mode == "light" else standard_stages
+
+        try:
+            current_idx = stages_order.index(current_stage)
+            final_idx = stages_order.index(final_stage)
+            # 放宽限制：允许从后 50% 的阶段开始自动结案
+            # 标准模式：从 stage_05_design (idx=5) 开始允许
+            # 轻量模式：从 step_2 开始允许
+            min_allowed_idx = final_idx // 2
+            if current_idx < min_allowed_idx:
+                logger.info(
+                    "auto_complete_skipped project=%s current_stage=%s mode=%s "
+                    "current_idx=%d min_allowed_idx=%d reason=too_early_to_complete",
+                    project_id, current_stage, project_mode, current_idx, min_allowed_idx,
+                )
+                return
+        except ValueError:
+            # 当前阶段不在预期顺序中，允许更新（可能是旧数据或自定义阶段）
+            logger.info(
+                "auto_complete_allow project=%s current_stage=%s reason=stage_not_in_order",
+                project_id, current_stage,
+            )
+
+        # 执行状态更新
+        try:
+            db.update_project(project_id, {"current_stage": final_stage})
+            # 同时更新 skill_state 中的阶段信息
+            skill_state = db.get_skill_state(project_id)
+            if skill_state:
+                db.update_skill_state(project_id, {
+                    "current_stage": final_stage,
+                })
+
+            logger.info(
+                "auto_completed_project project=%s stage=%s->%s mode=%s trigger=ai_completion_intent",
+                project_id, current_stage, final_stage, project_mode,
+            )
+        except Exception as exc:
+            logger.exception(
+                "auto_complete_failed project=%s error=%s",
+                project_id, exc,
+            )
 
     async def _generate_fallback(
         self,
@@ -1761,6 +2212,9 @@ if __name__ == "__main__":
         """
         当 LLM 只输出自然语言问题、却没有产出结构化 question 时，
         从 stem-pbl-guide 的标准模板中补发当前缺失的资料采集题。
+
+        覆盖范围：不再只处理 stage_00/stage_01，而是覆盖所有有 question 模板的阶段。
+        优先级：stage_00/01 用已确认信息匹配 → 其他阶段用当前阶段定义中的第一个 question 模板。
         """
         resolved_skill_id = (
             getattr(skill_def, "skill_id", None)
@@ -1770,48 +2224,695 @@ if __name__ == "__main__":
             return None
 
         current_stage = self._get_current_stage(req)
-        if current_stage and current_stage not in {"stage_00_bootstrap", "stage_01_brainstorm"}:
+        stages_dict = getattr(skill_def, "stages", {}) or {}
+
+        # === stage_00 / stage_01：用已确认信息做智能匹配（原有逻辑） ===
+        if current_stage in {"stage_00_bootstrap", "stage_01_brainstorm", None}:
+            bootstrap_stage = stages_dict.get("stage_00_bootstrap")
+            if not bootstrap_stage or not getattr(bootstrap_stage, "content", "").strip():
+                # 尝试从 stage_01 取模板
+                bootstrap_stage = stages_dict.get("stage_01_brainstorm")
+            if not bootstrap_stage or not getattr(bootstrap_stage, "content", "").strip():
+                return None
+
+            template_blocks = re.findall(
+                r"<question\b[^>]*>[\s\S]*?</question>",
+                bootstrap_stage.content,
+                flags=re.IGNORECASE,
+            )
+            if not template_blocks:
+                return None
+
+            parsed_templates: list[dict[str, Any]] = []
+            for block in template_blocks:
+                parsed = _parse_question_block(block)
+                if parsed:
+                    parsed["stage"] = current_stage or "stage_00_bootstrap"
+                    parsed["is_stage_final"] = _is_stage_final_question(parsed)
+                    parsed_templates.append(parsed)
+
+            if not parsed_templates:
+                return None
+
+            confirmed_profile = self._collect_confirmed_profile(req)
+            desired_keywords: list[str] | None = None
+            if "grade" not in confirmed_profile:
+                desired_keywords = ["年级"]
+            elif "timeBudget" not in confirmed_profile:
+                desired_keywords = ["多长时间", "完成"]
+            elif "idea" not in confirmed_profile:
+                desired_keywords = ["初步想法", "想法"]
+            else:
+                return None
+
+            for question in parsed_templates:
+                title = str(question.get("title") or "")
+                if any(keyword in title for keyword in desired_keywords):
+                    return question
             return None
 
-        bootstrap_stage = getattr(skill_def, "stages", {}).get("stage_00_bootstrap")
-        if not bootstrap_stage or not getattr(bootstrap_stage, "content", "").strip():
+        # === 其他阶段（stage_02 ~ stage_08）：从当前阶段定义中提取 question 模板 ===
+        if not current_stage or current_stage not in stages_dict:
             return None
 
+        stage_def = stages_dict.get(current_stage)
+        if not stage_def or not getattr(stage_def, "content", "").strip():
+            return None
+
+        # 从阶段内容中提取所有 <question> 模板
         template_blocks = re.findall(
             r"<question\b[^>]*>[\s\S]*?</question>",
-            bootstrap_stage.content,
+            stage_def.content,
             flags=re.IGNORECASE,
         )
         if not template_blocks:
             return None
 
-        parsed_templates: list[dict[str, Any]] = []
+        # 解析第一个有效的 question 模板作为 fallback
         for block in template_blocks:
             parsed = _parse_question_block(block)
             if parsed:
-                parsed["stage"] = "stage_00_bootstrap"
+                parsed["stage"] = current_stage
                 parsed["is_stage_final"] = _is_stage_final_question(parsed)
-                parsed_templates.append(parsed)
+                parsed["_source"] = "stage_template_fallback"
+                logger.info(
+                    "stage_template_fallback_question stage=%s title=%s",
+                    current_stage,
+                    parsed.get("title", ""),
+                )
+                return parsed
 
-        if not parsed_templates:
-            return None
-
-        confirmed_profile = self._collect_confirmed_profile(req)
-        desired_keywords: list[str] | None = None
-        if "grade" not in confirmed_profile:
-            desired_keywords = ["年级"]
-        elif "timeBudget" not in confirmed_profile:
-            desired_keywords = ["多长时间", "完成"]
-        elif "idea" not in confirmed_profile:
-            desired_keywords = ["初步想法", "想法"]
-        else:
-            return None
-
-        for question in parsed_templates:
-            title = str(question.get("title") or "")
-            if any(keyword in title for keyword in desired_keywords):
-                return question
         return None
+
+    # ========== 阶段越权检测与纠正方法 ==========
+
+    STAGE_ORDER_LIST = [
+        "stage_00_bootstrap", "stage_01_brainstorm", "stage_02_brief",
+        "stage_03_constraints", "stage_04_track", "stage_05_design",
+        "stage_06_step_plan", "stage_07_execute", "stage_08_evaluate",
+    ]
+
+    # 每个阶段允许讨论/生成的最大阶段索引（含）
+    STAGE_MAX_ALLOWED_MAP = {
+        "stage_00_bootstrap": 0,  # 只能讨论 stage_00
+        "stage_01_brainstorm": 1,   # 只能讨论 stage_01
+        "stage_02_brief": 2,        # 只能讨论 stage_02
+        "stage_03_constraints": 3,  # 只能讨论 stage_03
+        "stage_04_track": 4,        # 只能讨论 stage_04
+        "stage_05_design": 6,       # 可以讨论到 step_plan
+        "stage_06_step_plan": 6,    # 可以讨论到 step_plan
+        "stage_07_execute": 8,      # 可以讨论全部
+        "stage_08_evaluate": 8,     # 可以讨论全部
+    }
+
+    # 后续阶段的关键词（用于检测跳跃）
+    FUTURE_STAGE_KEYWORDS = {
+        # (关键词, 目标阶段)
+        "step_plan": 6,
+        "分步计划": 6,
+        "分步执行计划": 6,
+        "步骤6": 6,
+        "步骤 6": 6,
+        "execute": 7,
+        "编码实现": 7,
+        "执行开发": 7,
+        "evaluate": 8,
+        "验收": 8,
+        "验收选项卡": 8,
+        "功能完整.*可以运行": 8,
+        "基本可用": 8,
+        "还需要继续开发": 8,
+    }
+
+    def _detect_stage_violation(
+        self,
+        current_stage: str,
+        ai_content: str,
+        tool_traces: List[Any],
+        force_code_generation: bool = False,
+    ) -> dict | None:
+        """
+        检测 AI 回复是否存在阶段越权行为。
+
+        Args:
+            force_code_generation: 是否为强制代码生成模式（stage_07_execute 时允许代码）
+
+        Returns:
+            违规信息字典，或 None（无违规）
+            {
+                "type": "code_generation" | "stage_jump" | "artifact_ahead" | "evaluate_preemptive",
+                "evidence": "检测到的具体违规内容",
+                "severity": "high" | "medium",
+            }
+        """
+        if not current_stage or not ai_content:
+            return None
+
+        current_idx = self.STAGE_ORDER_LIST.index(current_stage) if current_stage in self.STAGE_ORDER_LIST else -1
+        if current_idx < 0:
+            return None
+
+        max_allowed_idx = self.STAGE_MAX_ALLOWED_MAP.get(current_stage, current_idx)
+        violation = None
+
+        # 检测 1：非代码阶段输出了代码块
+        # 关键修复：即使在 force_code_generation 模式，也要检测代码生成
+        # 但 stage_05_design / stage_07_execute / stage_08_evaluate 是允许的
+        CODE_ALLOWED_STAGES = {"stage_05_design", "stage_07_execute", "stage_08_evaluate"}
+        if current_stage not in CODE_ALLOWED_STAGES:
+            import re as _re
+            code_block_pattern = _re.compile(r'```(?:python|javascript|js|typescript|ts|html|css|java|cpp|c)\b', _re.IGNORECASE)
+            if code_block_pattern.search(ai_content):
+                # 排除误报：如果只是提到代码但不是真正输出代码块
+                if not _re.search(r'```text|```markdown|``\s*$', ai_content[:200]):
+                    match = code_block_pattern.search(ai_content)
+                    violation = {
+                        "type": "code_generation",
+                        "evidence": f"在 {current_stage} 阶段检测到代码块: {ai_content[match.start():match.start()+50]}...",
+                        "severity": "high",
+                    }
+                    return violation
+
+        # 检测 2：讨论了后续阶段的内容（如 step_plan、execute、evaluate）
+        for keyword, target_idx in self.FUTURE_STAGE_KEYWORDS.items():
+            if target_idx > max_allowed_idx:
+                import re as _re
+                try:
+                    pattern = _re.compile(keyword, _re.IGNORECASE)
+                    match = pattern.search(ai_content)
+                    if match:
+                        # 获取匹配位置的上下文（前后各 50 字符）
+                        start = max(0, match.start() - 50)
+                        end = min(len(ai_content), match.end() + 50)
+                        context_around = ai_content[start:end]
+                        
+                        # 强跳跃指标：明确在生成/创建后续阶段的工件或内容
+                        strong_jump_indicators = [
+                            r'生成.*' + keyword.replace('\\', ''),
+                            r'创建.*' + keyword.replace('\\', ''),
+                            r'准备.*' + keyword.replace('\\', ''),
+                            r'现在.*' + keyword.replace('\\', ''),
+                            r'开始.*' + keyword.replace('\\', ''),
+                            r'步骤[6-9]',  # 步骤6-9 明确属于后期阶段
+                            r'step[_ ]?6',  # step 6
+                            r'05_step_plan',  # 直接提到文件名
+                            r'M\d+\s+\d+\.\d+',  # M1 1.1 这样的任务编号格式
+                        ]
+                        
+                        is_strong_jump = False
+                        for indicator in strong_jump_indicators:
+                            try:
+                                if _re.search(indicator, ai_content, _re.IGNORECASE):
+                                    is_strong_jump = True
+                                    break
+                            except _re.error:
+                                pass
+                        
+                        if is_strong_jump:
+                            violation = {
+                                "type": "stage_jump",
+                                "evidence": f"在 {current_stage} 阶段检测到后续阶段内容({keyword}): {context_around[:80]}",
+                                "severity": "high",
+                            }
+                            return violation
+                except _re.error:
+                    pass  # 无效正则，跳过
+
+        # 检测 3：尝试写入后续阶段的工件
+        artifact_stage_map = {
+            "05_step_plan.json": 6,
+            "04_design.json": 5,
+            "06_code": 7,
+        }
+        for trace in tool_traces:
+            if trace.tool_name == "artifact_writer":
+                for artifact_name, required_stage_idx in artifact_stage_map.items():
+                    if artifact_name in trace.summary and required_stage_idx > max_allowed_idx:
+                        violation = {
+                            "type": "artifact_ahead",
+                            "evidence": f"在 {current_stage} 尝试写入 {artifact_name}（需要 stage_{required_stage_idx}）",
+                            "severity": "high",
+                        }
+                        return violation
+
+        # 检测 4：在早期阶段显示验收/评估内容
+        if current_idx < 7:  # stage_07 之前
+            evaluate_patterns = [r'验收', r'功能完整.*可以运行', r'基本可用.*bug', r'还需要继续开发']
+            import re as _re
+            for pattern in evaluate_patterns:
+                if _re.search(pattern, ai_content):
+                    # 确认是作为 question 选项出现（像截图中的场景）
+                    if 'option' in ai_content.lower() or '选项' in ai_content or '功能完整' in ai_content:
+                        violation = {
+                            "type": "evaluate_preemptive",
+                            "evidence": f"在 {current_stage} 阶段显示验收评估内容",
+                            "severity": "medium",
+                        }
+                        return violation
+
+        return violation
+
+    def _generate_stage_violation_correction(
+        self,
+        current_stage: str,
+        violation: dict,
+        skill_def: Any,
+        req: AgentChatRequest,
+    ) -> str | None:
+        """
+        当检测到阶段越权时，生成纠正内容替换 AI 的违规输出。
+        """
+        violation_type = violation.get("type", "unknown")
+        evidence = violation.get("evidence", "")
+
+        STAGE_NAME_MAP = {
+            "stage_00_bootstrap": "项目初始化",
+            "stage_01_brainstorm": "脑爆选题",
+            "stage_02_brief": "开题立项",
+            "stage_03_constraints": "范围裁剪",
+            "stage_04_track": "轨道选择",
+            "stage_05_design": "设计蓝图",
+            "stage_06_step_plan": "分步计划",
+            "stage_07_execute": "编码实现",
+            "stage_08_evaluate": "验收展示",
+        }
+        stage_name = STAGE_NAME_MAP.get(current_stage, current_stage)
+
+        # 根据违规类型生成不同的纠正消息
+        if violation_type == "code_generation":
+            correction = f"🔒 **阶段提醒**\n\n我注意到刚才的回复包含了代码内容。不过我们当前还在【{stage_name}】阶段（{current_stage}），这个阶段不产出代码哦。\n\n按照 PBL 流程，我们需要先完成当前阶段的任务。让我们回到正轨吧！"
+        elif violation_type == "stage_jump":
+            correction = f"🔒 **阶段提醒**\n\n我注意到刚才的回复跳到了后面的阶段。我们当前应该在【{stage_name}】阶段（{current_stage}），需要先完成这里的任务才能继续推进。\n\n让我们聚焦当前阶段的工作吧！"
+        elif violation_type == "artifact_ahead":
+            correction = f"🔒 **阶段提醒**\n\n我注意到刚才尝试生成了后续阶段的工件。我们需要按顺序来，先完成当前的【{stage_name}】阶段。\n\n让我们先做好当前阶段该做的事！"
+        elif violation_type == "evaluate_preemptive":
+            correction = f"🔒 **阶段提醒**\n\n我们当前还在【{stage_name}】阶段（{current_stage}），还没到验收环节呢。让我们先把当前阶段的工作完成！"
+        else:
+            correction = f"🔒 **阶段提醒**\n\n让我们回到当前阶段【{stage_name}】的任务上来。"
+
+        logger.info(
+            "stage_violation_correction_generated stage=%s type=%s correction_len=%d",
+            current_stage, violation_type, len(correction),
+        )
+        return correction
+
+    @staticmethod
+    def _is_output_truncated(content: str) -> bool:
+        """
+        检测 AI 输出是否被截断。
+
+        截断特征：
+        1. 未闭合的代码块（有 ``` 开头但没有结尾）
+        2. 未闭合的 XML/HTML 标签（如 <question> 没有 </question>）
+        3. 不完整的语句（以不完整的单词或符号结尾）
+        4. 输出在句子中间被切断（最后一个字符不是句号、问号、感叹号、闭合括号等）
+        """
+        if not content or not content.strip():
+            return False
+
+        content = content.strip()
+
+        # 检查未闭合的代码块
+        code_block_count = content.count('```')
+        if code_block_count % 2 != 0:
+            return True
+
+        # 检查未闭合的常见标签
+        unclosed_tags = ['<question>', '<option>', '<div>', '<p>', '<span>', '<table>']
+        for tag in unclosed_tags:
+            open_count = content.count(tag)
+            close_tag = tag.replace('<', '</') if not tag.startswith('</') else tag.replace('</', '</')
+            close_count = content.count(close_tag)
+            if open_count > close_count:
+                return True
+
+        # 检查是否以不完整的语句结尾
+        # 正常结束的字符：句号、问号、感叹号、闭合括号、引号、代码块结束符等
+        normal_endings = ('.', '!', '?', '》', '」', '』', ')', ']', '}', '"', "'", '`',
+                          '\n```', '\n```\n', '...', '。', '！', '？')
+
+        # 获取最后 100 个字符来检查
+        last_part = content[-100:] if len(content) > 100 else content
+
+        # 如果内容以换行和正常结尾字符结束，可能没有截断
+        stripped = last_part.rstrip()
+        if not stripped:
+            return False
+
+        # 检查最后非空行是否以正常字符结束
+        lines = [l for l in stripped.split('\n') if l.strip()]
+        if not lines:
+            return False
+
+        last_line = lines[-1].strip()
+        if not last_line:
+            return False
+
+        # 如果最后一行是代码且以分号、大括号、小括号等结束，可能是正常的
+        code_endings = (';', '{', '}', '()', '[]', "''", '""', ':')
+        if any(last_line.endswith(ending) for ending in code_endings):
+            # 但如果是在函数定义中间，可能还是截断的
+            if '(' in last_line and ')' not in last_line:
+                return True
+            return False
+
+        # 检查是否有明显的截断特征
+        truncated_patterns = [
+            r'[,;:]\s*$',  # 以逗号、分号、冒号结尾（可能有后续内容）
+            r'\+\s*$',  # 以加号结尾（字符串拼接未完成）
+            r'=\s*$',  # 以等号结尾（赋值未完成）
+            r'\.\s*$',  # 以点结尾（属性访问未完成）
+        ]
+
+        import re as _re
+        for pattern in truncated_patterns:
+            if _re.search(pattern, last_line):
+                return True
+
+        # 特殊检查：如果最后一行只是一个单独的编程语言名称（如 python, javascript, html 等）
+        # 且前面有代码块内容，这很可能是代码块被截断了
+        language_names = ['python', 'javascript', 'typescript', 'html', 'css', 'java',
+                         'c', 'cpp', 'go', 'rust', 'ruby', 'php', 'swift', 'kotlin']
+        if last_line.lower() in language_names:
+            # 检查前面是否有代码块标记
+            if '```' in content:
+                return True
+
+        # 检查是否以单独的英文字母/数字结尾（没有标点符号）
+        # 这种情况在中文上下文中通常是截断的
+        if _re.match(r'^[a-zA-Z0-9_]+$', last_line) and _re.search(r'[\u4e00-\u9fff]', content):
+            # 如果这个单词很短且是常见的语言/技术名称，很可能是截断
+            if len(last_line) <= 10:
+                return True
+
+        return False
+
+    def _detect_incomplete_stage_and_recover(
+        self,
+        skill_def: Any,
+        req: AgentChatRequest,
+        ai_content: str,
+        tool_traces: List[Any],
+        current_stage: str | None,
+    ) -> dict | None:
+        """
+        阶段任务完整性检测器（核心修复：解决 AI 说一半就停的问题）
+
+        问题场景：
+        - stage_03_constraints：AI 只收集了 must_have 就停了，没收集 nice_to_have / wont_do
+        - stage_02_brief：AI 只问了项目名称就停了，没问成功标准/风险
+        - 任何阶段：AI 输出了一段文字但没有输出 <question> 也没有调用工具写工件
+
+        检测逻辑：
+        1. 确认当前阶段在 SKILL.md 中有 question 模板定义
+        2. 确认 AI 回复中没有 <question> 块
+        3. 确认没有调用 artifact_writer / stage_advancer 等关键工具
+        4. 从阶段定义中提取"应该问但没问"的 question 模板，自动补发
+
+        Returns:
+            补发的 question dict，或 None（不需要补发）
+        """
+        resolved_skill_id = (
+            getattr(skill_def, "skill_id", None)
+            or getattr(getattr(skill_def, "manifest", None), "skill_id", "")
+        )
+        if not skill_def or resolved_skill_id != "stem-pbl-guide":
+            return None
+
+        stage_id = current_stage or self._get_current_stage(req)
+        if not stage_id:
+            return None
+
+        stages_dict = getattr(skill_def, "stages", {}) or {}
+        stage_def = stages_dict.get(stage_id)
+        if not stage_def or not getattr(stage_def, "content", "").strip():
+            return None
+
+        # 检查 AI 是否已经调用了关键工具（artifact_writer / stage_advancer / project_code_writer）
+        tool_names_called = {t.tool_name for t in tool_traces}
+        critical_tools = {"artifact_writer", "stage_advancer", "project_code_writer"}
+        has_critical_tool_call = bool(tool_names_called & critical_tools)
+
+        # 如果已经调了关键工具写工件，说明任务可能已完成，不补发
+        if has_critical_tool_call:
+            return None
+
+        # 从阶段内容中提取所有 AskUserQuestion JSON 模板（不只是 XML question）
+        # SKILL.md 阶段定义中的 ```json {...questions...} ``` 块
+        ask_user_json_blocks = re.findall(
+            r'```json\s*(\{[^`]*?"questions"[^`]*?\})\s*```',
+            stage_def.content,
+            re.DOTALL,
+        )
+
+        # 同时提取 XML question 块
+        xml_question_blocks = re.findall(
+            r"<question\b[^>]*>[\s\S]*?</question>",
+            stage_def.content,
+            flags=re.IGNORECASE,
+        )
+
+        # 如果阶段定义中没有任何 question 模板，无法补发
+        if not ask_user_json_blocks and not xml_question_blocks:
+            return None
+
+        # === 核心启发式：判断 AI 是否"说一半就停" ===
+        # 特征：
+        # 1. AI 内容较短（< 300 字）→ 可能只是开场白
+        # 2. AI 内容包含"接下来"、"然后"、"另外"、"还有"等承接词 → 表示还有后续
+        # 3. AI 内容提到应该收集的信息但没收集完 → 如只提到 must_have 但没提到 wont_do
+        content_trimmed = ai_content.strip()
+        is_short_response = len(content_trimmed) < 400
+        has_continuation_marker = bool(re.search(
+            r"(接下来|然后|另外|还有|下面|再|此外|同时|以及|接着|之后|下一步)",
+            content_trimmed,
+        ))
+        has_incomplete_marker = bool(re.search(
+            r"(帮你整理|我来整理|让我|我帮你|范围文档|约束文档|立项书|下面.*question|接下来.*选择)",
+            content_trimmed,
+            re.IGNORECASE,
+        ))
+
+        should_recover = is_short_response or has_continuation_marker or has_incomplete_marker
+
+        if not should_recover:
+            return None
+
+        # === 优先从 JSON AskUserQuestion 模板补发（更结构化） ===
+        
+        # 先收集所有可用的 question 模板，做语义匹配
+        all_candidates: list[dict[str, Any]] = []
+        for json_block in ask_user_json_blocks:
+            try:
+                q_data = json.loads(json_block)
+                questions_list = q_data.get("questions", [])
+                for q in questions_list:
+                    header = str(q.get("header", "") or q.get("question", "") or "")
+                    options = q.get("options", [])
+                    multi = q.get("multiSelect", False)
+                    if header and options:
+                        all_candidates.append({
+                            "header": header,
+                            "question_text": str(q.get("question", "")),
+                            "options": options,
+                            "multiSelect": multi,
+                            "_raw": q,
+                        })
+            except (json.JSONDecodeError, KeyError):
+                continue
+
+        # === 语义匹配：根据 AI 回复内容选择最相关的模板 ===
+        if all_candidates:
+            best_match = self._select_best_question_match(ai_content, all_candidates, stage_id)
+            if best_match:
+                recovery = {
+                    "id": f"q-stage-recover-{stage_id}-{int(utc_now().timestamp())}",
+                    "title": best_match["header"],
+                    "options": [],
+                    "multiple": best_match["multiSelect"],
+                    "allow_custom": True,
+                    "stage": stage_id,
+                    "_source": "semantic_match_recovery",
+                }
+                for opt in best_match["options"]:
+                    recovery["options"].append({
+                        "id": opt.get("id", f"opt_{len(recovery['options'])}"),
+                        "label": opt.get("label", ""),
+                        "description": opt.get("description", ""),
+                    })
+
+                if recovery["options"]:
+                    logger.info(
+                        "semantic_match_recovery stage=%s title=%s multi=%s candidates=%d",
+                        stage_id,
+                        best_match["header"],
+                        best_match["multiSelect"],
+                        len(all_candidates),
+                    )
+                    return recovery
+
+        # === 特殊情况：AI 问的是"确认/调整"类问题，但模板都不匹配 → 生成通用确认选项 ===
+        if re.search(r"(可以吗|觉得.*怎么样|想调整|满意吗|确认.*吗|需要改|要修改|OK\?|好吗)", ai_content, re.IGNORECASE):
+            confirm_q = self._build_confirmation_question(stage_id, ai_content)
+            if confirm_q:
+                logger.info(
+                    "confirmation_fallback stage=%s title=%s",
+                    stage_id,
+                    confirm_q.get("title", ""),
+                )
+                return confirm_q
+
+        # === 回退：从 XML question 模板补发 ===
+        for xml_block in xml_question_blocks:
+            parsed = _parse_question_block(xml_block)
+            if parsed and parsed.get("options"):
+                parsed["id"] = f"q-stage-recover-{stage_id}-{int(utc_now().timestamp())}"
+                parsed["stage"] = stage_id
+                parsed["_source"] = "incomplete_stage_recovery_xml"
+                logger.info(
+                    "incomplete_stage_recovery stage=%s title=%s source=xml_template",
+                    stage_id,
+                    parsed.get("title", ""),
+                )
+                return parsed
+
+        return None
+
+    def _select_best_question_match(
+        self,
+        ai_content: str,
+        candidates: list[dict[str, Any]],
+        stage_id: str,
+    ) -> dict[str, Any] | None:
+        """
+        从候选 question 模板中，选择与 AI 回复内容最语义匹配的一个。
+
+        匹配策略：
+        1. 关键词匹配：AI 内容中的关键词与模板 header/question_text 的重叠度
+        2. 上下文连贯：AI 最后讨论的主题与模板主题的一致性
+        3. 兜底：返回第一个候选（至少不会比之前差）
+        """
+        content_lower = ai_content.lower().strip()
+
+        # 关键词 → 模板类别的映射
+        topic_keywords = {
+            "风格": ["风格", "样式", "外观", "科技感", "古风", "活泼", "简约", "颜色", "色彩", "配色"],
+            "元素": ["功能", "元素", "组件", "模块", "上传", "展示", "输入", "图表", "按钮"],
+            "布局": ["布局", "结构", "分栏", "分区", "全屏", "沉浸", "卡片", "左右", "上下", "顶部", "底部", "中间"],
+            "里程碑": ["里程碑", "计划", "步骤", "执行", "开发"],
+            "验收": ["验收", "完成度", "评估", "反思", "收获", "下一步"],
+            "成功标准": ["成功", "标准", "目标", "验收"],
+            "风险": ["风险", "问题", "难点", "fallback", "应对"],
+            "目标用户": ["用户", "谁会", "使用", "面向"],
+            "must": ["必须", "必须有", "must", "核心"],
+            "nice": ["锦上添花", "有时间", "nice", "额外", "还可以"],
+            "wont": ["不做", "这次不做", "wont", "放弃", "排除"],
+            "技术栈": ["技术栈", "技术", "框架", "语言", "python", "streamlit", "flask", "pygame"],
+            "轨道": ["轨道", "方向", "类型", "web", "kaggle", "硬件"],
+        }
+
+        # 计算每个候选的匹配分数
+        scored_candidates: list[tuple[dict[str, Any], int]] = []
+        for cand in candidates:
+            header_lower = cand["header"].lower()
+            qtext_lower = cand["question_text"].lower()
+            combined = f"{header_lower} {qtext_lower}"
+
+            score = 0
+            for topic, keywords in topic_keywords.items():
+                if any(kw in content_lower for kw in keywords):
+                    if any(kw in combined for kw in keywords):
+                        score += 10  # 强匹配：AI 提到该话题且模板也是该话题
+                    else:
+                        score += 1   # 弱匹配：AI 提到该话题但模板不相关
+
+            # 额外加分：AI 内容直接提到 header 文本
+            if header_lower and header_lower in content_lower:
+                score += 5
+
+            scored_candidates.append((cand, score))
+
+        # 按分数排序，取最高分
+        scored_candidates.sort(key=lambda x: x[1], reverse=True)
+
+        best, best_score = scored_candidates[0]
+        if best_score > 0:
+            return best
+
+        # 所有分数都为 0（无匹配）→ 返回第一个候选（兜底）
+        return scored_candidates[0][0] if scored_candidates else None
+
+    def _build_confirmation_question(self, stage_id: str, ai_content: str) -> dict | None:
+        """
+        当 AI 问的是确认/调整类问题时，生成通用的确认选项。
+
+        这解决了以下场景：
+        - AI 总结了设计方案后问"你觉得这个结构可以吗？"
+        - AI 列出选项后问"想调整什么？"
+        - 但 AI 没有输出 <question> XML
+
+        生成的选项是通用的"确认/调整/重做"，不依赖具体阶段模板。
+        """
+        content_lower = ai_content.lower()
+
+        # 根据阶段和内容动态调整选项
+        options = []
+
+        # 检测是否涉及布局/结构调整
+        is_layout_related = bool(re.search(
+            r"(布局|结构|分区|分栏|全屏|顶部|中间|底部|位置|排列)",
+            ai_content,
+        ))
+
+        # 检测是否涉及颜色/风格调整
+        is_style_related = bool(re.search(
+            r"(风格|颜色|色彩|样式|外观|科技|活泼|简约|古风)",
+            ai_content,
+        ))
+
+        # 基础确认选项（总是出现）
+        options.append({
+            "id": "opt_confirm",
+            "label": "没问题，继续下一步",
+            "description": "当前方案OK，推进到下一阶段",
+            "recommended": True,
+        })
+
+        # 根据内容添加调整选项
+        if is_layout_related:
+            options.append({
+                "id": "opt_adjust_layout",
+                "label": "想调整布局结构",
+                "description": "修改区域划分或排列方式",
+            })
+        elif is_style_related:
+            options.append({
+                "id": "opt_adjust_style",
+                "label": "想调整视觉风格",
+                "description": "修改颜色、字体或整体感觉",
+            })
+        else:
+            options.append({
+                "id": "opt_adjust",
+                "label": "想做一些调整",
+                "description": "对当前方案有修改意见",
+            })
+
+        options.append({
+            "id": "opt_redo",
+            "label": "重新设计",
+            "description": "换一个完全不同的方案",
+        })
+
+        return {
+            "id": f"q-confirm-{stage_id}-{int(utc_now().timestamp())}",
+            "title": "你觉得这个方案可以吗？或者想调整什么？",
+            "options": options,
+            "multiple": False,
+            "allow_custom": True,
+            "stage": stage_id,
+            "_source": "confirmation_fallback",
+        }
 
 
 def _is_stage_final_question(question_data: dict) -> bool:
@@ -1844,20 +2945,104 @@ def _extract_plaintext_question_options(text: str) -> tuple[str | None, list[dic
     )
 
     def is_status_list_line(line: str) -> bool:
-        return bool(
-            re.search(r"[✅❌✔✘☑☒⚠❗❓]", line)
-            or re.search(r"\b(?:docs|src|assets|tests|reports|public|app|pages|components|backend|frontend)/", line)
-            or re.search(r"\.(?:json|md|py|ts|tsx|js|html|css)\b", line)
-            or re.search(r"[（(](?:已补|已生成|缺失|已完成|未完成|待完成)[）)]", line)
-        )
+        """判断一行是否属于"状态/结构/说明列表"而非"用户可选择的选项"。"""
+        line_lower = line.lower()
+        # 原有规则：包含状态图标
+        if re.search(r"[✅❌✔✘☑☒⚠❗❓]", line):
+            return True
+        # 原有规则：文件路径
+        if re.search(r"\b(?:docs|src|assets|tests|reports|public|app|pages|components|backend|frontend)/", line):
+            return True
+        # 原有规则：文件扩展名
+        if re.search(r"\.(?:json|md|py|ts|tsx|js|html|css)\b", line):
+            return True
+        # 原有规则：完成状态标记
+        if re.search(r"[（(](?:已补|已生成|缺失|已完成|未完成|待完成)[）)]", line):
+            return True
+        
+        # 新增规则1：文档结构/章节描述关键词
+        doc_structure_markers = [
+            "文档将包含", "包括以下", "主要包含", "由以下",
+            "截图", "描述", "评估", "评价", "建议", "结论",
+            "清单", "完成度", "质量", "评审", "分析", "总结",
+            r"第[一二三四五六七八九十]章", r"第\d+部分",
+            r"步骤\s*\d+", r"阶段\s*\d+",
+        ]
+        for marker in doc_structure_markers:
+            if re.search(marker, line_lower) or re.search(marker, line):
+                return True
+        
+        # 新增规则2：无选择含义的陈述性列表项
+        # 如果列表项以动词或名词开头，且没有明显的"可选"暗示
+        non_option_patterns = [
+            r"^[\d]+[\.\）、]\s*(当前|代码|功能|交互|最终|运行|设计|实现|测试|部署|文档)",
+            r"^[\d]+[\.\）、]\s*(第一|第二|第三|第四|第五|第六|第七|第八|第九|第十)",
+            r"^[\d]+[\.\）、]\s*(接下来|然后|之后|首先|其次|最后|另外|此外)",
+            r"^[\d]+[\.\）、]\s*(请稍等|让我开始|我将|我会|正在|准备)",
+            r"^[\d]+[\.\），]\s*(这份|该|此|本)",
+        ]
+        for pattern in non_option_patterns:
+            if re.search(pattern, line):
+                return True
+        
+        # 新增规则3：如果整行是纯名词短语（没有冒号分隔的 label:description 格式）
+        # 且上下文看起来像是说明性内容
+        if re.match(r"^[\d]+[\.\）、]\s*[^\n:：]{2,40}$", line):
+            # 短的纯文本行，可能是说明而非选项
+            pass  # 这个规则太激进，暂时不启用
+        
+        return False
+
+    def is_question_context_before(block_start: int, lines: list[str]) -> bool:
+        """检查列表块之前是否有明确的提问语境。"""
+        # 检查列表前的几行是否有问号或疑问词
+        for i in range(max(0, block_start - 5), block_start):
+            line = lines[i].strip()
+            if not line:
+                continue
+            # 有明确的提问词
+            question_words = ["你想", "你希望", "你喜欢", "你更想", "请选择", "哪个", "哪种", 
+                              "是否", "有没有", "要不要", "可以吗", "愿意", "倾向于"]
+            for qw in question_words:
+                if qw in line:
+                    return True
+            # 有问号
+            if "?" in line or "？" in line or "吗" in line:
+                return True
+            break
+        return False
 
     def is_status_list_block(start: int, end: int) -> bool:
+        """判断一个列表块是否为"状态/结构说明列表"而非"用户可选择的选项"。"""
         block_lines = [line for line in lines[start:end] if option_pattern.match(line)]
         if not block_lines:
             return False
+        
+        # 规则1：超过50%的行匹配状态/结构模式
         status_count = sum(1 for line in block_lines if is_status_list_line(line))
-        return status_count / len(block_lines) >= 0.5
+        if status_count / len(block_lines) >= 0.5:
+            return True
+        
+        # 规则2（新增）：检查列表前是否有明确的提问语境
+        # 如果没有提问语境，且列表项看起来像是陈述性内容，则认为是非选项
+        if not is_question_context_before(start, lines):
+            # 检查所有行是否都是纯描述性内容（没有冒号分隔的 label:description）
+            non_selectable_count = 0
+            for line in block_lines:
+                match = option_pattern.match(line)
+                if match:
+                    body = match.group(1).strip()
+                    # 如果没有冒号分隔，且内容较短，可能是纯描述
+                    if "：" not in body and ":" not in body and len(body) < 30:
+                        non_selectable_count += 1
+                    elif re.match(r"^(当前|代码|功能|交互|最终|运行|设计|实现|测试|部署|文档|这份|该|此|本)", body):
+                        non_selectable_count += 1
+            if non_selectable_count == len(block_lines) and len(block_lines) >= 3:
+                return True
+        
+        return False
 
+    # ========== _extract_plaintext_question_options 主逻辑 ==========
     candidate_blocks: list[tuple[int, int]] = []
     block_start = -1
     for index, line in enumerate(lines):

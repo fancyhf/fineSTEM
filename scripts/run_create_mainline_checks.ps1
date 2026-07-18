@@ -92,11 +92,8 @@ if (-not $BackendOnly) {
     if (Test-HttpReady 'http://localhost:5184/create') {
         $frontendBaseUrl = 'http://localhost:5184'
     }
-    elseif (Test-HttpReady 'http://localhost:5284/create') {
-        $frontendBaseUrl = 'http://localhost:5284'
-    }
     else {
-        throw 'Frontend dev server is not reachable on http://localhost:5184/create or http://localhost:5284/create.'
+        throw 'Frontend dev server is not reachable on http://localhost:5184/create.'
     }
 }
 

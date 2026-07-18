@@ -10,7 +10,7 @@ import json
 import time
 import sys
 
-FRONTEND_WS = 'ws://localhost:5284/api/v1/agent/ws'
+FRONTEND_WS = 'ws://localhost:5184/api/v1/agent/ws'
 BACKEND_WS = 'ws://localhost:3200/api/v1/agent/ws'
 TIMEOUT = 90
 

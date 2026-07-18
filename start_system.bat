@@ -35,8 +35,28 @@ echo.
 echo [1/3] Starting backend (port 3200)...
 start "fineSTEM Backend" cmd /k "cd /d %~dp0apps\backend && python -m uvicorn main:app --host 0.0.0.0 --port 3200 --reload"
 
-echo       Waiting for backend (3s)...
-timeout /t 3 >nul
+echo       Probing backend /health (timeout 30s)...
+setlocal enabledelayedexpansion
+set BACKEND_READY=0
+for /l %%i in (1,1,30) do (
+    if !BACKEND_READY! equ 0 (
+        timeout /t 1 >nul
+        powershell -NoProfile -Command "try { $r=Invoke-WebRequest -Uri 'http://127.0.0.1:3200/health' -UseBasicParsing -TimeoutSec 2; if ($r.StatusCode -eq 200) { exit 0 } else { exit 1 } } catch { exit 1 }" >nul 2>&1
+        if !errorlevel! equ 0 (
+            set BACKEND_READY=1
+            echo       Backend ready after %%i second(s)
+        )
+    )
+)
+
+if !BACKEND_READY! equ 0 (
+    echo [ERROR] Backend failed to respond on /health within 30 seconds.
+    echo         Frontend will NOT be started. Please check the backend window for errors.
+    endlocal
+    pause
+    exit /b 1
+)
+endlocal
 
 echo [2/3] Starting frontend (port 5184)...
 start "fineSTEM Frontend" cmd /k "cd /d %~dp0apps\frontend && npm run dev"

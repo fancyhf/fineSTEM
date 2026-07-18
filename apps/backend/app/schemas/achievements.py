@@ -9,7 +9,7 @@ links: .trae/documents/api-specs/v1/spec.json
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List, Literal
 from datetime import datetime
-from .common import AuditFields, PublishFields
+from .common import AuditFields, PublishFields, FeatureFields
 
 
 class AchievementCardBase(BaseModel):
@@ -46,7 +46,7 @@ class AchievementCardUpdate(BaseModel):
     capability_tags: Optional[List[str]] = None
 
 
-class AchievementCard(AchievementCardBase, AuditFields, PublishFields):
+class AchievementCard(AchievementCardBase, AuditFields, PublishFields, FeatureFields):
     """
     完整成果档案卡模型（数据库存储用）
     """
@@ -54,7 +54,7 @@ class AchievementCard(AchievementCardBase, AuditFields, PublishFields):
     project_id: str = Field(description="所属项目 ID")
     author_id: str = Field(description="作者 ID")
     share_token: Optional[str] = Field(None, description="私有分享令牌")
-    
+
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -71,3 +71,22 @@ class SubmitPublicRequest(BaseModel):
     申请公开到灵感墙的请求
     """
     submit_public: bool = Field(..., description="确认申请公开")
+
+
+class FeaturedCard(AchievementCard):
+    """
+    精选作品卡片（首页展示用）
+
+    在成果档案卡基础上附带关联项目的关键信息。
+    注意：project_mode 已由 AchievementCardBase 提供（即项目模式）。
+    """
+    project_name: Optional[str] = Field(None, description="关联项目名称")
+    project_stage: Optional[str] = Field(None, description="关联项目当前阶段")
+
+
+class FeatureRequest(BaseModel):
+    """
+    管理员设置精选的请求
+    """
+    featured: bool = Field(..., description="是否设为精选")
+    sort_order: int = Field(default=0, ge=0, description="精选排序权重（越大越靠前）")

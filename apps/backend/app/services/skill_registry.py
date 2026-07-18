@@ -112,7 +112,18 @@ class DynamicSkillDefinition:
                 prompt += f"- 输出工件: {', '.join(stage.output_artifacts)}\n"
             if stage.gate_conditions:
                 prompt += f"- 通过条件: {'; '.join(stage.gate_conditions)}\n"
-            prompt += f"\n### 阶段详细规范\n{stage.content}\n"
+            
+            # 添加 SKILL.md 中的阶段内容
+            prompt += f"\n### 阶段规范（来自 SKILL.md）\n{stage.content}\n"
+            
+            # 如果有来自 skills/XX_*.md 的详细内容（包含完整 Prompt Template），追加到提示词中
+            # 这是关键修复：让 AI 收到完整的阶段执行指南，而不只是简略摘要
+            if hasattr(stage, 'skill_file_content') and stage.skill_file_content:
+                prompt += f"\n### 阶段详细执行指南（来自 skills/ 子文件）\n"
+                prompt += "**这是本阶段的完整执行流程和 Prompt Template，必须严格按照此流程执行：**\n\n"
+                prompt += stage.skill_file_content
+                prompt += "\n"
+            
             return prompt
         
         return self._loaded.base_system_prompt

@@ -22,7 +22,7 @@ export default defineConfig({
     ['list'],
   ],
   use: {
-    baseURL: process.env.E2E_BASE_URL || 'http://localhost:5284',
+    baseURL: process.env.E2E_BASE_URL || 'http://localhost:5184',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: videoMode,

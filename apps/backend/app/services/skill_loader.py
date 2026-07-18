@@ -33,7 +33,8 @@ class SubSkillDef:
     output_artifacts: List[str]
     gate_conditions: List[str]
     ask_user_questions: List[Dict[str, Any]]
-    content: str  # 原始 Markdown 内容
+    content: str  # 原始 Markdown 内容（来自 SKILL.md 的阶段部分）
+    skill_file_content: str = ""  # 来自 skills/XX_*.md 的完整详细内容（Prompt Template 等）
 
 
 @dataclass
@@ -62,6 +63,7 @@ class LoadedSkill:
     resource_libraries: Dict[str, Any]  # 资源库（题库等）
     templates: Dict[str, str]  # 文档模板
     state_machine_spec: Dict[str, Any]  # 状态机规范
+    skill_dir: Path = None  # Skill 目录路径，用于加载 skills/*.md 文件
 
 
 class SkillLoader:
@@ -275,6 +277,65 @@ class SkillLoader:
         
         return spec
     
+    def _load_stage_skill_files(self, skill_dir: Path, stages: Dict[str, SubSkillDef]) -> Dict[str, SubSkillDef]:
+        """
+        加载 skills/ 子目录中的详细阶段文件（如 08_evaluator_showcase.md）
+        
+        这些文件包含完整的 Prompt Template、File I/O Contract 等详细指令，
+        需要合并到对应阶段的定义中，让 AI 能收到完整的阶段执行指南。
+        
+        Args:
+            skill_dir: Skill 根目录（包含 SKILL.md 的目录）
+            stages: 已从 SKILL.md 提取的阶段字典
+            
+        Returns:
+            更新后的阶段字典（包含 skill_file_content）
+        """
+        skills_subdir = skill_dir / "skills"
+        if not skills_subdir.exists() or not skills_subdir.is_dir():
+            return stages
+        
+        # 构建 stage_id -> 文件名的映射
+        # 例如: stage_08_evaluate -> 08_evaluator_showcase.md
+        for stage_file in skills_subdir.glob("*.md"):
+            try:
+                with open(stage_file, 'r', encoding='utf-8') as f:
+                    file_content = f.read()
+                
+                # 从文件名推断 stage_id
+                # 文件名格式: XX_name.md (如 08_evaluator_showcase.md)
+                filename = stage_file.stem  # 去掉 .md
+                parts = filename.split("_", 1)
+                if len(parts) >= 1:
+                    num_part = parts[0]  # 如 "08"
+                    # 尝试匹配 stage_{num}_*
+                    matched_stage_id = None
+                    for sid in stages.keys():
+                        # stage_08_evaluate 包含 "08"
+                        if f"_{num_part}_" in sid or sid.endswith(f"_{num_part}"):
+                            matched_stage_id = sid
+                            break
+                    
+                    if matched_stage_id and matched_stage_id in stages:
+                        stage = stages[matched_stage_id]
+                        # 创建新的 SubSkillDef，添加 skill_file_content
+                        stages[matched_stage_id] = SubSkillDef(
+                            stage_id=stage.stage_id,
+                            name=stage.name,
+                            description=stage.description,
+                            triggers=stage.triggers,
+                            output_artifacts=stage.output_artifacts,
+                            gate_conditions=stage.gate_conditions,
+                            ask_user_questions=stage.ask_user_questions,
+                            content=stage.content,
+                            skill_file_content=file_content,
+                        )
+                        print(f"[SkillLoader] [OK] 已加载阶段详细文件: {stage_file.name} -> {matched_stage_id}")
+            except Exception as e:
+                print(f"[SkillLoader] 加载阶段文件失败 {stage_file}: {e}")
+        
+        return stages
+    
     def load_skill(self, skill_path: Path) -> Optional[LoadedSkill]:
         """
         加载单个 Skill
@@ -316,6 +377,10 @@ class SkillLoader:
             libraries = self._extract_resource_libraries(content)
             state_spec = self._extract_state_machine_spec(content)
             
+            # 加载 skills/ 子目录中的详细阶段文件（如 08_evaluator_showcase.md）
+            skill_dir = skill_path.parent
+            stages = self._load_stage_skill_files(skill_dir, stages)
+            
             base_prompt = self._build_base_prompt(manifest, content)
             
             loaded = LoadedSkill(
@@ -327,6 +392,7 @@ class SkillLoader:
                 resource_libraries=libraries,
                 templates={},
                 state_machine_spec=state_spec,
+                skill_dir=skill_dir,
             )
             
             self._cache[cache_key] = loaded
@@ -415,7 +481,7 @@ class SkillLoader:
 当用户**第一次**表达想做项目时（如"我想做个项目"、"创建新项目"、"帮我做一个XXX"），默认先通过 `<question>` 询问基础信息，但下面这些情况**禁止继续卡在起始三连问**：
 
 - 如果聊天历史、当前上下文或当前消息里，已经明确出现年级、时间预算、初步想法中的任意项，只能追问缺失项，禁止重复追问已确认内容。
-- 如果年级、时间预算、初步想法三项已经齐全，必须继续推进到创意收敛、MVP 方案、技术路线与语言选择，禁止继续停留在重复开题提问；只有用户明确要求跳过引导，或流程已经进入执行阶段时，才直接输出代码。
+- 如果年级、时间预算、初步想法三项已经齐全，必须继续推进到创意收敛、实现方案、技术路线与语言选择，禁止继续停留在重复开题提问；只有用户明确要求跳过引导，或流程已经进入执行阶段时，才直接输出代码。
 - 如果用户明确表达“直接做 / 直接实现 / 直接进入编码 / 直接给代码 / 写入编辑器 / 不要再问”，必须立即停止起始提问；默认先给出创意方案、方向选择或可执行下一步，只有在用户明确要求跳过引导直达编码，或当前已经处于执行/验收阶段时，才直接输出代码。
 - 如果用户明确指定技术形态（如网页、HTML/CSS/JavaScript、Python、JS 小游戏），必须跟随该形态，不要擅自改成别的语言或命令行版本。
 

@@ -221,8 +221,93 @@ class ProjectRepo(BaseRepository):
         row = self.db.get(ProjectModel, project_id)
         if not row or row.is_deleted:
             return None
+
+        # === 终极 MVP 模板代码拦截（数据库写入层 - 最后一道防线）===
+        _mvp_fingerprints = [
+            "fineSTEM MVP", "我的 STEM 项目 MVP", "actionButton",
+            "已成功运行", "这是一个可运行的最小版本",
+            "你可以继续让 AI 按你的项目主题扩展功能",
+            "已生成一个可运行的最小代码版本",
+        ]
+        _code_to_check = workspace_data.get("code", "")
+        if any(marker in _code_to_check for marker in _mvp_fingerprints):
+            import logging
+            logging.warning(
+                "[MVP_BLOCK_DB_LAYER] save_project_workspace 拦截到 MVP 模板代码，拒绝写入! "
+                "project_id=%s code_len=%d updated_by=%s",
+                project_id, len(_code_to_check), updated_by,
+            )
+            # 返回当前 workspace 数据但不做任何修改（静默拒绝）
+            initial_data = _normalize_initial_data(row.initial_data)
+            return self._extract_workspace(initial_data)
+
+        # 同时检查 files 数组中的每个文件
+        _files = workspace_data.get("files")
+        if isinstance(_files, list):
+            for _f in _files:
+                _fcontent = (_f.get("content") or "") if isinstance(_f, dict) else ""
+                if any(marker in _fcontent for marker in _mvp_fingerprints):
+                    import logging
+                    logging.warning(
+                        "[MVP_BLOCK_DB_LAYER] save_project_workspace 拦截到 files 中含 MVP (file=%s)，拒绝写入!",
+                        _f.get("name", "?"),
+                    )
+                    initial_data = _normalize_initial_data(row.initial_data)
+                    return self._extract_workspace(initial_data)
+
         initial_data = _normalize_initial_data(row.initial_data)
         workspace = self._extract_workspace(initial_data)
+
+        # ========== 历史快照 + 可疑覆盖检测（2026-07-18 事故修复）==========
+        # 背景：原合并式写入 workspace.update(...) 会无条件覆盖旧 code，导致任何
+        #   误调用（如自动捞代码块、前端 JSON 污染重置反向写库）都会永久丢失原代码。
+        # 保护策略：
+        #   1. 当 code 即将变化时，把旧 code 推入 workspace.code_history（保留最近 5 版），
+        #      使任何覆盖都能通过 history 字段恢复。
+        #   2. 可疑覆盖检测：新 code 长度 < 旧 code 长度 × 10% 且 language 发生变化，
+        #      几乎必定是误覆盖（例如把完整 HTML 项目代码换成一段 Python 诊断脚本），
+        #      记 warning 便于事后追溯。这里不阻断写入（避免误伤合法的"删改重构"），
+        #      但快照已经留底，必要时可手动回滚。
+        new_code = workspace_data.get("code")
+        if isinstance(new_code, str):
+            old_code = workspace.get("code") or ""
+            old_code_stripped = old_code.strip()
+            new_code_stripped = new_code.strip()
+            # 仅在两者都非空、且内容确有变化时才记录快照（避免空字符串占位污染 history）
+            if old_code_stripped and new_code_stripped and old_code_stripped != new_code_stripped:
+                new_language = workspace_data.get("language")
+                old_language = workspace.get("language")
+                # 可疑覆盖告警（不阻断）
+                if (
+                    len(new_code_stripped) < len(old_code_stripped) * 0.1
+                    and isinstance(new_language, str)
+                    and isinstance(old_language, str)
+                    and new_language != old_language
+                ):
+                    import logging
+                    logging.warning(
+                        "[SUSPICIOUS_OVERWRITE] project_id=%s updated_by=%s "
+                        "code %d -> %d chars, language %r -> %r; "
+                        "old code backed up to workspace.code_history",
+                        project_id, updated_by,
+                        len(old_code_stripped), len(new_code_stripped),
+                        old_language, new_language,
+                    )
+                # 推入历史快照
+                history = workspace.get("code_history")
+                if not isinstance(history, list):
+                    history = []
+                history.append({
+                    "code": old_code,
+                    "language": old_language,
+                    "filename": workspace.get("filename"),
+                    "saved_at": workspace.get("saved_at"),
+                    "archived_at": utc_now_iso(),
+                    "archived_reason": "overwrite",
+                })
+                # 保留最近 5 版，丢弃更早的（避免 initial_data 无限膨胀）
+                workspace["code_history"] = history[-5:]
+
         workspace.update({key: value for key, value in workspace_data.items() if value is not None})
         initial_data["workspace"] = workspace
         row.initial_data = json_dumps(initial_data, "{}")

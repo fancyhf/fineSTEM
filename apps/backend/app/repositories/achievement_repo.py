@@ -25,6 +25,9 @@ def _to_schema(model: AchievementCardModel) -> AchievementCard:
         project_mode=model.project_mode,  # type: ignore[arg-type]
         is_public=model.is_public,
         submitted_at=model.submitted_at,
+        is_featured=model.is_featured,
+        featured_sort_order=model.featured_sort_order,
+        featured_at=model.featured_at,
         created_at=model.created_at,
         created_by=model.created_by,
         updated_at=model.updated_at,
@@ -71,6 +74,9 @@ class AchievementRepo(BaseRepository):
         row.project_mode = card.project_mode
         row.is_public = card.is_public
         row.submitted_at = card.submitted_at
+        row.is_featured = card.is_featured
+        row.featured_sort_order = card.featured_sort_order
+        row.featured_at = card.featured_at
         row.updated_at = utc_now()
         self.db.commit()
         self.db.refresh(row)
@@ -118,6 +124,47 @@ class AchievementRepo(BaseRepository):
 
     def count_public_achievement_cards(self, capability_tag: str | None = None, mode: str | None = None) -> int:
         return len(self.list_public_achievement_cards(0, 100000, capability_tag=capability_tag, mode=mode))
+
+    def list_featured_cards(self, skip: int = 0, limit: int = 20) -> list[AchievementCard]:
+        rows = (
+            self.db.query(AchievementCardModel)
+            .filter(
+                AchievementCardModel.is_deleted.is_(False),
+                AchievementCardModel.is_public.is_(True),
+                AchievementCardModel.is_featured.is_(True),
+            )
+            .order_by(
+                AchievementCardModel.featured_sort_order.desc(),
+                AchievementCardModel.featured_at.desc(),
+            )
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
+        return [_to_schema(item) for item in rows]
+
+    def count_featured_cards(self) -> int:
+        return (
+            self.db.query(AchievementCardModel)
+            .filter(
+                AchievementCardModel.is_deleted.is_(False),
+                AchievementCardModel.is_public.is_(True),
+                AchievementCardModel.is_featured.is_(True),
+            )
+            .count()
+        )
+
+    def set_featured(self, card_id: str, featured: bool, sort_order: int = 0) -> AchievementCard | None:
+        row = self.db.get(AchievementCardModel, card_id)
+        if not row or row.is_deleted:
+            return None
+        row.is_featured = featured
+        row.featured_sort_order = sort_order if featured else 0
+        row.featured_at = utc_now() if featured else None
+        row.updated_at = utc_now()
+        self.db.commit()
+        self.db.refresh(row)
+        return _to_schema(row)
 
     def create_share_token(self, card_id: str) -> str | None:
         row = self.db.get(AchievementCardModel, card_id)

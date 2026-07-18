@@ -11,6 +11,18 @@ export default defineConfig({
         changeOrigin: true,
         ws: true,
       },
+      '/media': {
+        target: 'http://localhost:3200',
+        changeOrigin: true,
+      },
+      '/uploads': {
+        target: 'http://localhost:3200',
+        changeOrigin: true,
+      },
+      '/demos': {
+        target: 'http://localhost:3200',
+        changeOrigin: true,
+      },
     },
   },
 });

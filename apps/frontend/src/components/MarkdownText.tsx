@@ -43,9 +43,9 @@ function splitInline(text: string, projectId?: string | null): React.ReactNode[]
         result.push(
           <Link
             key={`code-link-${match.index}`}
-            to={`/research/projects/${projectId}?file=${encodeURIComponent(inlineCode)}`}
+            to={`/create?project=${projectId}&file=${encodeURIComponent(inlineCode)}`}
             className="px-1 py-0.5 rounded bg-teal-50 text-teal-700 underline decoration-teal-300 underline-offset-2 hover:bg-teal-100"
-            title="打开项目主页查看资料与下载"
+            title="在代码编辑器中打开此文件"
           >
             {inlineCode}
           </Link>

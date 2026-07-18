@@ -103,6 +103,9 @@ class AchievementCardModel(AuditMixin, Base):
     share_token: Mapped[str | None] = mapped_column(String(64), nullable=True, unique=True)
     is_public: Mapped[bool] = mapped_column(Boolean, default=False)
     submitted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    is_featured: Mapped[bool] = mapped_column(Boolean, default=False)
+    featured_sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    featured_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
 class EvidenceModel(AuditMixin, Base):

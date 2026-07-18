@@ -15,7 +15,7 @@ interface LightRegisterResponse {
   };
 }
 
-const BASE_URL = 'http://localhost:5284/create';
+const BASE_URL = 'http://localhost:5184/create';
 const API_URL = 'http://localhost:3200/api/v1';
 
 /** 通过Playwright API轻注册获取测试用户 */

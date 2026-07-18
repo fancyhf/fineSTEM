@@ -547,18 +547,65 @@ class ProjectCodeWriterTool(BaseTool):
         if len(code.strip()) <= 10:
             return ToolResult(False, error="代码内容为空或过短")
 
+        # === MVP 模板代码拦截（最后一道防线）===
+        mvp_markers = [
+            "fineSTEM MVP", "我的 STEM 项目 MVP",
+            "actionButton", "已成功运行",
+            "这是一个可运行的最小版本",
+            "你可以继续让 AI 按你的项目主题扩展功能",
+        ]
+        detected_mvp = [m for m in mvp_markers if m in code]
+        if detected_mvp:
+            import logging
+            logging.warning(
+                "[MVP_BLOCK] project_code_writer 拦截到 MVP 模板代码，拒绝写入! "
+                "markers=%s project_id=%s code_len=%d",
+                detected_mvp, project_id, len(code),
+            )
+            return ToolResult(
+                False,
+                error=(
+                    f"检测到模板化占位代码（包含：{', '.join(detected_mvp)}），"
+                    f"这不是真实的项目代码。请根据用户实际需求生成完整的项目实现代码，"
+                    f"不要使用任何最小版本/MVP/模板/占位符代码。"
+                ),
+            )
+
         saved_at = utc_now().isoformat()
-        files = [{
+
+        # === 多文件支持：读取现有文件列表，upsert 当前文件 ===
+        existing_ws = db.get_project_workspace(project_id)
+        existing_files: list[dict] = []
+        if existing_ws and isinstance(existing_ws.get("files"), list):
+            existing_files = list(existing_ws["files"])
+
+        # 构建新文件条目
+        new_file_entry = {
             "name": filename,
             "language": language,
             "content": code,
-            "is_main": True,
-        }]
+            "is_main": True,  # 当前写入的文件标记为主文件
+        }
+
+        # Upsert：移除同名旧文件，追加新文件
+        updated_files = [f for f in existing_files if f.get("name") != filename]
+        updated_files.append(new_file_entry)
+
+        # 确保只有一个 is_main 文件（index.html 优先）
+        main_candidates = [f for f in updated_files if f.get("name") in ("index.html", "main.py", "main.ts")]
+        if main_candidates:
+            for f in updated_files:
+                f["is_main"] = f.get("name") == main_candidates[0].get("name")
+        else:
+            # 没有主文件候选时，保持最后一个写入的为 main
+            for i, f in enumerate(updated_files):
+                f["is_main"] = (i == len(updated_files) - 1)
+
         workspace = db.save_project_workspace(project_id, {
             "code": code,
             "language": language,
             "filename": filename,
-            "files": files,
+            "files": updated_files,
             "saved_at": saved_at,
         })
         if workspace is None:

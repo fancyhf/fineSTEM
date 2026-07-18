@@ -24,6 +24,7 @@ import ProjectDetail from './pages/ProjectDetail';
 import ProjectAchievement from './pages/ProjectAchievement';
 import SharedAchievement from './pages/SharedAchievement';
 import ProjectEditor from './pages/ProjectEditor';
+import AdminFeatured from './pages/AdminFeatured';
 import { useAuth } from './contexts/AuthContext';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -40,6 +41,29 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
   if (!user) {
     return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  return <>{children}</>;
+}
+
+function AdminRoute({ children }: { children: React.ReactNode }) {
+  const { user, isLoading } = useAuth();
+  const location = useLocation();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600"></div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  if (user.role !== 'admin') {
+    return <Navigate to="/" replace />;
   }
 
   return <>{children}</>;
@@ -103,6 +127,10 @@ export default function App() {
             <ProtectedRoute><ProjectAchievement /></ProtectedRoute>
           } />
           <Route path="projects/:id/edit" element={<ProtectedRoute><ProjectEditor /></ProtectedRoute>} />
+
+          <Route path="admin/featured" element={
+            <AdminRoute><AdminFeatured /></AdminRoute>
+          } />
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>

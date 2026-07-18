@@ -171,6 +171,21 @@ class RepositoryBackedDB:
         with self._session() as session:
             return AchievementRepo(session).count_public_achievement_cards(capability_tag=capability_tag, mode=project_mode)
 
+    def list_featured_cards(self, skip=0, limit=20):
+        with self._session() as session:
+            return AchievementRepo(session).list_featured_cards(skip=skip, limit=limit)
+
+    def count_featured_cards(self):
+        with self._session() as session:
+            return AchievementRepo(session).count_featured_cards()
+
+    def set_card_featured(self, card_id: str, featured: bool, sort_order: int = 0):
+        with self._session() as session:
+            repo = AchievementRepo(session)
+            result = repo.set_featured(card_id, featured, sort_order=sort_order)
+            session.commit()
+            return result
+
     def create_achievement_card(self, card):
         with self._session() as session:
             repo = AchievementRepo(session)
