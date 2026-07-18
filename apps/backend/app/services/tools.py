@@ -36,6 +36,51 @@ class ToolResult:
         return json.dumps(self.to_dict(), ensure_ascii=False, indent=2)
 
 
+def _trigger_auto_export(project_id: str) -> None:
+    """
+    2026-07-18 事故修复：项目完成后异步导出资料包到 out/ 目录（git 追踪）。
+
+    - 延迟导入 projects.py 避免循环依赖（projects.py 反向依赖 tools 的情况已通过
+      pbl_engine 解耦，但保持延迟导入更稳妥）。
+    - 用线程池执行（导出是同步 I/O，且可能较慢），不阻塞 asyncio 事件循环。
+    - 失败只 log warning，绝不影响阶段推进主流程。
+    """
+    import asyncio
+    import logging
+    from pathlib import Path
+    from app.core.config import settings
+
+    if not settings.AUTO_EXPORT_ON_COMPLETE:
+        return
+
+    _log = logging.getLogger(__name__)
+
+    async def _do_export():
+        import asyncio
+        loop = asyncio.get_event_loop()
+        # 找 out/ 目录：项目根的 out/（与 STORAGE_BASE_PATH 同级或其上）
+        # STORAGE_BASE_PATH = D:/data/finestem，项目根 = G:/mediaProjects/fineSTEM
+        # 用 projects.py 自身路径反推项目根最稳妥
+        from app.api.projects import export_project_to_disk
+        out_dir = Path(settings.STORAGE_BASE_PATH).parent if Path(settings.STORAGE_BASE_PATH).name == "finestem" else Path(settings.AUTO_EXPORT_DIR)
+        # 优先用配置的相对路径（相对当前工作区根），但为兼容性，也尝试 STORAGE_BASE_PATH 的父
+        candidates = [
+            Path(settings.AUTO_EXPORT_DIR).resolve() if not Path(settings.AUTO_EXPORT_DIR).is_absolute() else None,
+            Path.cwd() / settings.AUTO_EXPORT_DIR,
+        ]
+        out_dir = next((c for c in candidates if c is not None and (c.parent.exists() or c.parent == Path.cwd())), Path.cwd() / settings.AUTO_EXPORT_DIR)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        pkg_path = await loop.run_in_executor(None, export_project_to_disk, project_id, out_dir)
+        _log.info("auto_export_success project_id=%s path=%s", project_id, pkg_path)
+
+    try:
+        loop = asyncio.get_event_loop()
+        loop.create_task(_do_export())
+    except RuntimeError:
+        # 没有 event loop（理论上 tools 都在 async 上下文，这里只是兜底）
+        _log.warning("auto_export_no_event_loop project_id=%s", project_id)
+
+
 class BaseTool:
     name: str = ""
     description: str = ""
@@ -274,6 +319,11 @@ class StageAdvancerTool(BaseTool):
                         "stage_07_execute": "按里程碑推进并记录开发日志",
                         "stage_08_evaluate": "根据验收标准逐条评估并形成成果档案卡",
                     }
+                    # 2026-07-18 事故修复：项目刚完成（进入 stage_08）→ 异步触发资料包自动导出
+                    # 让代码有第二份磁盘副本（out/，已纳入 git），防止数据库损坏导致代码永久丢失。
+                    # 异步执行：不阻塞阶段推进响应；失败只 log，绝不影响主流程。
+                    if result.get("just_completed"):
+                        _trigger_auto_export(project_id)
                     return ToolResult(True, data={
                         "previous_stage": current_stage,
                         "current_stage": new_stage,
@@ -446,9 +496,12 @@ class CodeRunnerTool(BaseTool):
     }
 
     async def execute(self, params: Dict[str, Any]) -> ToolResult:
-        import subprocess
-        import sys
-        import io
+        # 2026-07-18 事故修复：原实现 Python 分支用进程内 exec()，脚本和后端共享
+        # 进程/内存/密钥/数据库句柄——AI 诊断脚本能扫描 D:/data/finestem/ 全目录、
+        # 读取 ZEROCLAW_API_KEY。现改为通过 code_sandbox 模块在隔离的临时目录 +
+        # 过滤后的 env 里执行。同时修复了原 exec() 路径的超时死代码 bug。
+        import asyncio
+        from app.services.code_sandbox import run_python_sandboxed, run_javascript_sandboxed
 
         code = params.get("code", "")
         language = params.get("language", "python")
@@ -458,65 +511,33 @@ class CodeRunnerTool(BaseTool):
             return ToolResult(False, error="代码不能为空")
 
         started = datetime.now(timezone.utc)
-        stdout_capture = io.StringIO()
-        stderr_capture = io.StringIO()
-        exit_code = 0
-        exec_time_ms = 0
+        loop = asyncio.get_event_loop()
 
         try:
             if language == "javascript":
-                import asyncio
-
-                js_code = code
-                if stdin_input:
-                    js_code = f"const _stdin = {json.dumps(stdin_input)};\n{js_code}"
-
-                proc = await asyncio.create_subprocess_shell(
-                    "node --input-type=module -e " + "'" + js_code.replace("'", "\\'") + "'",
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    shell=True,
+                result = await loop.run_in_executor(
+                    None, run_javascript_sandboxed, code, 10, stdin_input,
                 )
-                try:
-                    stdout_bytes, stderr_bytes = await asyncio.wait_for(proc.communicate(), timeout=10)
-                    exit_code = proc.returncode
-                    stdout_capture.write(stdout_bytes.decode("utf-8", errors="replace"))
-                    stderr_capture.write(stderr_bytes.decode("utf-8", errors="replace"))
-                except asyncio.TimeoutError:
-                    proc.kill()
-                    stderr_capture.write("执行超时（10秒限制）")
-                    exit_code = -1
             else:
-                old_stdout = sys.stdout
-                old_stderr = sys.stderr
-                sys.stdout = stdout_capture
-                sys.stderr = stderr_capture
-                try:
-                    compiled = compile(code, "<ai_code_runner>", "exec")
-                    namespace = {"__name__": "__main__"}
-                    if stdin_input:
-                        namespace["_stdin"] = stdin_input
-                    exec(compiled, namespace)
-                except TimeoutError:
-                    stderr_capture.write("执行超时（10秒限制）")
-                    exit_code = -1
-                except Exception as exc:
-                    stderr_capture.write(f"{type(exc).__name__}: {exc}")
-                    exit_code = 1
-                finally:
-                    sys.stdout = old_stdout
-                    sys.stderr = old_stderr
+                result = await loop.run_in_executor(
+                    None, run_python_sandboxed, code, 10, stdin_input,
+                )
         except Exception as exc:
-            stderr_capture.write(str(exc))
-            exit_code = 1
+            return ToolResult(True, data={
+                "success": False,
+                "stdout": "",
+                "stderr": str(exc),
+                "exit_code": 1,
+                "execution_time_ms": int((datetime.now(timezone.utc) - started).total_seconds() * 1000),
+            })
 
         exec_time_ms = int((datetime.now(timezone.utc) - started).total_seconds() * 1000)
 
         return ToolResult(True, data={
-            "success": exit_code == 0,
-            "stdout": stdout_capture.getvalue() or "(无输出)",
-            "stderr": stderr_capture.getvalue() or "",
-            "exit_code": exit_code,
+            "success": result["success"],
+            "stdout": result["stdout"] or "(无输出)",
+            "stderr": result["stderr"] or "",
+            "exit_code": result["exit_code"],
             "execution_time_ms": exec_time_ms,
         })
 

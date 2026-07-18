@@ -1,0 +1,17 @@
+{
+  "created_at": "2026-06-30T11:59:24.755563",
+  "created_by": "27fb2e88-bf95-4c98-b33b-688891d40f43",
+  "updated_at": "2026-06-30T11:59:24.755563",
+  "updated_by": null,
+  "deleted_at": null,
+  "deleted_by": null,
+  "is_deleted": false,
+  "type": "text_log",
+  "title": "stage_01_brainstorm",
+  "content": "好名字！🌟 *奇幻选择之旅* —— 听起来就充满了冒险感！\n现在我来完善开题信息，还有几项需要确认：\n-\n# 2️⃣ 一句话简介\n用一句话向别人介绍你的项目，你会怎么说？\n比如：\n> \"一个让读者通过做选择来推进剧情的互动故事网页\"\n你觉得这个描述准不准确？或者你有自己的版本？",
+  "content_url": null,
+  "related_step": "stage_01_brainstorm",
+  "id": "294a638e-1610-45c6-ae01-589b5c46a17f",
+  "project_id": "b686df08-6655-4edb-a3a5-955f3244abe1",
+  "author_id": "27fb2e88-bf95-4c98-b33b-688891d40f43"
+}

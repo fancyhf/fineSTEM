@@ -1,0 +1,17 @@
+{
+  "created_at": "2026-06-30T14:44:06.786408",
+  "created_by": "27fb2e88-bf95-4c98-b33b-688891d40f43",
+  "updated_at": "2026-06-30T14:44:06.786408",
+  "updated_by": null,
+  "deleted_at": null,
+  "deleted_by": null,
+  "is_deleted": false,
+  "type": "text_log",
+  "title": "stage_04_track",
+  "content": "好嘞，复古像素风！跟\"奇幻选择之旅\"的冒险感很搭 🟫✨\n接下来确定界面元素。你的故事页面需要展示什么内容？你觉得下面哪些是必须有的？\n📝 *界面元素确认*\n你的故事游戏页面上，需要展示哪些内容？\nopt_title\n🖼 标题/故事名称\n顶部展示当前故事章节的名称\nopt_text\n📖 故事正文\n中间大片区域展示故事文字内容\nopt_choices\n🔘 选项按钮\n底部显示玩家可以做的选择\nopt_progress\n📊 进度指示\n显示当前是第几个选择点/整体进度\nopt_img\n🎨 配图/背景图\n每个场景配有简单的像素插画或背景\ntrue",
+  "content_url": null,
+  "related_step": "stage_04_track",
+  "id": "cae85ebb-89e8-4d01-b4ed-6554ba73c496",
+  "project_id": "b686df08-6655-4edb-a3a5-955f3244abe1",
+  "author_id": "27fb2e88-bf95-4c98-b33b-688891d40f43"
+}

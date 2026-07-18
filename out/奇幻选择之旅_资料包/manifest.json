@@ -1,0 +1,15 @@
+{
+  "project_id": "b686df08-6655-4edb-a3a5-955f3244abe1",
+  "project_name": "奇幻选择之旅",
+  "generated_at": "2026-07-18T14:03:22.385575+00:00",
+  "includes": [
+    "README.md",
+    "index.html",
+    ".gitignore",
+    "src",
+    "docs",
+    "evidence",
+    "data",
+    "project_files"
+  ]
+}

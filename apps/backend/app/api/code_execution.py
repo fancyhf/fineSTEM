@@ -706,19 +706,32 @@ async def stop_streamlit():
     return ApiResponse(data={'stopped': False, 'message': '没有运行中的 Streamlit'})
 
 
-def _run_subprocess(cmd: list[str], timeout: int) -> tuple[bytes | None, bytes | None, int]:
-    """在线程中同步执行子进程，避免 Windows asyncio subprocess 兼容性问题"""
+def _run_subprocess(
+    cmd: list[str],
+    timeout: int,
+    cwd: str | None = None,
+    env: dict | None = None,
+) -> tuple[bytes | None, bytes | None, int]:
+    """在线程中同步执行子进程，避免 Windows asyncio subprocess 兼容性问题。
+
+    2026-07-18 事故修复：新增 cwd 和 env 参数供沙箱化使用。
+    - cwd：子进程工作目录（沙箱临时目录）
+    - env：环境变量（沙箱模式下应剔除密钥）；None 则沿用原行为（含完整 os.environ）
+    """
+    if env is None:
+        env = {
+            **os.environ,
+            'PYTHONUTF8': '1',
+            'PYTHONIOENCODING': 'utf-8',
+            'PYTHONLEGACYWINDOWSSTDIO': 'utf-8',
+        }
     try:
         result = subprocess.run(
             cmd,
             capture_output=True,
             timeout=timeout,
-            env={
-                **os.environ,
-                'PYTHONUTF8': '1',
-                'PYTHONIOENCODING': 'utf-8',
-                'PYTHONLEGACYWINDOWSSTDIO': 'utf-8',
-            },
+            cwd=cwd,
+            env=env,
         )
         return result.stdout, result.stderr, result.returncode
     except subprocess.TimeoutExpired as e:

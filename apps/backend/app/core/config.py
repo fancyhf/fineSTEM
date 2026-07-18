@@ -31,6 +31,16 @@ class Settings(BaseSettings):
     # 数据库配置（MVP 阶段使用内存数据库）
     # 后续逐步切换到 SQLAlchemy ORM + Alembic
     DATABASE_URL: str = "sqlite:///D:/data/finestem/finestem.db"
+
+    # 数据库自动备份配置（2026-07-18 事故修复：避免 .db 损坏导致代码永久丢失）
+    BACKUP_ENABLED: bool = True
+    BACKUP_DIR: str = "backups"            # 相对 STORAGE_BASE_PATH
+    BACKUP_HOUR: int = 3                   # 每日触发点（本地时区，0-23）
+    BACKUP_KEEP_DAYS: int = 14             # 旧备份保留天数
+
+    # 项目完成自动导出资料包（2026-07-18 事故修复：让代码有第二份磁盘副本）
+    AUTO_EXPORT_ON_COMPLETE: bool = True
+    AUTO_EXPORT_DIR: str = "out"           # 相对项目根（git 追踪目录）
     
     # ZeroClaw Gateway 配置（真实 AI 必填）
     ZEROCLAW_GATEWAY_URL: Optional[str] = None

@@ -11,6 +11,7 @@ from urllib.parse import quote
 import io
 import json
 import re
+import shutil
 import uuid
 import zipfile
 from pathlib import Path
@@ -1697,6 +1698,175 @@ async def complete_pbl_stage(
     )
 
 
+def build_project_package(project_id: str) -> tuple[str, dict[str, bytes]]:
+    """
+    组装项目资料包内容（供 HTTP zip 下载和落盘 out/ 复用）。
+
+    2026-07-18 事故修复：原 zip 组装逻辑内联在 export_project 里，无法被
+    "项目完成自动导出"复用。抽出后两条路径共享同一份组装代码。
+
+    参数:
+        project_id: 项目 ID
+
+    返回:
+        (project_name, {相对路径: 内容(bytes)})
+        若项目不存在抛 ValueError。
+    """
+    project = db.get_project(project_id)
+    if not project:
+        raise ValueError(f"项目不存在: {project_id}")
+
+    files_map: dict[str, bytes] = {}
+
+    def _add_str(path: str, content: str) -> None:
+        files_map[path] = content.encode("utf-8")
+
+    def _add_json(path: str, payload: object) -> None:
+        files_map[path] = json.dumps(payload, ensure_ascii=False, indent=2, default=str).encode("utf-8")
+
+    _add_json(
+        "manifest.json",
+        {
+            "project_id": project_id,
+            "project_name": project.name,
+            "generated_at": utc_now_iso(),
+            "includes": ["README.md", "index.html", ".gitignore", "src", "docs", "evidence", "data", "project_files"],
+        },
+    )
+    _add_json("project.json", project.model_dump(mode="json"))
+
+    export_time = utc_now()
+    export_time_str = export_time.strftime("%Y-%m-%d %H:%M UTC")
+    desc = getattr(project, "description", None) or ""
+    _add_str("README.md", _build_readme_md(project.name, project.mode, desc, export_time_str))
+    _add_str("index.html", _build_index_html(project.name, export_time_str))
+    _add_str(".gitignore", _GITIGNORE_CONTENT)
+
+    for document_type in ("proposal", "technical", "final"):
+        for output_format in ("md", "json", "docx", "pdf"):
+            file_name, _, payload = document_service.generate(project_id, document_type, output_format)
+            zip_path = _safe_zip_path("docs", document_type, file_name)
+            if isinstance(payload, str):
+                _add_str(zip_path, payload)
+            else:
+                files_map[zip_path] = payload  # 二进制（pdf/docx）
+
+    workspace = db.get_project_workspace(project_id) or {}
+    _add_json("data/workspace.json", workspace)
+    code = str(workspace.get("code") or "")
+    written_source_paths: set[str] = set()
+    workspace_files = workspace.get("files") or []
+    if isinstance(workspace_files, list):
+        for file_entry in workspace_files:
+            if not isinstance(file_entry, dict):
+                continue
+            file_name = str(file_entry.get("name") or "").strip()
+            if not file_name:
+                continue
+            zip_path = _safe_zip_path("src", file_name)
+            if not zip_path or zip_path in written_source_paths:
+                continue
+            _add_str(zip_path, str(file_entry.get("content") or ""))
+            written_source_paths.add(zip_path)
+    if code.strip():
+        language = str(workspace.get("language") or "")
+        code_name = _guess_code_filename(language, workspace.get("filename"))
+        zip_path = _safe_zip_path("src", code_name)
+        if zip_path not in written_source_paths:
+            _add_str(zip_path, code)
+    chat_messages = workspace.get("chat_messages") or []
+    if chat_messages:
+        _add_json("docs/chat_messages.json", chat_messages)
+
+    skill_state = db.get_skill_state(project_id)
+    if skill_state:
+        _add_json("data/skill_state.json", skill_state.model_dump(mode="json"))
+        for step_key, step_data in (skill_state.light_step_data or {}).items():
+            safe_name = step_key.replace("/", "_").replace("\\", "_")
+            _add_json(f"data/steps/light_{safe_name}.json", step_data)
+        for step_key, step_data in (skill_state.standard_step_data or {}).items():
+            safe_name = step_key.replace("/", "_").replace("\\", "_")
+            if isinstance(step_data, str) and step_data.strip().startswith("#"):
+                _add_str(f"data/steps/standard_{safe_name}.md", step_data)
+            else:
+                _add_json(f"data/steps/standard_{safe_name}.json", step_data)
+            if isinstance(step_data, dict):
+                for key, value in step_data.items():
+                    if key.endswith("_content") and isinstance(value, str) and value.strip():
+                        _add_str(_safe_zip_path("docs/stage_artifacts", f"{key}.md"), value)
+
+    evidence_list = db.list_evidence_by_project(project_id, skip=0, limit=1000)
+    for idx, ev in enumerate(evidence_list):
+        safe_id = ev.id.replace("/", "_").replace("\\", "_")
+        if ev.type == "code" or ev.type == "code_snapshot":
+            ext = "js"
+            if "python" in (ev.content[:200] or "").lower() or ev.content.strip().startswith(("import ", "def ", "from ")):
+                ext = "py"
+            elif "html" in (ev.content[:200] or "").lower() or ev.content.strip().startswith("<"):
+                ext = "html"
+            elif "css" in (ev.content[:200] or "").lower() or ev.content.strip().startswith((".", "@", "body", "html")):
+                ext = "css"
+            _add_str(f"evidence/code/{safe_id}_{idx}.{ext}", ev.content)
+        elif ev.type == "markdown" or ev.type == "text":
+            _add_str(f"docs/evidence/{safe_id}_{idx}.md", ev.content)
+        elif ev.type == "image" and ev.content_url:
+            _add_str(f"evidence/assets/{safe_id}_{idx}.url", ev.content_url)
+        else:
+            _add_json(f"evidence/{ev.type}_{safe_id}_{idx}.json", ev.model_dump(mode="json"))
+
+    achievement = db.get_achievement_card_by_project(project_id)
+    if achievement:
+        _add_json("data/achievement_card.json", achievement.model_dump(mode="json"))
+
+    project_slug = _slugify_project_name(project.name)
+    storage_project_dir = document_service.base_path / "projects" / project_slug
+    repo_project_dir = Path(__file__).resolve().parents[4] / "projects" / project_slug
+    for source_dir, prefix in ((storage_project_dir, "project_files/storage"), (repo_project_dir, "project_files/repository")):
+        if not source_dir.exists() or not source_dir.is_dir():
+            continue
+        for item in source_dir.rglob("*"):
+            if not item.is_file():
+                continue
+            if any(part in ZIP_EXCLUDED_DIRS for part in item.relative_to(source_dir).parts):
+                continue
+            try:
+                relative = item.relative_to(source_dir)
+                files_map[_safe_zip_path(prefix, relative.as_posix())] = item.read_bytes()
+            except OSError:
+                continue
+
+    return project.name, files_map
+
+
+def export_project_to_disk(project_id: str, target_base_dir: Path) -> Path:
+    """
+    把项目资料包写到磁盘目录（不生成 zip）。
+
+    2026-07-18 事故修复：项目完成时自动导出，让代码有第二份磁盘副本。
+    纯文本目录（git diff 友好），不写 zip（避免撑大 git 仓库）。
+
+    参数:
+        project_id: 项目 ID
+        target_base_dir: out/ 目录（资料包子目录会建在其下）
+
+    返回:
+        实际写入的目录路径。
+    """
+    project_name, files_map = build_project_package(project_id)
+    pkg_dir_name = _make_export_filename(project_name, "")  # 形如 "项目名_资料包."
+    pkg_dir_name = pkg_dir_name.rstrip(".") or "project_package"
+    pkg_dir = target_base_dir / pkg_dir_name
+    # 覆盖式：先清旧目录再写新内容，避免残留旧文件
+    if pkg_dir.exists():
+        shutil.rmtree(pkg_dir, ignore_errors=True)
+    pkg_dir.mkdir(parents=True, exist_ok=True)
+    for rel_path, content in files_map.items():
+        full_path = pkg_dir / rel_path
+        full_path.parent.mkdir(parents=True, exist_ok=True)
+        full_path.write_bytes(content)
+    return pkg_dir
+
+
 @router.get("/{project_id}/export")
 async def export_project(
     project_id: str,
@@ -1719,122 +1889,11 @@ async def export_project(
         )
 
     if format == "zip":
+        _, files_map = build_project_package(project_id)
         buffer = io.BytesIO()
         with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as zipf:
-            _zip_json(
-                zipf,
-                "manifest.json",
-                {
-                    "project_id": project_id,
-                    "project_name": project.name,
-                    "generated_at": utc_now_iso(),
-                    "includes": [
-                        "README.md",
-                        "index.html",
-                        ".gitignore",
-                        "src",
-                        "docs",
-                        "evidence",
-                        "data",
-                        "project_files",
-                    ],
-                },
-            )
-            _zip_json(zipf, "project.json", project.model_dump(mode="json"))
-
-            # 生成 README.md、index.html 和 .gitignore
-            export_time = utc_now()
-            export_time_str = export_time.strftime("%Y-%m-%d %H:%M UTC")
-            desc = getattr(project, "description", None) or ""
-            readme_content = _build_readme_md(project.name, project.mode, desc, export_time_str)
-            zipf.writestr("README.md", readme_content)
-            index_content = _build_index_html(project.name, export_time_str)
-            zipf.writestr("index.html", index_content)
-            zipf.writestr(".gitignore", _GITIGNORE_CONTENT)
-
-            for document_type in ("proposal", "technical", "final"):
-                for output_format in ("md", "json", "docx", "pdf"):
-                    file_name, _, payload = document_service.generate(project_id, document_type, output_format)
-                    zip_path = _safe_zip_path("docs", document_type, file_name)
-                    if isinstance(payload, str):
-                        zipf.writestr(zip_path, payload)
-                    else:
-                        zipf.writestr(zip_path, payload)
-
-            workspace = db.get_project_workspace(project_id) or {}
-            _zip_json(zipf, "data/workspace.json", workspace)
-            code = str(workspace.get("code") or "")
-            written_source_paths: set[str] = set()
-            workspace_files = workspace.get("files") or []
-            if isinstance(workspace_files, list):
-                for file_entry in workspace_files:
-                    if not isinstance(file_entry, dict):
-                        continue
-                    file_name = str(file_entry.get("name") or "").strip()
-                    if not file_name:
-                        continue
-                    zip_path = _safe_zip_path("src", file_name)
-                    if not zip_path or zip_path in written_source_paths:
-                        continue
-                    zipf.writestr(zip_path, str(file_entry.get("content") or ""))
-                    written_source_paths.add(zip_path)
-            if code.strip():
-                language = str(workspace.get("language") or "")
-                code_name = _guess_code_filename(language, workspace.get("filename"))
-                zip_path = _safe_zip_path("src", code_name)
-                if zip_path not in written_source_paths:
-                    zipf.writestr(zip_path, code)
-            chat_messages = workspace.get("chat_messages") or []
-            if chat_messages:
-                _zip_json(zipf, "docs/chat_messages.json", chat_messages)
-
-            skill_state = db.get_skill_state(project_id)
-            if skill_state:
-                _zip_json(zipf, "data/skill_state.json", skill_state.model_dump(mode="json"))
-                for step_key, step_data in (skill_state.light_step_data or {}).items():
-                    safe_name = step_key.replace("/", "_").replace("\\", "_")
-                    _zip_json(zipf, f"data/steps/light_{safe_name}.json", step_data)
-                for step_key, step_data in (skill_state.standard_step_data or {}).items():
-                    safe_name = step_key.replace("/", "_").replace("\\", "_")
-                    if isinstance(step_data, str) and step_data.strip().startswith("#"):
-                        zipf.writestr(f"data/steps/standard_{safe_name}.md", step_data)
-                    else:
-                        _zip_json(zipf, f"data/steps/standard_{safe_name}.json", step_data)
-
-                    if isinstance(step_data, dict):
-                        for key, value in step_data.items():
-                            if key.endswith("_content") and isinstance(value, str) and value.strip():
-                                zipf.writestr(_safe_zip_path("docs/stage_artifacts", f"{key}.md"), value)
-
-            evidence_list = db.list_evidence_by_project(project_id, skip=0, limit=1000)
-            for idx, ev in enumerate(evidence_list):
-                safe_id = ev.id.replace("/", "_").replace("\\", "_")
-                if ev.type == "code" or ev.type == "code_snapshot":
-                    ext = "js"
-                    if "python" in (ev.content[:200] or "").lower() or ev.content.strip().startswith(("import ", "def ", "from ")):
-                        ext = "py"
-                    elif "html" in (ev.content[:200] or "").lower() or ev.content.strip().startswith("<"):
-                        ext = "html"
-                    elif "css" in (ev.content[:200] or "").lower() or ev.content.strip().startswith((".", "@", "body", "html")):
-                        ext = "css"
-                    zipf.writestr(f"evidence/code/{safe_id}_{idx}.{ext}", ev.content)
-                elif ev.type == "markdown" or ev.type == "text":
-                    zipf.writestr(f"docs/evidence/{safe_id}_{idx}.md", ev.content)
-                elif ev.type == "image" and ev.content_url:
-                    zipf.writestr(f"evidence/assets/{safe_id}_{idx}.url", ev.content_url)
-                else:
-                    _zip_json(zipf, f"evidence/{ev.type}_{safe_id}_{idx}.json", ev.model_dump(mode="json"))
-
-            achievement = db.get_achievement_card_by_project(project_id)
-            if achievement:
-                _zip_json(zipf, "data/achievement_card.json", achievement.model_dump(mode="json"))
-
-            project_slug = _slugify_project_name(project.name)
-            storage_project_dir = document_service.base_path / "projects" / project_slug
-            repo_project_dir = Path(__file__).resolve().parents[4] / "projects" / project_slug
-            _add_directory_to_zip(zipf, storage_project_dir, "project_files/storage")
-            _add_directory_to_zip(zipf, repo_project_dir, "project_files/repository")
-
+            for rel_path, content in files_map.items():
+                zipf.writestr(rel_path, content)
         zip_filename = _make_export_filename(project.name, "zip")
         headers = {"Content-Disposition": _build_content_disposition(zip_filename, "project_export.zip")}
         return Response(content=buffer.getvalue(), media_type="application/zip", headers=headers)

@@ -1,0 +1,17 @@
+{
+  "created_at": "2026-06-30T14:40:38.844608",
+  "created_by": "27fb2e88-bf95-4c98-b33b-688891d40f43",
+  "updated_at": "2026-06-30T14:40:38.844608",
+  "updated_by": null,
+  "deleted_at": null,
+  "deleted_by": null,
+  "is_deleted": false,
+  "type": "text_log",
+  "title": "stage_03_constraints",
+  "content": "三个核心功能，稳扎稳打！再来看第二项和第三项 👇\n# ✨ 最好有（Nice to Have）\n如果有时间，你还想加点什么让故事更酷？\n# 🚫 这次不做（Won't Do）\n你觉得哪些功能可以明确说\"这次先不做\"？至少选2个，给项目瘦身～\n选好了直接告诉我就行！",
+  "content_url": null,
+  "related_step": "stage_03_constraints",
+  "id": "31ce0a22-b3ab-4a00-983a-8ff5cc8983d1",
+  "project_id": "b686df08-6655-4edb-a3a5-955f3244abe1",
+  "author_id": "27fb2e88-bf95-4c98-b33b-688891d40f43"
+}

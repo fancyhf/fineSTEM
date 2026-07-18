@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>奇幻选择之旅 — 项目资料包</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif; background: #f5f7fa; color: #1a1a2e; line-height: 1.6; }
+  header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 2rem; }
+  header h1 { font-size: 1.75rem; margin-bottom: 0.5rem; }
+  header p { opacity: 0.85; font-size: 0.9rem; }
+  main { max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
+  section { background: white; border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 2px 12px rgba(0,0,0,0.06); }
+  section h2 { font-size: 1.2rem; color: #667eea; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 2px solid #eef0f5; }
+  .file-list { display: grid; gap: 0.5rem; }
+  .file-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem 0.75rem; border-radius: 8px; transition: background 0.2s; }
+  .file-item:hover { background: #f0f3ff; }
+  .file-icon { font-size: 1.25rem; width: 28px; text-align: center; flex-shrink: 0; }
+  .file-link { color: #4a6cf7; text-decoration: none; word-break: break-all; }
+  .file-link:hover { text-decoration: underline; }
+  .file-desc { color: #888; font-size: 0.8rem; margin-left: auto; flex-shrink: 0; }
+  footer { text-align: center; color: #aaa; font-size: 0.8rem; padding: 2rem; }
+  .badge { display: inline-block; background: #eef0ff; color: #667eea; padding: 0.15rem 0.6rem; border-radius: 20px; font-size: 0.75rem; margin-left: 0.5rem; }
+</style>
+</head>
+<body>
+<header>
+  <h1>📦 奇幻选择之旅</h1>
+  <p>fineSTEM 项目资料包 · 导出时间：2026-07-18 14:03 UTC</p>
+</header>
+<main>
+  <section>
+    <h2>📄 项目文档</h2>
+    <div class="file-list">
+      <div class="file-item">
+        <span class="file-icon">📋</span>
+        <span>project.json</span>
+        <span class="file-desc">项目元数据</span>
+      </div>
+      <div class="file-item">
+        <span class="file-icon">📝</span>
+        <a class="file-link" href="README.md">README.md</a>
+        <span class="file-desc">使用说明</span>
+      </div>
+    </div>
+  </section>
+  <section>
+    <h2>📚 AI 生成文档 <span class="badge">AI 辅助</span></h2>
+    <div class="file-list">
+      <div class="file-item">
+        <span class="file-icon">📖</span>
+        <span>docs/proposal/</span>
+        <span class="file-desc">开题报告 (MD/JSON/DOCX/PDF)</span>
+      </div>
+      <div class="file-item">
+        <span class="file-icon">🔧</span>
+        <span>docs/technical/</span>
+        <span class="file-desc">技术报告 (MD/JSON/DOCX/PDF)</span>
+      </div>
+      <div class="file-item">
+        <span class="file-icon">🏁</span>
+        <span>docs/final/</span>
+        <span class="file-desc">结题报告 (MD/JSON/DOCX/PDF)</span>
+      </div>
+      <div class="file-item">
+        <span class="file-icon">💬</span>
+        <a class="file-link" href="docs/chat_messages.json">docs/chat_messages.json</a>
+        <span class="file-desc">AI 对话记录</span>
+      </div>
+    </div>
+  </section>
+  <section>
+    <h2>💻 源代码 <span class="badge">IDE 就绪</span></h2>
+    <div class="file-list">
+      <div class="file-item">
+        <span class="file-icon">💾</span>
+        <span>src/</span>
+        <span class="file-desc">项目源代码（IDE 自动识别）</span>
+      </div>
+      <div class="file-item">
+        <span class="file-icon">📋</span>
+        <a class="file-link" href="project.json">project.json</a>
+        <span class="file-desc">项目元数据</span>
+      </div>
+      <div class="file-item">
+        <span class="file-icon">⚙️</span>
+        <a class="file-link" href=".gitignore">.gitignore</a>
+        <span class="file-desc">Git 忽略规则</span>
+      </div>
+    </div>
+  </section>
+  <section>
+    <h2>🏆 成果与数据</h2>
+    <div class="file-list">
+      <div class="file-item">
+        <span class="file-icon">🏅</span>
+        <span>data/achievement_card.json</span>
+        <span class="file-desc">成果档案卡</span>
+      </div>
+      <div class="file-item">
+        <span class="file-icon">📦</span>
+        <span>data/workspace.json</span>
+        <span class="file-desc">工作区完整快照</span>
+      </div>
+      <div class="file-item">
+        <span class="file-icon">📌</span>
+        <span>data/skill_state.json</span>
+        <span class="file-desc">技能状态</span>
+      </div>
+      <div class="file-item">
+        <span class="file-icon">📑</span>
+        <span>data/steps/</span>
+        <span class="file-desc">各阶段步骤数据</span>
+      </div>
+    </div>
+  </section>
+  <section>
+    <h2>📊 证据与备份</h2>
+    <div class="file-list">
+      <div class="file-item">
+        <span class="file-icon">🔍</span>
+        <span>evidence/</span>
+        <span class="file-desc">项目证据（代码/文档/资源）</span>
+      </div>
+      <div class="file-item">
+        <span class="file-icon">🗂️</span>
+        <span>project_files/</span>
+        <span class="file-desc">原始项目文件备份</span>
+      </div>
+    </div>
+  </section>
+</main>
+<footer>
+  <p>本资料包由 fineSTEM 平台自动生成 · 记录你完整的研学旅程</p>
+</footer>
+</body>
+</html>

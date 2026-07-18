@@ -1,0 +1,17 @@
+{
+  "created_at": "2026-07-17T10:20:25.064726",
+  "created_by": "27fb2e88-bf95-4c98-b33b-688891d40f43",
+  "updated_at": "2026-07-17T10:20:25.064726",
+  "updated_by": null,
+  "deleted_at": null,
+  "deleted_by": null,
+  "is_deleted": false,
+  "type": "screenshot",
+  "title": "项目运行截图",
+  "content": "运行截图自动采集 @ 2026-07-17T10:20:25.064726+00:00",
+  "content_url": "/uploads/27fb2e88-bf95-4c98-b33b-688891d40f43/f2a11545-2b53-488d-8c38-7048f3adc801/8b502c6b-1fa7-4e73-b81b-643401a8ec97.png",
+  "related_step": null,
+  "id": "559e6c8f-02c9-437e-a30b-eb4f2b9ba4a9",
+  "project_id": "f2a11545-2b53-488d-8c38-7048f3adc801",
+  "author_id": "27fb2e88-bf95-4c98-b33b-688891d40f43"
+}

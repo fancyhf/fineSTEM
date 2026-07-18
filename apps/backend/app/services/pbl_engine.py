@@ -155,11 +155,16 @@ def advance_with_gate(project_id: str, db) -> dict:
 
     advanced = db.advance_skill_state(project_id)
     new_stage = getattr(advanced, "current_stage", None) if advanced else None
+    # 2026-07-18 事故修复：项目刚进入 stage_08_evaluate（流程终点）时标记，
+    # 让上层（调用方）据此触发自动导出资料包——不在同步底层函数里直接导出，
+    # 避免阻塞阶段推进响应，也避免引入循环依赖（pbl_engine → projects.py）。
+    just_completed = new_stage == "stage_08_evaluate"
     return {
         "success": True,
         "current_stage": current_stage,
         "new_stage": new_stage,
         "missing": [],
+        "just_completed": just_completed,
     }
 
 

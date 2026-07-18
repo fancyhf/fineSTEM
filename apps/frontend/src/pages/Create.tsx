@@ -1287,34 +1287,40 @@ const [runResultBlobUrl, setRunResultBlobUrl] = useState<string | null>(null); /
     // 优化代码展示逻辑：有代码则展示，无代码则保留默认提示
     const rawCode = workspace.code || '';
     const trimmedCode = rawCode.trim();
-    // 检测是否为 JSON/结构化数据（非源码），如果是则视为无代码
-    const isJsonLike = /^\s*[{[]/.test(trimmedCode) && trimmedCode.length > 10;
-    const hasRealCode = !isJsonLike && trimmedCode.length > 5;
+    // 精确判定 workspace.code 是否被污染为非源码 JSON：
+    // 必须同时满足 (1) 能 JSON.parse 成功；(2) 含已知污染键（evaluation/step_plan/brief 等）。
+    // 仅凭首字符 { [ 会误伤合法的 JSON 配置文件、含 JSON 字面量的 JS、JSX 等。
+    const _CONTAMINATION_KEYS = [
+      'acceptance_summary', 'project_name', 'one_liner', 'must_have',
+      'tech_stack', 'milestones', 'schema_version', 'payload',
+    ];
+    const isContaminatedJson = (() => {
+      if (!/^\s*[{[]/.test(trimmedCode) || trimmedCode.length <= 10) return false;
+      try {
+        const parsed = JSON.parse(trimmedCode);
+        if (typeof parsed !== 'object' || parsed === null) return false;
+        const keys = Array.isArray(parsed) ? Object.keys(parsed[0] || {}) : Object.keys(parsed);
+        return keys.some(k => _CONTAMINATION_KEYS.includes(k));
+      } catch {
+        return false; // 不是合法 JSON，说明是普通源码，不是污染
+      }
+    })();
+    const hasRealCode = !isContaminatedJson && trimmedCode.length > 5;
     if (hasRealCode) {
       setEditorCode(rawCode);
-    } else if (isJsonLike) {
-      // 关键修复：workspace.code 已被污染为 JSON（早期 bug 导致 evaluation.json 等被存为 code）
-      // 主动清理：直接重置为默认代码，并尝试用 saveCode 把后端存为正常 code
-      console.warn('[restore] workspace.code 是 JSON 格式，疑似被污染，重置为默认代码');
+    } else if (isContaminatedJson) {
+      // 2026-07-18 事故修复：workspace.code 被污染为 JSON 时，只在内存重置为 DEFAULT_CODE。
+      // 绝不反向 saveCode 覆盖后端——历史上这曾把"前端误判"的 JSON 当污染清空，
+      // 反向写库导致真实代码永久丢失。后端 P1 的 code_history 已提供恢复兜底，
+      // 前端不应擅自销毁后端数据。
+      console.warn('[restore] workspace.code 疑似被污染为 JSON，仅在内存重置（不写后端）');
       setEditorCode(DEFAULT_CODE);
-      projectsApi.saveCode(project.id, {
-        code: DEFAULT_CODE,
-        language: workspace.language || 'python',
-        filename: workspace.filename || 'main.py',
-        files: wsFiles && wsFiles.length > 0 ? wsFiles : undefined,
-      }).catch(() => {});
     } else {
       // workspace.code 为空，尝试从 getCode 接口获取
       projectsApi.getCode(project.id).then((codeRes) => {
         if (codeRes.data?.has_code && codeRes.data.code) {
-          const fetched = (codeRes.data.code || '').trim();
-          const fetchedIsJson = /^\s*[{[]/.test(fetched) && fetched.length > 10;
-          if (fetchedIsJson) {
-            setEditorCode(DEFAULT_CODE);
-          } else {
-            setEditorCode(codeRes.data.code);
-            setEditorLanguage(toEditorLanguage(codeRes.data.language || 'python'));
-          }
+          setEditorCode(codeRes.data.code);
+          setEditorLanguage(toEditorLanguage(codeRes.data.language || 'python'));
         } else {
           setEditorCode(DEFAULT_CODE);
         }
@@ -2896,7 +2902,16 @@ const handleSend = async (
                             }
                           })
                           .catch((error) => {
+                            // 2026-07-18 事故修复：打开项目失败时不要无条件清空编辑器/消息。
+                            // 此前任何网络/服务端错误都会 setEditorCode(DEFAULT_CODE) + setMessages([])，
+                            // 让"数据库有代码但前端显示空"（奇幻选择之旅就是受害者之一）。
+                            // 现在按错误类型区分处理：
+                            //   - 401（未登录）：让上层 request() 的整页跳转处理，这里不清空
+                            //   - 5xx / 网络错误（!status）：保留当前编辑器内容，只切 projectContext，等用户重试
+                            //   - 其他 4xx：项目确实有问题，才回落到 DEFAULT_CODE
                             console.error('[project-open] 工作台恢复失败:', error);
+                            const errStatus = (error as Error & { status?: number }).status;
+                            if (errStatus === 401) return; // 已由 request() 跳转登录
                             if (codeSaveTimerRef.current) clearTimeout(codeSaveTimerRef.current);
                             if (chatSaveTimerRef.current) clearTimeout(chatSaveTimerRef.current);
                             setProjectContext(prev => ({
@@ -2906,10 +2921,15 @@ const handleSend = async (
                               mode: proj.mode as 'light' | 'standard',
                               currentStage: proj.current_stage || '',
                             }));
-                            setEditorCode(DEFAULT_CODE);
+                            const isTransientError = !errStatus || errStatus >= 500;
+                            if (!isTransientError) {
+                              // 4xx（非 401）：项目层确实读不到，才用 DEFAULT_CODE
+                              setEditorCode(DEFAULT_CODE);
+                              setMessages([]);
+                            }
+                            // 瞬时错误：保留 editorCode 和 messages，用户可手动重试打开
                             setShowEditor(true);
                             setEditorTab('code');
-                            setMessages([]);
                             clearQuestionFlow();
                             setIsLoading(false);
                             setShowChatHistory(true);

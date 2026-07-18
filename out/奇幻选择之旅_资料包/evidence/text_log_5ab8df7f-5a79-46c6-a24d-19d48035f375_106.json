@@ -1,0 +1,17 @@
+{
+  "created_at": "2026-07-02T02:00:24.098842",
+  "created_by": "27fb2e88-bf95-4c98-b33b-688891d40f43",
+  "updated_at": "2026-07-02T02:00:24.098842",
+  "updated_by": null,
+  "deleted_at": null,
+  "deleted_by": null,
+  "is_deleted": false,
+  "type": "text_log",
+  "title": "stage_07_execute",
+  "content": "AI 模型暂时不可用，请稍后重试。",
+  "content_url": null,
+  "related_step": "stage_07_execute",
+  "id": "5ab8df7f-5a79-46c6-a24d-19d48035f375",
+  "project_id": "b686df08-6655-4edb-a3a5-955f3244abe1",
+  "author_id": "27fb2e88-bf95-4c98-b33b-688891d40f43"
+}

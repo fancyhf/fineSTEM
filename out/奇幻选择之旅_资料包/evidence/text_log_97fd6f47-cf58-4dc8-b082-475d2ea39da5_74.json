@@ -1,0 +1,17 @@
+{
+  "created_at": "2026-07-04T00:31:31.754120",
+  "created_by": "27fb2e88-bf95-4c98-b33b-688891d40f43",
+  "updated_at": "2026-07-04T00:31:31.754120",
+  "updated_by": null,
+  "deleted_at": null,
+  "deleted_by": null,
+  "is_deleted": false,
+  "type": "text_log",
+  "title": "stage_07_execute",
+  "content": "收到这个错误，说明 DOM 没加载完就执行了 JS。我在 `story_engine.js` 里加上 `DOMContentLoaded` 监听，同时检查 `storyData` 是否定义。\n现在验证一下代码区的文件是否正确：\nvar storyData = {title:'奇幻选择之旅', nodes:[{id:'start',title:'古老城堡',emoji:'🏰',description:'测试',choices:[{text:'进城堡',target:'castle_hall'},{text:'进森林',target:'forest_path'}]},{id:'castle_hall',title:'城堡大厅',emoji:'🕯️',description:'测试',choices:[{text:'图书馆',target:'library'},{text:'花园',target:'garden'},{text:'塔楼',target:'tower'}]}]};\nconsole.log('storyData 验证通过，节点数:', storyData.nodes.length\n工具调用: project_code_writer(success)；project_code_writer(success)；project_code_writer(success)；project_code_writer(success)；code_runner(success)",
+  "content_url": null,
+  "related_step": "stage_07_execute",
+  "id": "97fd6f47-cf58-4dc8-b082-475d2ea39da5",
+  "project_id": "b686df08-6655-4edb-a3a5-955f3244abe1",
+  "author_id": "27fb2e88-bf95-4c98-b33b-688891d40f43"
+}

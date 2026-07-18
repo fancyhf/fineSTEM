@@ -46,7 +46,7 @@ export const ProjectFilesPanel: React.FC<ProjectFilesPanelProps> = ({
   const [loadingDocs, setLoadingDocs] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     files: true,
-    docs: false,
+    docs: true,
     chatCode: true,
     export: false,
   });
@@ -144,10 +144,13 @@ export const ProjectFilesPanel: React.FC<ProjectFilesPanelProps> = ({
   }, [projectId]);
 
   useEffect(() => {
-    if (projectId && expandedSections.docs) {
+    // 2026-07-18 修复：只要有 projectId 就预取文档列表，不依赖 docs 是否展开。
+    // 此前依赖 expandedSections.docs，导致默认折叠时用户以为"没文档"（实际后端有）。
+    // 渲染仍受折叠控制——数据预取只影响再展开时的速度和"计数"显示。
+    if (projectId) {
       loadDocuments();
     }
-  }, [projectId, expandedSections.docs, loadDocuments]);
+  }, [projectId, loadDocuments]);
 
   // 查看文档内容
   const handleViewDoc = useCallback(async (stage: string, name: string) => {
@@ -340,6 +343,10 @@ export const ProjectFilesPanel: React.FC<ProjectFilesPanelProps> = ({
                   <p>项目还在早期阶段，</p>
                   <p className="mt-0.5">暂无阶段文档。</p>
                   <p className="mt-1 text-gray-300">继续与 AI 对话推进项目后自动生成</p>
+                </div>
+              ) : loadingDocs ? (
+                <div className="px-5 py-3 text-[11px] text-gray-400">
+                  正在加载文档...
                 </div>
               ) : !docsHaveContent ? (
                 <div className="px-5 py-3 text-[11px] text-gray-400 leading-relaxed">

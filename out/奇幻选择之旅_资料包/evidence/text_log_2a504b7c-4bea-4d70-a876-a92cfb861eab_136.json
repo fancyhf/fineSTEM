@@ -1,0 +1,17 @@
+{
+  "created_at": "2026-06-30T12:06:46.589698",
+  "created_by": "27fb2e88-bf95-4c98-b33b-688891d40f43",
+  "updated_at": "2026-06-30T12:06:46.589698",
+  "updated_by": null,
+  "deleted_at": null,
+  "deleted_by": null,
+  "is_deleted": false,
+  "type": "text_log",
+  "title": "stage_01_brainstorm",
+  "content": "太好了！那接下来还有两项需要确认：\n-\n# 3️⃣ 目标用户\n这个\"奇幻选择之旅\"是给谁玩的？\n- 🎒 *跟我一样初中生* → 同龄人喜欢的故事风格\n- 👦 *小学生* → 更简单、童话一点\n- 👨‍👩‍👧 *所有人* → 轻松有趣，谁都能玩\n- ✏️ *给自己* → 先做出来自己玩，再分享\n-\n# 4️⃣ 你会编程吗？\n- 🌱 *零基础* → 纯新手，从0学起\n- 📗 *学过一点* → 知道HTML是啥，写过几行代码\n- 📘 *有基础* → 做过小网页，能看懂代码\n- 📙 *比较熟练* → 能自己改代码\n这两个问题你分别说？",
+  "content_url": null,
+  "related_step": "stage_01_brainstorm",
+  "id": "2a504b7c-4bea-4d70-a876-a92cfb861eab",
+  "project_id": "b686df08-6655-4edb-a3a5-955f3244abe1",
+  "author_id": "27fb2e88-bf95-4c98-b33b-688891d40f43"
+}

@@ -1,0 +1,28 @@
+{
+  "is_featured": false,
+  "featured_sort_order": 0,
+  "featured_at": null,
+  "is_public": true,
+  "submitted_at": "2026-07-16T06:38:18.366182",
+  "created_at": "2026-07-16T06:38:18.367181",
+  "created_by": null,
+  "updated_at": "2026-07-17T15:28:49.536526",
+  "updated_by": null,
+  "deleted_at": null,
+  "deleted_by": null,
+  "is_deleted": false,
+  "title": "奇幻选择之旅",
+  "one_liner": "在 AI 导师引导下完成的 奇幻选择之旅 项目",
+  "problem_solved": "通过 标准研学 PBL 流程，从选题、设计到实现，完成了「奇幻选择之旅」的完整开发过程。",
+  "method_used": "使用 标准研学 PBL 流程 方法论，包括阶段化推进、AI 辅助编程和迭代验证。",
+  "screenshots": [
+    "/uploads/27fb2e88-bf95-4c98-b33b-688891d40f43/b686df08-6655-4edb-a3a5-955f3244abe1/2f81497e-95a8-43eb-9a3b-5bdf8d9229e4.png"
+  ],
+  "reflection": "项目已完成全部阶段。建议回顾各阶段的学习记录，补充具体的收获和反思。",
+  "capability_tags": [],
+  "project_mode": "standard",
+  "id": "8e0e9efa-346e-4b9a-86b8-2c0513674188",
+  "project_id": "b686df08-6655-4edb-a3a5-955f3244abe1",
+  "author_id": "27fb2e88-bf95-4c98-b33b-688891d40f43",
+  "share_token": null
+}

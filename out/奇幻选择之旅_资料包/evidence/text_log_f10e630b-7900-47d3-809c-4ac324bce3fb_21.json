@@ -1,0 +1,17 @@
+{
+  "created_at": "2026-07-11T14:10:00.444383",
+  "created_by": "test-user",
+  "updated_at": "2026-07-11T14:10:00.444383",
+  "updated_by": null,
+  "deleted_at": null,
+  "deleted_by": null,
+  "is_deleted": false,
+  "type": "text_log",
+  "title": "stage_07_execute",
+  "content": "请求失败：流式对话失败: cannot unpack non-iterable NoneType object",
+  "content_url": null,
+  "related_step": "stage_07_execute",
+  "id": "f10e630b-7900-47d3-809c-4ac324bce3fb",
+  "project_id": "b686df08-6655-4edb-a3a5-955f3244abe1",
+  "author_id": "test-user"
+}

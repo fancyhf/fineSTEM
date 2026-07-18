@@ -1,0 +1,17 @@
+{
+  "created_at": "2026-07-05T07:10:10.370667",
+  "created_by": "27fb2e88-bf95-4c98-b33b-688891d40f43",
+  "updated_at": "2026-07-05T07:10:10.370667",
+  "updated_by": null,
+  "deleted_at": null,
+  "deleted_by": null,
+  "is_deleted": false,
+  "type": "text_log",
+  "title": "stage_07_execute",
+  "content": "`html\n<!DOCTYPE html>\n<html lang=\"zh-CN\">\n<head>\n<meta charset=\"UTF-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n<title>奇幻选择之旅</title>\n<style>\n* {\nmargin: 0;\npadding: 0;\nbox-sizing: border-box;\n}\nbody {\nbackground: linear-gradient(135deg, #0a0718 0%, #1a1040 100%);\ncolor: #e8e0f8;\nfont-family: 'Segoe UI', 'PingFang SC', Roboto, sans-serif;\nmin-height: 100vh;\ndisplay: flex;\nalign-items: center;\njustify-content: center;\npadding: 20px;\n}\n#app {\nwidth: 800px;\nmax-width:",
+  "content_url": null,
+  "related_step": "stage_07_execute",
+  "id": "bc91c786-9564-46ff-a338-2d1e85d26e12",
+  "project_id": "b686df08-6655-4edb-a3a5-955f3244abe1",
+  "author_id": "27fb2e88-bf95-4c98-b33b-688891d40f43"
+}
