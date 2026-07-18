@@ -60,11 +60,16 @@ apps/backend/projects/[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0
 apps/frontend/tests/test-results/
 
 # Test artifacts
-.trae/documents/testing/**/screenshots/
-.trae/documents/testing/**/test-results/
+.trae/documents/testing/
 *.trace.zip
 test-failed-*.png
 error-context.md
+test-results/
+apps/frontend/eslint-report-*.json
+apps/frontend/eslint-summary-*.txt
+
+# Bug reports and screenshots
+bug/
 
 # Trae/AI (if needed to exclude specific temp files, but keeping docs)
 # .trae/  <-- keeping this as it has project docs
