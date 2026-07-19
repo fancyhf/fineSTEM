@@ -11,10 +11,19 @@ fineSTEM 是一个面向青少年的 STEM 学习平台，提供：
 
 ## 技术架构
 
-- **后端**: FastAPI (Python)
+- **后端**: FastAPI (Python，仅保留 projects/evidence/documents/demos 等 CRUD）
 - **前端**: React + TypeScript + Vite + Tailwind CSS
-- **AI 底座**: ZeroClaw (嵌入式)
+- **AI 底座**: [ZeroClaw](https://github.com/zeroclaw-labs/zeroclaw) v0.8.3（真实 Rust 二进制运行时，部署在 `H:\dev-env\zeroclaw\`）
+  - Gateway：`http://127.0.0.1:42617`（`POST /webhook` + `GET /ws/chat`，配对鉴权 + Bearer Token）
+  - Provider：DeepSeek 主；可后续在 `config.toml` 加 GLM/Qwen 等 fallback
+  - PBL 工具：`apps/backend/app/mcp_server/server.py` 通过 stdio 暴露 11 个 MCP 工具（`finestem__*` 前缀）
+  - 文档：`.trae/documents/技术与架构/ZeroClaw_技术知识库_v1.0.0.md`
 - **UI 风格**: 蓝绿色主题 (#14B8A6)
+
+> 重大变更（2026-07-19）：
+> 前端聊天链路从 `apps/backend` FastAPI 的 `/api/v1/agent/ws` 切换为直连 ZeroClaw 网关 `/ws/chat`。
+> 旧的 `apps/backend/app/services/providers/zeroclaw_provider.py` 与 `apps/backend/app/api/agent.py / chat.py` 退役（冷备份保留）。
+> AI Provider、Tool Loop、Memory、Security、Tool Receipts 全部由真实 ZeroClaw 承担。
 
 ## 项目规范
 

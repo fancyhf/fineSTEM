@@ -1,11 +1,12 @@
 # ZeroClaw 技术知识库（独立版）
 
 ## 文档信息
-- version: `1.1.0`
+- version: `1.2.0`
 - created_at: `2026-04-25 07:41:04.266` (UTC)
-- updated_at: `2026-04-27` (UTC)
+- updated_at: `2026-07-19` (UTC)
 - maintainer: `AI Agent`
 - scope: `通用技术文档 + fineSTEM 集成实践`
+- 当前部署：ZeroClaw v0.8.3 @ `H:\dev-env\zeroclaw\`（真实 Rust 二进制，非 FastAPI 模拟）
 
 ## 1. ZeroClaw 是什么
 ZeroClaw 是一个面向 AI 助手系统的基础设施底座，核心特征是可插拔、可替换、可组合。它不等同于某一个模型 SDK，而是位于业务应用与模型供应商之间的中间层，提供统一的网关、编排、能力扩展与治理能力。
@@ -158,57 +159,131 @@ Provider 层统一了模型调用接口，关键价值包括：
 ### 15.1 当前架构（MVP 阶段）
 
 ```text
-前端 → FastAPI (chat API) → AgentOrchestrator → ZeroClawProvider → DeepSeek API
-                                                    ↓ (fallback)
-                                                  智谱 GLM API
-                                                    ↓ (mock)
-                                                  本地回退
+前端 (useStreamingChat.ts)
+  ↳ ws://127.0.0.1:42617/ws/chat?token=zc_xxx&agent=assistant
+ZeroClaw Gateway (Rust 二进制, daemon 后台常驻)
+  ↳ providers.models.deepseek.default → DeepSeek API
+  ↳ mcp.servers.finestem (stdio 子进程)
+      ↳ apps/backend/app/mcp_server/server.py
+      ↳ TOOL_REGISTRY['*'] (11 个 PBL 工具)
 ```
 
-当前 MVP 阶段使用 **FastAPI 代理层**模拟 ZeroClaw Gateway 的核心功能：
-- Provider 抽象：DeepSeek（主）+ 智谱 GLM（回退）+ Mock（兜底）
-- 场景化 System Prompt：根据页面/场景自动切换 AI 角色
-- 上下文注入：project_id / current_stage / demo_id / tool_results
-- Skill 调用：项目检查、PBL 引导、Demo 探索、知识检索
-- 流式响应：SSE 透传
+`apps/backend/app/services/providers/zeroclaw_provider.py` 已退役（保留为冷备份）；
+所有 AI 调用、工具循环、Function Call、Memory、Tool Receipts、配对鉴权
+全部由 **真实 ZeroClaw v0.8.3**（Rust 单二进制）承担。
 
-### 15.2 场景化 Prompt 体系
+### 15.2 部署清单（H 盘 / Windows）
 
-| 场景 | System Prompt 重点 |
-|------|-------------------|
-| 问问题 | STEM 知识咨询，类比解释 |
-| 解释代码 | 逐行分析，标注模式，指出问题 |
-| 开始项目 | 推荐模板，评估难度，引导 Fork |
-| 写报告 | 报告结构，证据引用，学术规范 |
-| 探索中心 | Demo 功能介绍，技术栈说明 |
-| 研学流程 | 按阶段指导（脑爆→收敛→设计→编码→展示） |
-
-### 15.3 向原生 ZeroClaw 迁移路线
-
-| 阶段 | 目标 | 依赖 |
+| 资产 | 路径 | 说明 |
 |------|------|------|
-| Phase 1（当前） | FastAPI 代理层 + 场景化 Prompt | DeepSeek/GLM API |
-| Phase 2 | 部署 ZeroClaw Gateway 本地实例 | ZeroClaw 二进制 |
-| Phase 3 | 注册 fineSTEM MCP Server（项目状态/证据/Demo 查询） | MCP 协议 |
-| Phase 4 | 注册 fineSTEM Channel（Webhook → Agent Loop） | Channel trait |
-| Phase 5 | SOP 引擎驱动研学 9 阶段自动推进 | SOP Engine |
+| ZeroClaw 二进制 | `H:\dev-env\zeroclaw\bin\zeroclaw.exe` | v0.8.3 预编译 Windows x64 |
+| 配置目录 | `H:\dev-env\zeroclaw\config\` | 通过 `ZEROCLAW_CONFIG_DIR` 指定 |
+| 数据目录 | `H:\dev-env\zeroclaw\data\` | 通过 `ZEROCLAW_DATA_DIR` 指定 |
+| 主配置 | `H:\dev-env\zeroclaw\config\config.toml` | DeepSeek + 配对鉴权 + MCP finestem 注册 |
+| 自启动脚本 | `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\zeroclaw-daemon.vbs` | 登录后静默启动 daemon |
+| 启动包装 | `H:\dev-env\zeroclaw\zeroclaw-daemon.cmd` | 含环境变量注入 |
+| MCP server | `apps/backend/app/mcp_server/server.py` | 11 个 PBL 工具 stdio JSON-RPC | 
+| 前端 Bearer Token | `apps/frontend/.env.development` 的 `VITE_ZC_TOKEN` | 由 `POST /pair` 派发后写入 |
 
-### 15.4 ZeroClaw 核心能力与 fineSTEM 对应关系
+### 15.3 关键配置片段
+
+```toml
+# Provider —— DeepSeek 作主，后续可加 GLM 作 fallback
+[providers.models.deepseek.default]
+model = "deepseek-chat"
+api_key = "sk-xxx"
+
+# Agent
+[agents.assistant]
+model_provider = "deepseek.default"
+risk_profile = "standard"
+runtime_profile = "default"
+mcp_bundles = ["pbl"]
+system_prompt = "..."
+
+# MCP server 注册（stdio）
+[mcp]
+enabled = true
+
+[[mcp.servers]]
+name = "finestem"
+transport = "stdio"
+command = "H:\\dev-env\\dependencies\\fineSTEM-backend\\.venv\\Scripts\\pythonw.exe"
+args = ["G:\\mediaProjects\\fineSTEM\\apps\\backend\\app\\mcp_server\\server.py"]
+
+[mcp.servers.finestem.env]
+PYTHONPATH = "G:\\mediaProjects\\fineSTEM\\apps\\backend"
+FINESTEM_BACKEND_DIR = "G:\\mediaProjects\\fineSTEM\\apps\\backend"
+
+# Bundle 通过 alias 引到 agent
+[mcp_bundles.pbl]
+servers = ["finestem"]
+
+# agentic 模式 + 工具循环上限
+[runtime_profiles.default]
+agentic = true
+max_tool_iterations = 20
+parallel_tools = true
+
+# 必须显式声明 tool_filter_groups 让 finestem__* 工具进入 LLM 上下文
+[[runtime_profiles.default.tool_filter_groups]]
+mode = "always"
+tools = ["finestem__*"]
+keywords = []
+
+# 自动放行 PBL 工具调用，避免每次都被 approval_gate 拦截
+[risk_profiles.standard]
+autonomy = "supervised"
+auto_approve = ["finestem__*"]
+
+# 鉴权
+[gateway]
+bind_addr = "127.0.0.1:42617"
+require_pairing = true
+```
+
+### 15.4 WebSocket 协议（前端 → ZeroClaw）
+
+- 握手：`ws://127.0.0.1:42617/ws/chat?token=<bearer>&agent=assistant&session_id=<id>`
+- 服务器先发 `{"type":"session_start","session_id":"...","resumed":false,"message_count":0}`
+- 客户端回 `{"type":"connect","session_id":"<id>","device_name":"finestem-web","capabilities":["tool_calls","streaming"]}`
+- 服务器回 `{"type":"connected","message":"Connection established"}`
+- 用户消息：`{"type":"message","content":"<text>"}`
+- 流式帧：`chunk` / `thinking` / `tool_call` / `tool_result` / `plan` / `history_trimmed` / `approval_request` / `aborted` / `done` / `error`
+- `done` 帧：`{"type":"done","full_response":"...","tokens_used":N,"cost_usd":E,"model":"deepseek-chat","provider":"deepseek"}`
+
+### 15.5 PBL 业务事件来源
+
+由于 ZeroClaw 是 trait 驱动的 AI 基础设施，不清楚"研学阶段""成果档案卡"等业务语义，
+事件分发由 MCP Tool 回包承担：
+
+| 前端事件 | 来源 |
+|------|------|
+| `skill_activated` | 暂不触发（system prompt 中已携带场景） |
+| `project_created` | MCP 工具 `finestem__project_creator` 返回成功 |
+| `stage_changed` | MCP 工具 `finestem__stage_advancer` / `project_creator` 返回 |
+| `code_generated` | MCP 工具 `finestem__project_code_writer` 返回，或 LLM 文本代码块兜底解析 |
+| `question` | LLM 文本里的 `<question>...</question>` XML 块（前端解析，搬自 Python 实现） |
+| `tool_call` | ZeroClaw 直接转发的 `tool_call` / `tool_result` 帧 |
+
+### 15.6 ZeroClaw 核心能力与 fineSTEM 对应关系（最新）
 
 | ZeroClaw 能力 | fineSTEM 对应 | 当前状态 |
 |--------------|-------------|---------|
-| Provider 抽象 + Fallback | DeepSeek → GLM → Mock | ✅ 已实现 |
-| Agent Loop（对话循环） | chat/stream_chat | ✅ 已实现 |
-| Tools（工具调用） | Skill Runtime | ✅ 已实现 |
-| Memory（对话记忆） | 会话级（前端管理） | 部分实现 |
-| Gateway（HTTP/WS/SSE） | FastAPI 代理层 | ✅ 已实现 |
-| MCP（外部工具协议） | 未接入 | ❌ 待实现 |
-| Channel（消息通道） | 未接入 | ❌ 待实现 |
-| SOP（标准操作流程） | 研学 9 阶段（硬编码） | 部分实现 |
-| Security（安全策略） | 匿名次数限制 | 部分实现 |
-| Tool Receipts（审计） | 审计日志（后端保留） | ✅ 已实现 |
+| Provider 抽象 + Fallback | DeepSeek 主，可后续加 GLM fallback | ✅ 已实现（真实 ZC） |
+| Agent Loop | ZeroClaw agentic=true + max_tool_iterations=20 | ✅ 已实现 |
+| Tools（工具调用） | finestem MCP server 11 个 PBL 工具 | ✅ 已实现 |
+| Memory（对话记忆） | sqlite memory backend | ✅ 已实现 |
+| Gateway（HTTP/WS/SSE） | 127.0.0.1:42617 `POST /webhook` + `/ws/chat` | ✅ 已实现 |
+| MCP（外部工具协议） | finestem stdio server | ✅ 已实现 |
+| Channel（消息通道） | CLI（默认开启），其余未启用 | 部分实现 |
+| SOP（标准操作流程） | 由 finestem__stage_advancer 驱动 | ✅ 已实现 |
+| Security（策略） | require_pairing=true + Bearer 派发 | ✅ 已实现 |
+| Tool Receipts（审计） | ZeroClaw 内置 trace 日志 | ✅ 已实现 |
 
 ## 16. 变更记录
 
+- `2026-07-19`：撤回 FastAPI 模拟 ZeroClaw 路线，部署真实 ZeroClaw v0.8.3 到 `H:\dev-env\zeroclaw`；
+  11 个 PBL 工具改为 MCP stdio server 暴露；`useStreamingChat.ts` 直连 ZeroClaw 网关版本 1.2.0
 - `2026-04-27`: 新增 §15 fineSTEM 集成实践，更新版本至 1.1.0
 - `2026-04-25 07:41:04.266` (UTC): 创建独立版 ZeroClaw 技术知识库文档

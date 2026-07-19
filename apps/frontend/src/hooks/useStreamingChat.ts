@@ -60,6 +60,42 @@ function buildMessageWithSkillHint(message: string, skillId?: string): string {
   return `[[skill:${skillId}]] ${message}`;
 }
 
+/**
+ * 构造发给 ZeroClaw 的最终消息文本，注入项目上下文。
+ *
+ * 背景（2026-07-19 修复）：此前项目上下文靠 connect 帧的 cwd 字段
+ * `finestem://${projectId}` 传递，但 ZeroClaw 0.8.3 把 cwd 当真实磁盘路径校验，
+ * Windows 拒绝（os error 123）。删掉 cwd 后 AI 失去了项目感知。
+ *
+ * 现在改为在每条用户消息前注入结构化上下文块，AI 读到即知当前项目。
+ * 上下文用明确分隔符包裹，避免污染用户原意。
+ */
+function buildOutgoingMessage(
+  message: string,
+  skillId: string | undefined,
+  context: Record<string, unknown> | undefined,
+): string {
+  const parts: string[] = [];
+
+  // 项目上下文（关键：让 AI 知道当前在哪个项目）
+  if (context && (context.project_id || context.project_name)) {
+    const ctxLines: string[] = [];
+    if (context.project_id) ctxLines.push(`project_id: ${context.project_id}`);
+    if (context.project_name) ctxLines.push(`project_name: ${context.project_name}`);
+    if (context.current_stage) ctxLines.push(`current_stage: ${context.current_stage}`);
+    if (context.teaching_mode) ctxLines.push(`teaching_mode: ${context.teaching_mode}`);
+    parts.push(`<context>\n${ctxLines.join('\n')}\n</context>`);
+  }
+
+  // skill 标识（保留原有机制）
+  if (skillId) {
+    parts.push(`[[skill:${skillId}]]`);
+  }
+
+  parts.push(message);
+  return parts.join('\n\n');
+}
+
 // -----------------------------------------------------------------------------
 // ZeroClaw Gateway 连接配置
 // 真实部署：H:\dev-env\zeroclaw，监听 http://127.0.0.1:42617
@@ -319,12 +355,16 @@ export function useStreamingChat() {
         if (type === 'session_start') {
           receivedSessionStart = true;
           // 客户端必须显式回 connect 帧，才能进入 connected 状态
+          // 注意：不要传 cwd 字段。此前这里曾传 `finestem://${projectId}` 作为虚拟
+          // workspace 标识，但 ZeroClaw 0.8.3 的 ws.rs:1460 会把它当真实磁盘路径校验，
+          // Windows 拒绝（os error 123 = ERROR_INVALID_NAME）。不传则使用 daemon 默认
+          // workspace（H:\dev-env\zeroclaw\config\agents\assistant\workspace）。
+          // 项目上下文已经通过 messages / tool_call 的 project_id 参数传递，不需要 cwd。
           ws.send(JSON.stringify({
             type: 'connect',
             session_id: sessionId,
             device_name: 'finestem-web',
             capabilities: ['tool_calls', 'streaming'],
-            cwd: payload.projectId ? `finestem://${payload.projectId}` : undefined,
           }));
           return;
         }
@@ -333,7 +373,8 @@ export function useStreamingChat() {
           connectedOk = true;
           clearTimeout(handshakeTimeout);
           // 握手完成，发出第一条用户消息
-          const outgoing = buildMessageWithSkillHint(payload.message, payload.skillId);
+          // 通过 buildOutgoingMessage 把项目上下文注入消息文本（替代被删的 cwd 字段）
+          const outgoing = buildOutgoingMessage(payload.message, payload.skillId, payload.context);
           ws.send(JSON.stringify({
             type: 'message',
             content: outgoing,
