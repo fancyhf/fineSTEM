@@ -23,6 +23,7 @@ def _to_schema(model: AchievementCardModel) -> AchievementCard:
         reflection=model.reflection,
         capability_tags=json_loads(model.capability_tags, []),
         project_mode=model.project_mode,  # type: ignore[arg-type]
+        share_token=model.share_token,
         is_public=model.is_public,
         submitted_at=model.submitted_at,
         is_featured=model.is_featured,

@@ -1,21 +1,33 @@
 import React, { useEffect, useState } from 'react';
-import { Search as SearchIcon, Filter } from 'lucide-react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
+import { Filter } from 'lucide-react';
 import { Card, CardContent, CardFooter, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
-import { Input } from '../components/ui/Input';
 import { Badge } from '../components/ui/Badge';
 import { achievementCardsApi, demosApi, coursesApi } from '../services/api';
-import { AchievementCard, Course, Demo } from '../types';
+import { AchievementCard, Course, Demo, DemoListQuery } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { LightRegisterPrompt } from '../components/LightRegisterPrompt';
-import { useNavigate } from 'react-router-dom';
+import { DemoCard } from '../components/DemoCard';
+import { DemoFilter } from '../components/DemoFilter';
 import { resolveImageUrl } from '../lib/image';
 
 type TabType = 'demos' | 'courses' | 'inspiration';
 
+const VALID_TABS: TabType[] = ['demos', 'courses', 'inspiration'];
+
 export function Explore() {
-  const [activeTab, setActiveTab] = useState<TabType>('demos');
-  const [keyword, setKeyword] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab = (searchParams.get('tab') as TabType | null);
+  const [activeTab, setActiveTab] = useState<TabType>(
+    initialTab && VALID_TABS.includes(initialTab) ? initialTab : 'demos',
+  );
+  const [showFilter, setShowFilter] = useState(false);
+  const [demoFilters, setDemoFilters] = useState<{
+    search?: string;
+    difficulty?: string;
+    subject?: string;
+  }>({});
   const [demos, setDemos] = useState<Demo[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [inspirations, setInspirations] = useState<AchievementCard[]>([]);
@@ -26,7 +38,13 @@ export function Explore() {
   useEffect(() => {
     const load = async () => {
       const [demoRes, inspirationRes] = await Promise.all([
-        demosApi.list({ page: 1, page_size: 12, search: keyword || undefined }),
+        demosApi.list({
+          page: 1,
+          page_size: 12,
+          search: demoFilters.search || undefined,
+          difficulty: demoFilters.difficulty,
+          subject: demoFilters.subject,
+        } as DemoListQuery),
         achievementCardsApi.listPublic({ page: 1, page_size: 12 }),
       ]);
       setDemos(demoRes.data?.items ?? []);
@@ -39,7 +57,24 @@ export function Explore() {
       }
     };
     void load();
-  }, [keyword, user]);
+  }, [demoFilters, user]);
+
+  const handleTabChange = (tab: TabType) => {
+    setActiveTab(tab);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('tab', tab);
+      return next;
+    });
+  };
+
+  const handleFilter = (filters: {
+    search?: string;
+    difficulty?: string;
+    subject?: string;
+  }) => {
+    setDemoFilters(filters);
+  };
 
   const handleForkFromCard = async (cardId: string) => {
     if (!user) {
@@ -69,7 +104,7 @@ export function Explore() {
         {tabs.map((tab) => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={() => handleTabChange(tab.id)}
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
               activeTab === tab.id
                 ? 'border-primary-500 text-primary-600'
@@ -81,20 +116,31 @@ export function Explore() {
         ))}
       </div>
 
-      {/* Search & Filter */}
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1">
-          <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <Input placeholder="搜索..." className="pl-10" value={keyword} onChange={(e) => setKeyword(e.target.value)} />
+      {/* Filter row: 切换/筛选按钮 (仅 Demo 墙需要筛选) */}
+      {activeTab === 'demos' && (
+        <div className="flex justify-end">
+          <Button
+            variant={showFilter ? 'primary' : 'secondary'}
+            onClick={() => setShowFilter((v) => !v)}
+          >
+            <Filter className="w-4 h-4 mr-2" />
+            {showFilter ? '收起筛选' : '筛选'}
+          </Button>
         </div>
-        <Button variant="secondary">
-          <Filter className="w-4 h-4 mr-2" />
-          筛选
-        </Button>
-      </div>
+      )}
+
+      {/* DemoFilter: 筛选 + 搜索合一入口 */}
+      {activeTab === 'demos' && showFilter && (
+        <DemoFilter onFilter={handleFilter} initialFilters={demoFilters} />
+      )}
 
       {/* Content */}
-      {activeTab === 'demos' && <DemosContent demos={demos} />}
+      {activeTab === 'demos' && (
+        <DemosContent
+          demos={demos}
+          onOpenDemo={(demo) => navigate(`/explore/demos/${demo.id}`)}
+        />
+      )}
       {activeTab === 'courses' && <CoursesContent courses={courses} />}
       {activeTab === 'inspiration' && (
         <InspirationContent
@@ -102,6 +148,7 @@ export function Explore() {
           userId={user?.id}
           onFork={handleForkFromCard}
           onWithdraw={handleWithdraw}
+          onOpenCard={(cardId) => navigate(`/explore/inspiration/${cardId}`)}
         />
       )}
       <LightRegisterPrompt
@@ -114,43 +161,29 @@ export function Explore() {
   );
 }
 
-function DemosContent({ demos }: { demos: Demo[] }) {
+function DemosContent({
+  demos,
+  onOpenDemo,
+}: {
+  demos: Demo[];
+  onOpenDemo: (demo: Demo) => void;
+}) {
+  if (demos.length === 0) {
+    return (
+      <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+        <p className="text-gray-500 text-lg mb-4">暂无 Demo</p>
+      </div>
+    );
+  }
   return (
     <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-      {demos.map((demo) => {
-        const cover = demo.screenshots && demo.screenshots.length > 0
-          ? resolveImageUrl(demo.screenshots[0]) : null;
-        return (
-        <Card key={demo.id} hoverable className="overflow-hidden">
-          {cover ? (
-            <img src={cover} alt={demo.name} className="h-40 w-full object-cover" loading="lazy" />
-          ) : (
-            <div className="h-40 bg-gradient-to-br from-gray-100 to-gray-200" />
-          )}
-          <CardContent className="pt-4">
-            <CardTitle className="text-base">{demo.name}</CardTitle>
-            <p className="text-sm text-gray-500 mt-1 line-clamp-2">{demo.description}</p>
-            <div className="flex flex-wrap gap-1 mt-3">
-              {(demo.subjects || []).slice(0, 2).map((subject) => (
-                <Badge key={subject} variant="primary" size="sm">{subject}</Badge>
-              ))}
-              <Badge size="sm">{demo.difficulty}</Badge>
-            </div>
-          </CardContent>
-          <CardFooter className="flex gap-2">
-            <Button variant="ghost" size="sm" className="flex-1">
-              试玩
-            </Button>
-            <Button variant="ghost" size="sm" className="flex-1">
-              拆解
-            </Button>
-          </CardFooter>
-          <div className="px-4 pb-4">
-            <Button className="w-full">我也做一个</Button>
-          </div>
-        </Card>
-        );
-      })}
+      {demos.map((demo) => (
+        <DemoCard
+          key={demo.id}
+          demo={demo}
+          onFork={(d) => onOpenDemo(d)}
+        />
+      ))}
     </div>
   );
 }
@@ -184,11 +217,13 @@ function InspirationContent({
   userId,
   onFork,
   onWithdraw,
+  onOpenCard,
 }: {
   cards: AchievementCard[];
   userId?: string;
   onFork: (cardId: string) => void;
   onWithdraw: (cardId: string) => void;
+  onOpenCard: (cardId: string) => void;
 }) {
   return (
     <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -197,26 +232,40 @@ function InspirationContent({
           ? resolveImageUrl(card.screenshots[0]) : null;
         return (
         <Card key={card.id} hoverable className="overflow-hidden">
-          {cover ? (
-            <img src={cover} alt={card.title} className="h-40 w-full object-cover" loading="lazy" />
-          ) : (
-            <div className="h-40 bg-gradient-to-br from-primary-50 to-primary-100" />
-          )}
-          <CardContent className="pt-4">
-            <CardTitle className="text-base">{card.title}</CardTitle>
-            <p className="text-sm text-gray-500 mt-1 line-clamp-2">{card.one_liner}</p>
-            <div className="flex flex-wrap gap-1 mt-3">
-              {(card.capability_tags || []).slice(0, 2).map((tag) => (
-                <Badge key={tag} size="sm">{tag}</Badge>
-              ))}
-            </div>
-          </CardContent>
+          {/* 封面与标题区域可点击查看详情 */}
+          <div
+            className="cursor-pointer"
+            onClick={() => onOpenCard(card.id)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onOpenCard(card.id);
+              }
+            }}
+          >
+            {cover ? (
+              <img src={cover} alt={card.title} className="h-40 w-full object-cover" loading="lazy" />
+            ) : (
+              <div className="h-40 bg-gradient-to-br from-primary-50 to-primary-100" />
+            )}
+            <CardContent className="pt-4">
+              <CardTitle className="text-base">{card.title}</CardTitle>
+              <p className="text-sm text-gray-500 mt-1 line-clamp-2">{card.one_liner}</p>
+              <div className="flex flex-wrap gap-1 mt-3">
+                {(card.capability_tags || []).slice(0, 2).map((tag) => (
+                  <Badge key={tag} size="sm">{tag}</Badge>
+                ))}
+              </div>
+            </CardContent>
+          </div>
           <CardFooter className="flex gap-2">
             <Button variant="ghost" className="flex-1" onClick={() => onFork(card.id)}>Fork</Button>
             {userId === card.author_id ? (
               <Button variant="secondary" className="flex-1" onClick={() => onWithdraw(card.id)}>撤回</Button>
             ) : (
-              <Button variant="ghost" className="flex-1">查看详情</Button>
+              <Button variant="ghost" className="flex-1" onClick={() => onOpenCard(card.id)}>查看详情</Button>
             )}
           </CardFooter>
         </Card>

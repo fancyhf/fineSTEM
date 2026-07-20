@@ -342,6 +342,9 @@ export const achievementCardsApi = {
     api.post<ShareTokenResponse>(`/achievement-cards/${id}/share`, {}),
   getShared: (token: string) =>
     api.get<AchievementCard>(`/achievement-cards/share/${token}`),
+  /** 按 ID 查看公开成果档案卡（无需登录，私有卡 404） */
+  getPublic: (id: string) =>
+    api.get<AchievementCard>(`/achievement-cards/${id}`),
   submitPublic: (id: string, data: SubmitPublicRequest = { submit_public: true }) =>
     api.post<AchievementCard>(`/achievement-cards/${id}/submit-public`, data),
   withdrawPublic: (id: string) =>

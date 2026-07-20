@@ -25,6 +25,7 @@ import ProjectAchievement from './pages/ProjectAchievement';
 import SharedAchievement from './pages/SharedAchievement';
 import ProjectEditor from './pages/ProjectEditor';
 import AdminFeatured from './pages/AdminFeatured';
+import AchievementDetail from './pages/AchievementDetail';
 import { useAuth } from './contexts/AuthContext';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -101,6 +102,7 @@ export default function App() {
             <Route index element={<Explore />} />
             <Route path="demos" element={<ExploreDemos />} />
             <Route path="demos/:demoId" element={<ExploreDemoDetail />} />
+            <Route path="inspiration/:cardId" element={<AchievementDetail />} />
             <Route path="inspiration" element={<Explore />} />
           </Route>
 

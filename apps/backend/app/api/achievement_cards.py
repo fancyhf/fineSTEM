@@ -7,6 +7,7 @@ links: .trae/documents/api-specs/v1/spec.json
 """
 
 from typing import Optional
+import uuid
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from app.schemas.achievements import (
     AchievementCard,
@@ -215,7 +216,7 @@ async def fork_project_from_card(card_id: str, current_user: UserResponse = Depe
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="原项目不存在")
 
     project = Project(
-        id="",
+        id=str(uuid.uuid4()),
         name=f"{source_project.name} - Fork",
         mode=source_project.mode,
         from_demo_id=source_project.from_demo_id,
@@ -497,3 +498,21 @@ async def get_next_step_recommendations(
     )
 
     return ApiResponse(data=recommendations[:6], message="获取成功")
+
+
+@router.get("/{card_id}", response_model=ApiResponse[AchievementCard])
+async def get_public_achievement_card(card_id: str):
+    """
+    按 ID 查看公开成果档案卡（无需登录）
+
+    仅返回 is_public=True 的卡片；私有卡一律 404，避免越权。
+    注意：本路由必须注册在所有字面子路径（/inspiration-wall、/featured、
+    /share/{token}、/{card_id}/... 等）之后，以免 /{card_id} 抢先匹配。
+    """
+    card = db.get_achievement_card(card_id)
+    if not card or not card.is_public:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="档案卡不存在或未公开",
+        )
+    return ApiResponse(data=card, message="获取成功")

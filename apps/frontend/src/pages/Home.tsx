@@ -1,11 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, Sparkles, ClipboardList, ArrowRight, MessageCircle, Paperclip, Image, Send } from 'lucide-react';
+import { Search, Sparkles, ClipboardList, ArrowRight, MessageCircle, Paperclip, Image as ImageIcon, Send, X } from 'lucide-react';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '../components/ui/Card';
 import { useAuth } from '../contexts/AuthContext';
 import { achievementCardsApi, demosApi } from '../services/api';
 import { AchievementCard, Demo, FeaturedCard } from '../types';
 import { resolveImageUrl } from '../lib/image';
+
+interface AttachmentItem {
+  kind: 'image' | 'file';
+  name: string;
+  previewUrl?: string;
+}
+
+const ATTACHMENT_ACCEPT = '.pdf,.doc,.docx,.txt,.md,.zip,.csv,.json';
 
 export function Home() {
   useAuth();
@@ -14,6 +22,9 @@ export function Home() {
   const [inspirationCards, setInspirationCards] = useState<AchievementCard[]>([]);
   const [featuredCards, setFeaturedCards] = useState<FeaturedCard[]>([]);
   const [quickInput, setQuickInput] = useState('');
+  const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -32,7 +43,13 @@ export function Home() {
   const handleQuickAsk = () => {
     const message = quickInput.trim();
     if (!message) return;
-    navigate(`/create?q=${encodeURIComponent(message)}`);
+    // 把附件文件名以行内标注形式追加到提问里，带去 /create。
+    // 这样不引入新的上传端点；Create 页 ?q= 解析会把它当作首条消息的一部分。
+    const attachmentNote =
+      attachments.length > 0
+        ? `\n\n[附件: ${attachments.map((a) => a.name).join(', ')}]`
+        : '';
+    navigate(`/create?q=${encodeURIComponent(message + attachmentNote)}`);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -40,6 +57,35 @@ export function Home() {
       e.preventDefault();
       handleQuickAsk();
     }
+  };
+
+  const addFiles = (files: FileList | null, kind: 'image' | 'file') => {
+    if (!files || files.length === 0) return;
+    const items: AttachmentItem[] = Array.from(files).map((f) => ({
+      kind,
+      name: f.name,
+      previewUrl: kind === 'image' ? URL.createObjectURL(f) : undefined,
+    }));
+    setAttachments((prev) => [...prev, ...items]);
+  };
+
+  const removeAttachment = (idx: number) => {
+    setAttachments((prev) => {
+      const next = [...prev];
+      const [removed] = next.splice(idx, 1);
+      if (removed?.previewUrl) URL.revokeObjectURL(removed.previewUrl);
+      return next;
+    });
+  };
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    addFiles(e.target.files, 'image');
+    e.target.value = '';
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    addFiles(e.target.files, 'file');
+    e.target.value = '';
   };
 
   return (
@@ -68,11 +114,34 @@ export function Home() {
                 className="w-full border-0 bg-transparent text-sm outline-none placeholder-gray-400 resize-none leading-relaxed"
               />
             </div>
+            {attachments.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 px-3 pb-2">
+                {attachments.map((att, idx) => (
+                  <span
+                    key={`${att.name}-${idx}`}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-100 text-slate-700 rounded-full text-xs"
+                  >
+                    {att.kind === 'image' && att.previewUrl ? (
+                      <img src={att.previewUrl} alt={att.name} className="w-4 h-4 object-cover rounded" />
+                    ) : null}
+                    <span className="max-w-[140px] truncate">{att.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => removeAttachment(idx)}
+                      className="text-slate-400 hover:text-slate-600"
+                      title="移除"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
             <div className="flex items-center justify-between px-3 pb-2.5 pt-0 border-t border-gray-50">
               <div className="flex items-center gap-1">
                 <button
                   type="button"
-                  onClick={() => {}}
+                  onClick={() => fileInputRef.current?.click()}
                   className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-600 transition-colors"
                   title="添加附件"
                 >
@@ -80,12 +149,28 @@ export function Home() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => {}}
+                  onClick={() => imageInputRef.current?.click()}
                   className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-600 transition-colors"
                   title="添加图片"
                 >
-                  <Image className="w-4 h-4" />
+                  <ImageIcon className="w-4 h-4" />
                 </button>
+                <input
+                  ref={imageInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={handleImageChange}
+                />
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept={ATTACHMENT_ACCEPT}
+                  multiple
+                  className="hidden"
+                  onChange={handleFileChange}
+                />
               </div>
               <button
                 onClick={handleQuickAsk}
@@ -176,17 +261,19 @@ export function Home() {
             const cover = demo.screenshots && demo.screenshots.length > 0
               ? resolveImageUrl(demo.screenshots[0]) : null;
             return (
-            <Card key={demo.id} hoverable className="overflow-hidden">
-              {cover ? (
-                <img src={cover} alt={demo.name} className="h-32 w-full object-cover" loading="lazy" />
-              ) : (
-                <div className="h-32 bg-gradient-to-br from-gray-100 to-gray-200" />
-              )}
-              <CardContent className="pt-3">
-                <h3 className="font-semibold text-gray-800 text-sm">{demo.name}</h3>
-                <p className="text-xs text-gray-500 mt-1 line-clamp-2">{demo.description}</p>
-              </CardContent>
-            </Card>
+            <Link key={demo.id} to={`/explore/demos/${demo.id}`} className="block">
+              <Card hoverable className="overflow-hidden h-full cursor-pointer">
+                {cover ? (
+                  <img src={cover} alt={demo.name} className="h-32 w-full object-cover" loading="lazy" />
+                ) : (
+                  <div className="h-32 bg-gradient-to-br from-gray-100 to-gray-200" />
+                )}
+                <CardContent className="pt-3">
+                  <h3 className="font-semibold text-gray-800 text-sm">{demo.name}</h3>
+                  <p className="text-xs text-gray-500 mt-1 line-clamp-2">{demo.description}</p>
+                </CardContent>
+              </Card>
+            </Link>
             );
           })}
         </div>
@@ -205,33 +292,35 @@ export function Home() {
               const cover = card.screenshots && card.screenshots.length > 0
                 ? resolveImageUrl(card.screenshots[0]) : null;
               return (
-              <Card key={card.id} hoverable className="overflow-hidden">
-                {cover ? (
-                  <img src={cover} alt={card.title} className="h-32 w-full object-cover" loading="lazy" />
-                ) : (
-                  <div className="h-32 bg-gradient-to-br from-purple-50 to-purple-100" />
-                )}
-                <CardContent className="pt-3">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h3 className="font-semibold text-gray-800 text-sm truncate flex-1">{card.title}</h3>
-                    {card.project_mode && (
-                      <span className="flex-shrink-0 px-1.5 py-0.5 bg-purple-50 text-purple-600 rounded text-[10px] font-medium">
-                        {card.project_mode === 'standard' ? '进阶' : '轻量'}
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-xs text-gray-500 mt-1 line-clamp-2">{card.one_liner}</p>
-                  {card.capability_tags && card.capability_tags.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mt-2">
-                      {card.capability_tags.slice(0, 2).map((tag) => (
-                        <span key={tag} className="px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded text-[10px]">
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
+              <Link key={card.id} to={`/explore/inspiration/${card.id}`} className="block">
+                <Card hoverable className="overflow-hidden h-full cursor-pointer">
+                  {cover ? (
+                    <img src={cover} alt={card.title} className="h-32 w-full object-cover" loading="lazy" />
+                  ) : (
+                    <div className="h-32 bg-gradient-to-br from-purple-50 to-purple-100" />
                   )}
-                </CardContent>
-              </Card>
+                  <CardContent className="pt-3">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h3 className="font-semibold text-gray-800 text-sm truncate flex-1">{card.title}</h3>
+                      {card.project_mode && (
+                        <span className="flex-shrink-0 px-1.5 py-0.5 bg-purple-50 text-purple-600 rounded text-[10px] font-medium">
+                          {card.project_mode === 'standard' ? '进阶' : '轻量'}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1 line-clamp-2">{card.one_liner}</p>
+                    {card.capability_tags && card.capability_tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {card.capability_tags.slice(0, 2).map((tag) => (
+                          <span key={tag} className="px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded text-[10px]">
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </Link>
               );
             })}
           </div>
@@ -250,17 +339,19 @@ export function Home() {
             const cover = card.screenshots && card.screenshots.length > 0
               ? resolveImageUrl(card.screenshots[0]) : null;
             return (
-            <Card key={card.id} hoverable className="overflow-hidden">
-              {cover ? (
-                <img src={cover} alt={card.title} className="h-32 w-full object-cover" loading="lazy" />
-              ) : (
-                <div className="h-32 bg-gradient-to-br from-teal-50 to-teal-100" />
-              )}
-              <CardContent className="pt-3">
-                <h3 className="font-semibold text-gray-800 text-sm">{card.title}</h3>
-                <p className="text-xs text-gray-500 mt-1 line-clamp-2">{card.one_liner}</p>
-              </CardContent>
-            </Card>
+            <Link key={card.id} to={`/explore/inspiration/${card.id}`} className="block">
+              <Card key={card.id} hoverable className="overflow-hidden h-full cursor-pointer">
+                {cover ? (
+                  <img src={cover} alt={card.title} className="h-32 w-full object-cover" loading="lazy" />
+                ) : (
+                  <div className="h-32 bg-gradient-to-br from-teal-50 to-teal-100" />
+                )}
+                <CardContent className="pt-3">
+                  <h3 className="font-semibold text-gray-800 text-sm">{card.title}</h3>
+                  <p className="text-xs text-gray-500 mt-1 line-clamp-2">{card.one_liner}</p>
+                </CardContent>
+              </Card>
+            </Link>
             );
           })}
         </div>

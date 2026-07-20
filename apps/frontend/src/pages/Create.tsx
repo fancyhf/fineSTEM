@@ -4,6 +4,7 @@ import { MessageSquare, Code, Rocket, FileText, ChevronUp, Paperclip, Link2, Fol
 import { ContinueButton } from '../components/ContinueButton';
 import { Card } from '../components/ui/Card';
 import { CodeGeneratedEvent, useStreamingChat } from '../hooks/useStreamingChat';
+import { parseQuestionsFromText } from '../lib/questionParser';
 import { MarkdownText } from '../components/MarkdownText';
 import { LightRegisterPrompt } from '../components/LightRegisterPrompt';
 import { CodePreview } from '../components/CodePreview';
@@ -197,7 +198,7 @@ function sanitizeAssistantNarration(content: string): string {
   // ── 移除 question/option 结构化标签 ──
   // 关键：
   //   1. 标签内的属性值可能含 >（如 label="正常 > 异常"），需要正确解析引号边界
-  //   2. option 标签始终清理（由 QuestionCard 独立渲染，原始内容由 parseQuestionFromText 解析）
+  //   2. option 标签始终清理（由 QuestionCard 独立渲染，原始内容由 parseQuestionsFromText 解析）
   //   3. question 标签也始终清理
 
   // 始终彻底删除所有 option 标签
@@ -522,361 +523,6 @@ function CodeBlock({ code, language, onWriteToEditor, onRun }: { code: string; l
   );
 }
 
-function parseQuestionFromText(text: string): QuestionData | null {
-  const hasQuestionWrapper = /<question[^>]*>/i.test(text);
-  const hasBareOptions = /<option\s+id=["'][^"']*["']/i.test(text);
-  const createBootstrapIdeaFallback = (): QuestionData => ({
-    id: `q-bootstrap-idea-fallback-${Date.now()}`,
-    title: '你有初步想法了吗？',
-    options: [
-      {
-        id: 'brainstorm',
-        label: '完全没想法，需要脑爆',
-        description: '从零开始，一起探索可做的项目方向',
-      },
-      {
-        id: 'direction',
-        label: '有个大概方向',
-        description: '我知道想做什么类型，但还需要一起收敛',
-      },
-      {
-        id: 'idea',
-        label: '已经有具体想法',
-        description: '直接基于我的想法进入立项和方案设计',
-        recommended: true,
-      },
-    ],
-    multiple: false,
-    step: 3,
-    totalSteps: 3,
-  });
-  const extractQuestionProgress = (source: string): { step?: number; totalSteps?: number } => {
-    const stepMatch = source.match(/\bstep\b\s*(?:=|:)\s*["']?(\d+)/i);
-    const totalMatch = source.match(/\b(?:total_steps|totalSteps|total)\b\s*(?:=|:)\s*["']?(\d+)/i);
-    return {
-      step: stepMatch ? Number(stepMatch[1]) : undefined,
-      totalSteps: totalMatch ? Number(totalMatch[1]) : undefined,
-    };
-  };
-  const isGenericQuestion = (
-    title: string,
-    options: Array<{ id: string; label: string; description?: string }>,
-  ): boolean => {
-    const normalizedTitle = title.trim();
-    const normalizedLabels = new Set(options.map((option) => option.label.trim()).filter(Boolean));
-    const genericTitles = new Set([
-      '请选择',
-      '接下来你想怎么做？',
-      '接下来你想怎么做',
-      '你想怎么继续？',
-      '你想怎么继续',
-    ]);
-    const genericLabels = new Set(['继续', '详细说说', '换个方向', '了解更多', '其他']);
-    if (genericTitles.has(normalizedTitle)) return true;
-    return normalizedLabels.size > 0 && Array.from(normalizedLabels).every((label) => genericLabels.has(label));
-  };
-  const extractJsonQuestion = (source: string): { title: string; options: { id: string; label: string; description?: string }[]; multiple: boolean } | null => {
-    const candidates = [...source.matchAll(/```json\s*([\s\S]*?)```/gi)].map(match => match[1].trim());
-    if (source.includes('"questions"')) {
-      candidates.push(source.trim());
-    }
-
-    for (const candidate of candidates) {
-      if (!candidate.includes('"questions"')) continue;
-      const startIndexes = Array.from(candidate.matchAll(/\{/g)).map(match => match.index ?? -1).filter(index => index >= 0);
-      for (const startIndex of startIndexes) {
-        try {
-          const payload = JSON.parse(candidate.slice(startIndex));
-          if (!payload || typeof payload !== 'object' || !Array.isArray((payload as { questions?: unknown[] }).questions)) continue;
-          const firstQuestion = (payload as { questions: Array<Record<string, unknown>> }).questions[0];
-          if (!firstQuestion || !Array.isArray(firstQuestion.options)) continue;
-          const options = firstQuestion.options.flatMap((option, index) => {
-            if (!option || typeof option !== 'object') return [];
-            const label = String((option as { label?: unknown }).label ?? '').trim();
-            if (!label) return [];
-            const description = String((option as { description?: unknown }).description ?? '').trim() || undefined;
-            return [{ id: `opt-${index + 1}`, label: label.slice(0, 100), description: description?.slice(0, 200) }];
-          });
-          if (options.length === 0) continue;
-          return {
-            title: String(firstQuestion.question ?? firstQuestion.header ?? '请选择').trim(),
-            options,
-            multiple: Boolean(firstQuestion.multiSelect),
-          };
-        } catch {
-          continue;
-        }
-      }
-    }
-    return null;
-  };
-  const extractPlaintextOptions = (source: string): {
-    title: string | null;
-    options: { id: string; label: string; description?: string; groupId?: string; groupTitle?: string }[];
-    optionGroups?: { id: string; title: string; optionIds: string[] }[];
-    requireEachGroup?: boolean;
-    multiple?: boolean;
-  } => {
-    const lines = source.split('\n').map((line) => line.replace(/\r/g, ''));
-    const optionPattern = /^\s*(?:[-*•]\s+|(?:\d{1,2}|[A-Za-z]|[一二三四五六七八九十]+)[.)、]\s+|(?:[0-9]\uFE0F?\u20E3|🔟|[①②③④⑤⑥⑦⑧⑨⑩])\s*)(.+?)\s*$/u;
-    const candidateBlocks: Array<{ start: number; end: number }> = [];
-    let blockStart = -1;
-
-    lines.forEach((line, index) => {
-      if (optionPattern.test(line)) {
-        if (blockStart < 0) blockStart = index;
-      } else if (blockStart >= 0) {
-        if (index - blockStart >= 2) candidateBlocks.push({ start: blockStart, end: index });
-        blockStart = -1;
-      }
-    });
-    if (blockStart >= 0 && lines.length - blockStart >= 2) {
-      candidateBlocks.push({ start: blockStart, end: lines.length });
-    }
-    if (candidateBlocks.length === 0) return { title: null, options: [] };
-
-    const lastBlock = candidateBlocks[candidateBlocks.length - 1];
-    const trailingQuestionLine = lines
-      .slice(lastBlock.end)
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .find((line) => /[？?]/.test(line) && line.length <= 120) ?? null;
-
-    const lastSeparatorBeforeOptions = lines
-      .slice(0, lastBlock.end)
-      .reduce((lastIndex, line, index) => (/^\s*-{3,}\s*$/.test(line) ? index : lastIndex), -1);
-    const selectedBlocks = trailingQuestionLine
-      ? candidateBlocks.filter((block) => block.start > lastSeparatorBeforeOptions)
-      : [lastBlock];
-
-    let title: string | null = null;
-    if (trailingQuestionLine) {
-      title = trailingQuestionLine;
-    } else {
-      for (let index = lastBlock.start - 1; index >= 0; index -= 1) {
-        const candidate = lines[index].trim();
-        if (!candidate) continue;
-        if (/[？?：:]/.test(candidate) || candidate.length <= 80) {
-          title = candidate.replace(/[：:]\s*$/, '');
-          break;
-        }
-      }
-    }
-
-    const getGroupTitle = (block: { start: number; end: number }, groupIndex: number): string => {
-      for (let index = block.start - 1; index > lastSeparatorBeforeOptions; index -= 1) {
-        const candidate = lines[index].trim();
-        if (!candidate || optionPattern.test(candidate) || /^\s*-{3,}\s*$/.test(candidate)) continue;
-        return candidate.replace(/^[#\s]+/, '').replace(/[：:]\s*$/, '').trim() || `第 ${groupIndex + 1} 类`;
-      }
-      return `第 ${groupIndex + 1} 类`;
-    };
-
-    const usedLabels = new Set<string>();
-    const options: { id: string; label: string; description?: string; groupId?: string; groupTitle?: string }[] = [];
-    const optionGroups: { id: string; title: string; optionIds: string[] }[] = [];
-
-    const isStatusListLine = (line: string): boolean => {
-      return /[\u2705\u274c\u2714\u2718\u274e\u2611\u2612\u26a0\u2757\u2753]/.test(line) ||
-        /\b(?:docs|src|assets|tests|reports|public|app|pages|components|backend|frontend)\//.test(line) ||
-        /\.(json|md|py|ts|tsx|js|html|css)\b/.test(line) ||
-        /（已补|已生成|缺失|已完成|未完成|待完成）/.test(line) ||
-        /\(已补|已生成|缺失|已完成|未完成|待完成\)/.test(line);
-    };
-
-    const isStatusListBlock = (block: { start: number; end: number }): boolean => {
-      const blockLines = lines.slice(block.start, block.end).filter((line) => optionPattern.test(line));
-      if (blockLines.length === 0) return false;
-      const statusCount = blockLines.filter(isStatusListLine).length;
-      return statusCount / blockLines.length >= 0.5;
-    };
-
-    selectedBlocks.forEach((block, groupIndex) => {
-      if (isStatusListBlock(block)) return;
-      const groupId = `group-${groupIndex + 1}`;
-      const groupTitle = getGroupTitle(block, groupIndex);
-      const optionIds: string[] = [];
-      lines.slice(block.start, block.end).forEach((line) => {
-        const match = line.match(optionPattern);
-        if (!match) return;
-        const body = match[1].trim();
-        if (!body) return;
-        let label = body;
-        let description: string | undefined;
-        const cnParts = body.split('：');
-        const enParts = body.split(':');
-        if (cnParts.length > 1) {
-          label = cnParts[0].trim();
-          description = cnParts.slice(1).join('：').trim() || undefined;
-        } else if (enParts.length > 1) {
-          label = enParts[0].trim();
-          description = enParts.slice(1).join(':').trim() || undefined;
-        }
-        const normalizedLabel = label.replace(/^[*_`\s]+|[*_`\s]+$/g, '').slice(0, 100);
-        if (!normalizedLabel || usedLabels.has(normalizedLabel)) return;
-        const optionId = `opt-${options.length + 1}`;
-        usedLabels.add(normalizedLabel);
-        optionIds.push(optionId);
-        options.push({
-          id: optionId,
-          label: normalizedLabel,
-          description: description?.slice(0, 200),
-          groupId,
-          groupTitle,
-        });
-      });
-      if (optionIds.length > 0) {
-        optionGroups.push({ id: groupId, title: groupTitle, optionIds });
-      }
-    });
-
-    const hasMultipleGroups = optionGroups.length > 1;
-    return {
-      title,
-      options,
-      optionGroups: hasMultipleGroups ? optionGroups : undefined,
-      requireEachGroup: hasMultipleGroups || undefined,
-      multiple: hasMultipleGroups || undefined,
-    };
-  };
-
-  if (!hasQuestionWrapper && !hasBareOptions) {
-    const progress = extractQuestionProgress(text);
-    const jsonResult = extractJsonQuestion(text);
-    if (jsonResult) {
-      if (isGenericQuestion(jsonResult.title, jsonResult.options)) return null;
-      return {
-        id: `q-fallback-${Date.now()}`,
-        title: jsonResult.title,
-        options: jsonResult.options,
-        multiple: jsonResult.multiple,
-        step: progress.step,
-        totalSteps: progress.totalSteps,
-      };
-    }
-    const plaintextResult = extractPlaintextOptions(text);
-    if (plaintextResult.options.length === 0) {
-      const trimmedText = text.trim();
-      if (
-        /(最后一个问题|最后一题)[:：]?\s*$/.test(trimmedText) ||
-        (/(最后一个问题|最后一题)/.test(text) && /(初步项目想法|初步想法|项目想法|你的起点)/.test(text))
-      ) {
-        return createBootstrapIdeaFallback();
-      }
-      return null;
-    }
-    if (isGenericQuestion(plaintextResult.title || '请选择', plaintextResult.options)) return null;
-    return {
-      id: `q-fallback-${Date.now()}`,
-      title: plaintextResult.title || '请选择',
-      options: plaintextResult.options,
-      optionGroups: plaintextResult.optionGroups,
-      requireEachGroup: plaintextResult.requireEachGroup,
-      multiple: plaintextResult.multiple,
-      step: progress.step,
-      totalSteps: progress.totalSteps,
-    };
-  }
-
-  // 关键修复：只解析**最后一个** question 块或最后一段裸 option
-  // 防止历史 question 标签在累积内容中被重复解析
-  const lastQuestionStart = (() => {
-    const matches = [...text.matchAll(/<question\b[^>]*>/gi)];
-    return matches.length > 0 ? matches[matches.length - 1].index ?? -1 : -1;
-  })();
-  const lastOptionStart = (() => {
-    const matches = [...text.matchAll(/<option\s+id=["'][^"']*["']/gi)];
-    return matches.length > 0 ? matches[matches.length - 1].index ?? -1 : -1;
-  })();
-
-  // 取最后一次 question/option 出现的起始位置
-  const lastRelevantStart = Math.max(
-    hasQuestionWrapper ? lastQuestionStart : -1,
-    hasBareOptions ? lastOptionStart : -1,
-  );
-  if (lastRelevantStart < 0) return null;
-
-  // 截取最后一段相关的文本
-  const textFromLast = text.slice(lastRelevantStart);
-  const progress = extractQuestionProgress(textFromLast);
-
-  const jsonResult = extractJsonQuestion(textFromLast);
-  if (jsonResult) {
-    if (isGenericQuestion(jsonResult.title, jsonResult.options)) return null;
-    return {
-      id: `q-fallback-${Date.now()}`,
-      title: jsonResult.title,
-      options: jsonResult.options,
-      multiple: jsonResult.multiple,
-      step: progress.step,
-      totalSteps: progress.totalSteps,
-    };
-  }
-
-  let title = '请选择';
-  const questionBlockMatch = textFromLast.match(/<question\b[^>]*title=["']([^"']*)["']/i);
-  if (questionBlockMatch) {
-    title = questionBlockMatch[1];
-  } else {
-    // 裸 option：取该段在最后一个 option 之前的第一行非空文本作为标题
-    const beforeOptions = textFromLast.split(/<option\s+id=["'][^"']*["'][^>]*>/i)[0] || '';
-    const titleCandidate = beforeOptions
-      .split('\n')
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .slice(-1)[0];
-    if (titleCandidate) {
-      title = titleCandidate.replace(/^接下来我需要更具体地了解你的想法[👇:：]?\s*/u, '').trim() || title;
-    }
-  }
-  const options: { id: string; label: string; description?: string }[] = [];
-  // 只在截取后的文本中搜索 option
-  const optRegex = /<option\s+id=["']([^"']*)["'][^>]*?(?:label=["']([^"']*)["'])?[^>]*>([\s\S]*?)<\/option>/gi;
-  let optMatch;
-  while ((optMatch = optRegex.exec(textFromLast)) !== null) {
-    const optId = optMatch[1];
-    const attrLabel = optMatch[2]?.trim() || '';
-    const rawBody = (optMatch[3] || '').trim();
-    const childLabelMatch = rawBody.match(/<label>([\s\S]*?)<\/label>/i);
-    const descMatch = rawBody.match(/<desc>([\s\S]*?)<\/desc>/i);
-    let finalLabel: string;
-    if (attrLabel) {
-      finalLabel = attrLabel;
-    } else if (childLabelMatch) {
-      finalLabel = childLabelMatch[1].trim().split('\n')[0]?.slice(0, 100) || attrLabel || `选项${options.length + 1}`;
-    } else {
-      finalLabel = rawBody.replace(/<\/?(?:label|desc)[^>]*>/gi, '').trim().split('\n')[0]?.slice(0, 100) || `选项${options.length + 1}`;
-    }
-    const description = descMatch ? descMatch[1].trim().slice(0, 200) : undefined;
-    options.push({ id: optId, label: finalLabel, description });
-  }
-  if (options.length === 0) {
-    const plaintextResult = extractPlaintextOptions(textFromLast);
-    if (plaintextResult.options.length === 0) return null;
-    if (isGenericQuestion(plaintextResult.title || title, plaintextResult.options)) return null;
-    return {
-      id: `q-fallback-${Date.now()}`,
-      title: plaintextResult.title || title,
-      options: plaintextResult.options,
-      optionGroups: plaintextResult.optionGroups,
-      requireEachGroup: plaintextResult.requireEachGroup,
-      multiple: plaintextResult.multiple,
-      step: progress.step,
-      totalSteps: progress.totalSteps,
-    };
-  }
-
-  if (isGenericQuestion(title, options)) return null;
-
-  return {
-    id: `q-fallback-${Date.now()}`,
-    title,
-    options,
-    step: progress.step,
-    totalSteps: progress.totalSteps,
-  };
-}
-
 function isSameQuestionData(left: QuestionData | null, right: QuestionData | null): boolean {
   if (!left || !right) return false;
   if (left.title !== right.title) return false;
@@ -1168,7 +814,10 @@ const [runResultBlobUrl, setRunResultBlobUrl] = useState<string | null>(null); /
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [editProjectName, setEditProjectName] = useState('');
   const [moreMenuProjectId, setMoreMenuProjectId] = useState<string | null>(null);
-    const [pendingQuestion, setPendingQuestion] = useState<QuestionData | null>(null);
+    // pendingQuestions：当前待回答的卡片数组（支持多卡，AI 一次可发多个 <question>）。
+    // 2026-07-19 重构：从单数 pendingQuestion 改为复数 pendingQuestions。
+    // questionStack 仍保留为"已回答/历史"卡片栈，用于"上一步"回退。
+    const [pendingQuestions, setPendingQuestions] = useState<QuestionData[]>([]);
     const [questionStack, setQuestionStack] = useState<QuestionData[]>([]);
     const [showContinueButton, setShowContinueButton] = useState(false);
     const [isContinuing, setIsContinuing] = useState(false);
@@ -1179,7 +828,7 @@ const [runResultBlobUrl, setRunResultBlobUrl] = useState<string | null>(null); /
   const editInputRef = useRef<HTMLInputElement>(null);
   const messageSeqRef = useRef(0);
   const handleSendRef = useRef<typeof handleSend>(null! as unknown as typeof handleSend);
-  const pendingQuestionRef = useRef<QuestionData | null>(null);
+  const pendingQuestionsRef = useRef<QuestionData[]>([]);
   const questionStackRef = useRef<QuestionData[]>([]);
   const projectCreatingRef = useRef(false);
   const codeSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1348,21 +997,21 @@ const [runResultBlobUrl, setRunResultBlobUrl] = useState<string | null>(null); /
     setIsLoading(false);
     setShowChatHistory(true);
     setRestoreDone(true);
-    // 恢复后：检查最后一条原始 assistant 消息是否含未答问题，若有则恢复 pendingQuestion
-    // 必须用原始未清理内容（已清理内容里的 option 标签已删除，无法解析）
+    // 恢复后：检查最后一条原始 assistant 消息是否含未答 <question>，若有则恢复 pendingQuestions
+    // 必须用原始未清理内容（已清理内容里的 <question> 标签已删除，无法解析）
     if (Array.isArray(workspace.chat_messages) && workspace.chat_messages.length > 0) {
       const lastRaw = workspace.chat_messages[workspace.chat_messages.length - 1];
       if (lastRaw && lastRaw.role === 'assistant' && typeof lastRaw.content === 'string') {
         const rawContent = lastRaw.content;
-        const parsed = parseQuestionFromText(rawContent);
-        if (parsed) showPendingQuestion(parsed);
+        const parsed = parseQuestionsFromText(rawContent);
+        if (parsed.length > 0) showPendingQuestions(parsed);
       }
     }
-  }, [clearQuestionFlow, showPendingQuestion]);
+  }, [clearQuestionFlow, showPendingQuestions]);
 
   useEffect(() => {
-    pendingQuestionRef.current = pendingQuestion;
-  }, [pendingQuestion]);
+    pendingQuestionsRef.current = pendingQuestions;
+  }, [pendingQuestions]);
 
   useEffect(() => {
     questionStackRef.current = questionStack;
@@ -1371,44 +1020,64 @@ const [runResultBlobUrl, setRunResultBlobUrl] = useState<string | null>(null); /
   // eslint-disable-next-line react-hooks/exhaustive-deps -- 该函数只重置本地问题流状态，依赖为空且由 ref 保证当前值同步
   function clearQuestionFlow() {
     questionStackRef.current = [];
-    pendingQuestionRef.current = null;
+    pendingQuestionsRef.current = [];
     setQuestionStack([]);
-    setPendingQuestion(null);
+    setPendingQuestions([]);
   }
 
   // eslint-disable-next-line react-hooks/exhaustive-deps -- 该函数参与多处流式回调，projectContext 读取需保持当前 render 语义
-  function showPendingQuestion(nextQuestion: QuestionData) {
-    if (isRedundantProjectNameQuestion(nextQuestion, projectContext)) {
-      console.warn('[question] 已过滤重复的项目名称提问:', nextQuestion.title);
-      return;
-    }
-    const statusOptionCount = nextQuestion.options.filter((option) => {
-      const text = `${option.label || ''} ${option.description || ''}`;
-      return /[\u2705\u274c\u2714\u2718\u274e\u2611\u2612\u26a0\u2757\u2753]/.test(text) ||
-        /\b(?:docs|src|assets|tests|reports|public|app|pages|components|backend|frontend)\//.test(text) ||
-        /\.(json|md|py|ts|tsx|js|html|css)\b/.test(text) ||
-        /（已补|已生成|缺失|已完成|未完成|待完成）/.test(text) ||
-        /\(已补|已生成|缺失|已完成|未完成|待完成\)/.test(text);
-    }).length;
-    if (nextQuestion.options.length > 0 && statusOptionCount / nextQuestion.options.length >= 0.5) {
-      console.warn('[question] 已过滤状态清单误解析的选项:', nextQuestion.title);
-      return;
-    }
-    setQuestionStack((prev) => {
-      const normalizedQuestion = normalizeQuestionProgress(nextQuestion, prev);
-      const current = prev[prev.length - 1] ?? null;
-      if (isSameQuestionData(current, normalizedQuestion)) {
-        pendingQuestionRef.current = current;
-        setPendingQuestion(current);
-        return prev;
+  // 2026-07-19 重构：从单数 showPendingQuestion 改为复数 showPendingQuestions，
+  // 一次接收多张卡片（AI 可在同一条回复里输出多个 <question>）。
+  // 过滤逻辑（重复项目名提问、状态清单误解析）对每张卡片单独执行；
+  // 去重逻辑用 isSameQuestionData 对每张卡片单独判断，避免重复入栈。
+  function showPendingQuestions(nextQuestions: QuestionData[]) {
+    if (!nextQuestions || nextQuestions.length === 0) return;
+    const filtered = nextQuestions.filter((q) => {
+      if (isRedundantProjectNameQuestion(q, projectContext)) {
+        console.warn('[question] 已过滤重复的项目名称提问:', q.title);
+        return false;
       }
-      pendingQuestionRef.current = normalizedQuestion;
-      setPendingQuestion(normalizedQuestion);
-      return [...prev, normalizedQuestion];
+      const statusOptionCount = q.options.filter((option) => {
+        const text = `${option.label || ''} ${option.description || ''}`;
+        return /[\u2705\u274c\u2714\u2718\u274e\u2611\u2612\u26a0\u2757\u2753]/.test(text) ||
+          /\b(?:docs|src|assets|tests|reports|public|app|pages|components|backend|frontend)\//.test(text) ||
+          /\.(json|md|py|ts|tsx|js|html|css)\b/.test(text) ||
+          /（已补|已生成|缺失|已完成|未完成|待完成）/.test(text) ||
+          /\(已补|已生成|缺失|已完成|未完成|待完成\)/.test(text);
+      }).length;
+      if (q.options.length > 0 && statusOptionCount / q.options.length >= 0.5) {
+        console.warn('[question] 已过滤状态清单误解析的选项:', q.title);
+        return false;
+      }
+      return true;
+    });
+    if (filtered.length === 0) return;
+    setQuestionStack((prevStack) => {
+      let newStack = prevStack;
+      const toAdd: QuestionData[] = [];
+      for (const nextQuestion of filtered) {
+        const normalizedQuestion = normalizeQuestionProgress(nextQuestion, newStack);
+        const current = newStack[newStack.length - 1] ?? null;
+        if (isSameQuestionData(current, normalizedQuestion)) {
+          // 已存在相同卡片，跳过
+          continue;
+        }
+        toAdd.push(normalizedQuestion);
+        newStack = [...newStack, normalizedQuestion];
+      }
+      if (toAdd.length === 0) return prevStack;
+      // pendingQuestions = 当前已有的待答卡片 + 新增卡片
+      setPendingQuestions((prevPending) => {
+        const updated = [...prevPending, ...toAdd];
+        pendingQuestionsRef.current = updated;
+        return updated;
+      });
+      return newStack;
     });
   }
 
   function handleQuestionBack() {
+    // 多卡场景下的"上一步"：回退到栈中上一张卡片。
     const stack = questionStackRef.current;
     if (stack.length < 2) return;
     const nextStack = stack.slice(0, -1);
@@ -1418,8 +1087,10 @@ const [runResultBlobUrl, setRunResultBlobUrl] = useState<string | null>(null); /
       : null;
     questionStackRef.current = nextStack;
     setQuestionStack(previousQuestion ? [...nextStack.slice(0, -1), previousQuestion] : nextStack);
-    pendingQuestionRef.current = previousQuestion;
-    setPendingQuestion(previousQuestion);
+    // pendingQuestions 也回退：移除最后一张，显示前一张
+    const newPending = previousQuestion ? [previousQuestion] : [];
+    pendingQuestionsRef.current = newPending;
+    setPendingQuestions(newPending);
     setInputValue('');
     setIsLoading(false);
   }
@@ -1762,8 +1433,11 @@ const [runResultBlobUrl, setRunResultBlobUrl] = useState<string | null>(null); /
     setEditorTab('code');
   }, [clearQuestionFlow]);
 
-  const handleQuestionAnswer = useCallback((selectedIds: string[], customText?: string) => {
-    const question = pendingQuestion;
+  // 2026-07-19 重构：支持多卡。answeredQuestionId 标识学生回答的是哪张卡片，
+  // 回答后从 pendingQuestions 移除该卡片；若还有待答卡片则继续显示，否则清空。
+  const handleQuestionAnswer = useCallback((selectedIds: string[], customText?: string, answeredQuestionId?: string) => {
+    const question = pendingQuestionsRef.current.find((q) => q.id === answeredQuestionId)
+      ?? pendingQuestionsRef.current[pendingQuestionsRef.current.length - 1];
     if (!question) return;
 
     const selectedLabels = selectedIds
@@ -1776,12 +1450,18 @@ const [runResultBlobUrl, setRunResultBlobUrl] = useState<string | null>(null); /
     }
 
     const sendText = `[选择] ${question.title}\n回答：${answerText}`;
-    pendingQuestionRef.current = null;
-    setPendingQuestion(null);
+    // 移除已回答的卡片，保留其他待答卡片
+    setPendingQuestions((prev) => {
+      const updated = answeredQuestionId
+        ? prev.filter((q) => q.id !== answeredQuestionId)
+        : prev.slice(0, -1);
+      pendingQuestionsRef.current = updated;
+      return updated;
+    });
     setInputValue('');
     setIsLoading(false);
     setTimeout(() => handleSendRef.current(sendText), 50);
-  }, [pendingQuestion]);
+  }, []);
 
   const dismissQuestion = useCallback(() => {
     clearQuestionFlow();
@@ -2119,6 +1799,23 @@ const handleWriteCodeToEditor = useCallback((code: string, language: string) => 
     return extractedCode.length > 10 ? { code: extractedCode, language: extractedLang } : null;
   }, []);
 
+  // 代码提取阶段门禁：决定是否把 AI 回复中的代码块写入编辑器。
+  // 仅在「允许出代码的 PBL 阶段」或「用户明确表达编码意图」时放行。
+  // 选题/规划阶段（stage_00~stage_04、stage_06）AI 举例的代码块保留在聊天气泡里，不污染编辑器、
+  // 不触发 ensureProjectCreated 创建无关项目、也不从其他项目回读代码。
+  // 与 useStreamingChat 的 shouldExtractCode 回调共用同一套判定，保证流中/流末/兜底三处行为一致。
+  const isCodeExtractionAllowed = (
+    // 接受 unknown：effectiveContext 是 Record<string, unknown>，
+    // 阶段值实际是 string | undefined，内部统一用 String() 收窄。
+    currentStage: unknown,
+    directIntent: boolean,
+    forceCodeGen: boolean,
+  ): boolean => {
+    if (forceCodeGen || directIntent) return true;
+    const ALLOWED_CODE_STAGES = ['stage_05_design', 'stage_07_execute', 'stage_08_evaluate'];
+    return ALLOWED_CODE_STAGES.includes(String(currentStage || ''));
+  };
+
   const extractCodeFromResponse = useCallback((content: string): { code: string; language: string } | null => {
     // 优先从 markdown 代码块提取
     const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/g;
@@ -2399,8 +2096,8 @@ const handleSend = async (
     if (!isStructuredQuestionAnswer) {
       clearQuestionFlow();
     } else {
-      pendingQuestionRef.current = null;
-      setPendingQuestion(null);
+      pendingQuestionsRef.current = [];
+      setPendingQuestions([]);
     }
     setIsLoading(true);
     let rawAssistantContent = '';
@@ -2409,7 +2106,7 @@ const handleSend = async (
     let receivedContentUpdate = false;
     // 保存 content_update 之前累积的最大可见内容，防止被清空
     let maxVisibleContent = '';
-    // 追踪最近一次的未清理累积内容（用于 parseQuestionFromText 解析 option 标签）
+    // 追踪最近一次的未清理累积内容（用于 parseQuestionsFromText 解析 <question> 标签）
     let lastRawAccumulated = '';
     setMessages((prev) => [...prev, { id: nextMessageId(), role: 'assistant', content: '' }]);
 
@@ -2516,9 +2213,11 @@ const handleSend = async (
               currentStage: data.stage,
             }));
           },
-          onQuestion: (data) => {
-            if (!requestOverrides?.suppressQuestionCard) {
-              showPendingQuestion(data);
+          onQuestions: (questions) => {
+            // 2026-07-19：用多卡回调 onQuestions 代替单卡 onQuestion。
+            // AI 一条回复里的所有 <question> 块一次性传入，showPendingQuestions 会全部入栈并显示。
+            if (!requestOverrides?.suppressQuestionCard && questions.length > 0) {
+              showPendingQuestions(questions);
             }
           },
           onContentUpdate: (dedupedContent) => {
@@ -2545,21 +2244,30 @@ const handleSend = async (
               }
               return updated;
             });
-            if (!requestOverrides?.suppressQuestionCard && !pendingQuestionRef.current) {
-              // 关键修复：必须用**未清理的 dedupedContent** 解析 question，
-              // 因为 assistantContent（清理后）已经删除了 option 标签
-              const fallback = parseQuestionFromText(dedupedContent);
-              if (fallback) {
-                showPendingQuestion(fallback);
+            if (!requestOverrides?.suppressQuestionCard && pendingQuestionsRef.current.length === 0) {
+              // 流式过程中提前解析 <question>（未清理的 dedupedContent 保留 XML 标签）。
+              // 2026-07-19：废弃文本 fallback，只解析 XML。
+              const fallback = parseQuestionsFromText(dedupedContent);
+              if (fallback.length > 0) {
+                showPendingQuestions(fallback);
               }
             }
           },
           onEnd: (finalContent) => {
             // 流末兜底：服务端最终事件抵达时，立即尝试代码提取并写入编辑器
             // 这是修复"AI 说生成了代码但编辑器为空"的关键路径
+            // 门禁：选题/规划阶段不提取代码，避免 AI 举例的代码块污染编辑器
             try {
               const finalRaw = finalContent || lastRawAccumulated || rawAssistantContent;
               if (!finalRaw) return;
+              if (!isCodeExtractionAllowed(effectiveContext.current_stage, directCodingIntent, shouldForceCodeGeneration)) {
+                console.info('[handleSend][onEnd] 当前阶段不允许出代码，跳过代码提取', {
+                  stage: effectiveContext.current_stage,
+                  directIntent: directCodingIntent,
+                  forceCodeGeneration: shouldForceCodeGeneration,
+                });
+                return;
+              }
               const codeResult = extractCodeFromResponse(finalRaw);
               if (codeResult && codeResult.code.trim().length > 10) {
                 console.log('[handleSend][onEnd] 流末兜底：提取到代码', codeResult.language, codeResult.code.length, '字符');
@@ -2572,6 +2280,13 @@ const handleSend = async (
               console.error('[handleSend][onEnd] 流末兜底执行失败', err);
             }
           },
+          // 代码提取阶段门禁：选题/规划阶段禁止从 LLM 文本兜底提取代码块。
+          // 与 onEnd / post-stream 三处共用 isCodeExtractionAllowed 判定，行为一致。
+          shouldExtractCode: () => isCodeExtractionAllowed(
+            effectiveContext.current_stage,
+            directCodingIntent,
+            shouldForceCodeGeneration,
+          ),
         },
       );
 
@@ -2593,12 +2308,12 @@ const handleSend = async (
         return updated;
       });
 
-      if (!requestOverrides?.suppressQuestionCard && !pendingQuestionRef.current) {
-        // 关键修复：必须用**未清理的累积内容**解析 question
-        // 优先用 lastRawAccumulated（onContentUpdate 累积），fallback 到 rawFinal
-        const finalFallback = parseQuestionFromText(lastRawAccumulated || rawFinal);
-        if (finalFallback) {
-          showPendingQuestion(finalFallback);
+      if (!requestOverrides?.suppressQuestionCard && pendingQuestionsRef.current.length === 0) {
+        // 流末兜底：用未清理的累积内容解析 <question>（清理后的内容已删除 XML 标签）。
+        // 2026-07-19：废弃文本 fallback，只解析 XML。多卡场景一次性解析所有 <question> 块。
+        const finalFallback = parseQuestionsFromText(lastRawAccumulated || rawFinal);
+        if (finalFallback.length > 0) {
+          showPendingQuestions(finalFallback);
         }
       }
 
@@ -2606,8 +2321,26 @@ const handleSend = async (
       // 清理后的内容（assistantContent）已移除 DSML 标签，会导致代码丢失
       // 注意：即使 streamedCodeGenerated 已有值（之前的 code_generated 事件），仍需尝试提取
       // 因为 AI 可能在后续文本中给出了 CSS/JS 修复代码
+      //
+      // 门禁：选题/规划阶段（stage_00~stage_04、stage_06）不提取代码。
+      // 原先对每条 AI 回复都跑提取，导致选题阶段 AI 举例的 ```html 代码块被塞进编辑器并自动运行，
+      // 还会触发 ensureProjectCreated 创建无关项目。这里用 isCodeExtractionAllowed 统一门禁。
+      const extractionAllowed = isCodeExtractionAllowed(
+        effectiveContext.current_stage,
+        directCodingIntent,
+        shouldForceCodeGeneration,
+      );
       console.log('[handleSend][onEnd] rawFinal 长度:', rawFinal?.length || 0);
       console.log('[handleSend][onEnd] rawFinal 前500字符:', rawFinal?.substring(0, 500) || 'empty');
+      console.log('[handleSend][onEnd] extractionAllowed:', extractionAllowed, {
+        stage: effectiveContext.current_stage,
+        directIntent: directCodingIntent,
+        forceCodeGeneration: shouldForceCodeGeneration,
+      });
+      if (!extractionAllowed) {
+        // 选题/规划阶段：AI 回复原样留在聊天气泡，不动编辑器，不创建项目，不回读 workspace。
+        console.info('[handleSend][onEnd] 当前阶段不允许出代码，跳过代码提取与 workspace 回读');
+      } else {
       const codeResult = extractCodeFromResponse(rawFinal);
       console.log('[handleSend][onEnd] codeResult:', codeResult ? `${codeResult.language} (${codeResult.code.length} chars)` : 'null');
       if (codeResult) {
@@ -2625,6 +2358,10 @@ const handleSend = async (
         // 写入代码后自动运行预览，让用户立即看到效果
         setTimeout(() => handleRunEditorCode(), 300);
       } else if (!streamedCodeGenerated) {
+        // 兜底回读 workspace：仅当本轮已确定允许出代码（编码/设计/验收阶段或显式编码意图）时才执行。
+        // 历史问题：原先在选题阶段（extractionAllowed=false）也会走到这里，导致拉取用户最近一个项目
+        // （可能是完全不相关的"奇幻选择之旅"）的代码塞进当前编辑器，造成跨项目污染。
+        // 现在这一分支被外层 extractionAllowed 守卫，只有 stage_05/07/08 或显式编码意图才会回读。
         let restoredFromWorkspace = false;
         let workspaceProjectId = effectiveProjectId;
         if (!workspaceProjectId && user) {
@@ -2695,6 +2432,7 @@ const handleSend = async (
           ]);
         }
         }
+      }
       }
 
       let fallbackProject: Awaited<ReturnType<typeof ensureProjectCreated>> = null;
@@ -3128,15 +2866,16 @@ const handleSend = async (
                     </div>
                   </div>
                 )}
-{pendingQuestion && (
+{pendingQuestions.map((q, idx) => (
                 <QuestionCard
-                  data={pendingQuestion}
-                  onAnswer={handleQuestionAnswer}
+                  key={q.id}
+                  data={q}
+                  onAnswer={(selectedIds, customText) => handleQuestionAnswer(selectedIds, customText, q.id)}
                   onCancel={dismissQuestion}
-                  onBack={handleQuestionBack}
+                  onBack={idx === 0 ? undefined : handleQuestionBack}
                   onDismiss={dismissQuestion}
                 />
-              )}
+              ))}
               
               {/* 继续生成按钮 */}
               {showContinueButton && (

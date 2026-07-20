@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { authStorage } from '../services/api';
 import { QuestionData } from '../components/QuestionCard';
+import { parseQuestionBlock, parseQuestionBlocks } from '../lib/questionParser';
 
 interface StreamPayload {
   message: string;
@@ -38,10 +39,25 @@ interface StreamEvents {
   onToolCall?: (data: { tool_name: string; success: boolean; data?: unknown }) => void;
   onStageChanged?: (data: { stage: string; stage_name: string }) => void;
   onQuestion?: (data: QuestionData) => void;
+  /**
+   * 多卡 question 事件（2026-07-19 新增）。
+   * 当 AI 在一条回复里输出多个 <question> 块时，一次性把所有解析出的卡片传给调用方。
+   * 比 onQuestion（单数，只传第一个）更完整。调用方应优先用 onQuestions；
+   * onQuestion 保留只是为了向后兼容。
+   */
+  onQuestions?: (questions: QuestionData[]) => void;
   onCodeGenerated?: (data: CodeGeneratedEvent) => void;
   onCodeGenerationFailed?: (data: CodeGenerationFailedEvent) => void;
   onContentUpdate?: (content: string) => void;
   onEnd?: (content: string) => void;
+  /**
+   * 代码提取门禁：返回 false 时，本 hook 不再从 LLM 文本兜底提取代码块（done 帧的 extractCodeEvent）。
+   * 调用方（Create.tsx）用它实现 PBL 阶段门禁——选题/规划阶段不允许把 AI 举例的代码块写入编辑器。
+   * 注意：只影响"从文本兜底提取"这条路径；project_code_writer 工具事件（onCodeGenerated 直发）
+   * 不受此门禁影响，因为那是 AI 显式调用工具写代码，属于主动行为。
+   * 默认（未传）视为允许，保持向后兼容。
+   */
+  shouldExtractCode?: () => boolean;
 }
 
 function getAnonymousId(): string {
@@ -155,89 +171,6 @@ function stripQuestionXml(text: string): { clean: string; hasQuestion: boolean }
   return { clean: cleaned, hasQuestion };
 }
 
-function parseQuestionBlock(text: string): QuestionData | null {
-  if (!text) return null;
-
-  const match = text.match(/<question[^>]*>([\s\S]*?)<\/question>/i);
-  if (!match) return null;
-  const raw = match[1].trim();
-  if (!raw) return null;
-
-  const tagAttrMatch = text.match(/<question[^>]*title=["']([^"']*)["']/i);
-  const titleMatch = raw.match(/<title>([\s\S]*?)<\/title>/i);
-  let title = '请选择';
-  if (titleMatch) {
-    title = titleMatch[1].trim();
-  } else if (tagAttrMatch) {
-    title = tagAttrMatch[1].trim();
-  } else if (!/<option\s/.test(raw.split('\n')[0])) {
-    title = raw.split('\n')[0].slice(0, 200);
-  }
-
-  const options: QuestionData['options'] = [];
-  const optPattern = /<option\s+id=["']([^"']*)["'](?:[^>]*?label=["']([^"']*)["'])?[^>]*>([\s\S]*?)<\/option>/gi;
-  let om: RegExpExecArray | null;
-  while ((om = optPattern.exec(raw)) !== null) {
-    const optId = om[1].trim();
-    const attrLabel = om[2] ? om[2].trim() : null;
-    const optBody = om[3].trim();
-
-    const childLabelMatch = optBody.match(/<label>([\s\S]*?)<\/label>/i);
-    const descMatch = optBody.match(/<desc>([\s\S]*?)<\/desc>/i);
-
-    let finalLabel = attrLabel;
-    if (!finalLabel) {
-      if (childLabelMatch) {
-        finalLabel = childLabelMatch[1].trim();
-      } else {
-        const cleanBody = optBody.replace(/<\/?(?:label|desc)[^>]*>/g, '').trim();
-        finalLabel = cleanBody.split('\n')[0].slice(0, 100);
-      }
-    }
-
-    options.push({
-      id: optId || `opt-${options.length}`,
-      label: finalLabel,
-      description: descMatch ? descMatch[1].trim() : undefined,
-      recommended: /推荐/.test(optBody) || /recommended/i.test(optBody),
-    });
-  }
-
-  if (options.length === 0) return null;
-
-  const rawMatch = text.match(/<question[^>]*>[\s\S]*?<\/question>/i);
-  const source = rawMatch ? rawMatch[0] : raw;
-  const multiple = /multiple/i.test(source) || /多选/.test(source);
-  const stepM = source.match(/\bstep\b\s*(?:=|:)\s*["']?(\d+)/i);
-  const totalM = source.match(/\b(?:total_steps|totalSteps|total)\b\s*(?:=|:)\s*["']?(\d+)/i);
-
-  const questionData: QuestionData = {
-    id: `q-${Date.now()}`,
-    title,
-    options: options.slice(0, 8),
-    multiple,
-    allowCustom: true,
-    step: stepM ? parseInt(stepM[1], 10) : undefined,
-    totalSteps: totalM ? parseInt(totalM[1], 10) : undefined,
-  };
-
-  // 过滤掉无意义的通用问句
-  const genericTitles = new Set([
-    '请选择',
-    '接下来你想怎么做？',
-    '接下来你想怎么做',
-    '你想怎么继续？',
-    '你想怎么继续',
-  ]);
-  const genericOptionLabels = new Set(['继续', '详细说说', '换个方向', '了解更多', '其他']);
-  const optLabels = new Set(
-    options.map((o) => (o.label || '').trim()).filter(Boolean),
-  );
-  if (genericTitles.has(title.trim())) return null;
-  if (optLabels.size > 0 && [...optLabels].every((l) => genericOptionLabels.has(l))) return null;
-
-  return questionData;
-}
 
 // 从 LLM 文本中提取可执行代码块 → 触发 onCodeGenerated
 function extractCodeEvent(text: string, projectId?: string): CodeGeneratedEvent | null {
@@ -459,12 +392,24 @@ export function useStreamingChat() {
         if (type === 'done') {
           clearTimeout(totalTimeout);
           let content = typeof data.full_response === 'string' ? data.full_response : fullContent;
-          // 解析 XML question → onQuestion
+          // === 诊断日志（2026-07-19）：帮助定位"AI 没输出 XML 时为什么没卡片"===
+          console.info('[useStreamingChat][done] AI 原始回复长度:', content?.length || 0);
+          console.info('[useStreamingChat][done] AI 原始回复全文:', content);
+          console.info('[useStreamingChat][done] 是否含 <question> 标签:', /<question/i.test(content || ''));
+          // 解析 <question> XML → 优先用多卡回调 onQuestions，同时兼容单卡 onQuestion
           try {
-            const q = parseQuestionBlock(content);
-            if (q && events?.onQuestion) events.onQuestion(q);
+            const questions = parseQuestionBlocks(content);
+            console.info('[useStreamingChat][done] parseQuestionBlocks 解析出', questions.length, '张卡片');
+            if (questions.length > 0) {
+              if (events?.onQuestions) {
+                events.onQuestions(questions);
+              } else if (events?.onQuestion) {
+                // 向后兼容：没注册 onQuestions 时，只传第一个
+                events.onQuestion(questions[0]);
+              }
+            }
           } catch (e) {
-            console.error('[useStreamingChat] parseQuestionBlock failed', e);
+            console.error('[useStreamingChat] parseQuestionBlocks failed', e);
           }
           // 剥离 XML 块 → 用户看到的内容
           const { clean } = stripQuestionXml(content);
@@ -473,11 +418,17 @@ export function useStreamingChat() {
             try { events?.onContentUpdate?.(clean); } catch (e) { console.error(e); }
           }
           // 兜底从文本里提取代码（当 LLM 未走 project_code_writer 但产出代码块时）
-          if (!codeEventFired) {
+          // 门禁：调用方可通过 shouldExtractCode 回调禁用文本兜底提取。
+          // 典型场景：选题/规划阶段 AI 举例的代码块不应被写入编辑器（前端 isCodeExtractionAllowed 判定）。
+          // 注意：project_code_writer 工具事件路径（codeEventFired=true）不受此门禁影响。
+          const extractionAllowed = events?.shouldExtractCode ? events.shouldExtractCode() : true;
+          if (!codeEventFired && extractionAllowed) {
             const codeEvent = extractCodeEvent(content, payload.projectId);
             if (codeEvent && events?.onCodeGenerated) {
               try { events.onCodeGenerated(codeEvent); } catch (e) { console.error(e); }
             }
+          } else if (!codeEventFired && !extractionAllowed) {
+            console.info('[useStreamingChat] shouldExtractCode=false，跳过 done 帧文本代码兜底提取');
           }
           try { events?.onEnd?.(content); } catch (e) { console.error('[useStreamingChat] onEnd failed', e); }
           ws.close();
