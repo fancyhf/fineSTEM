@@ -107,4 +107,13 @@ change_log:
 | T-01 | 完成 WebSocket 端到端验证（ws_sop_test.py / ws_memory_test.py） | 测试 Agent | 🟡 需前端人工确认 | [SOP_Memory 测试报告](testing/reports/SOP_Memory测试报告_2026-07-22_R02.md) |
 | T-02 | 清理后端 `tests/` 目录 ~18 个调试脚本 | 开发 Agent | 🔴 待分配 | [测试体系总览](testing/测试体系总览_v2.0.0.md) |
 | T-03 | 补全 Playwright 可交互元素 `data-testid` | 开发 Agent | 🟡 逐步进行 | [测试工作指南](testing/测试工作指南_v1.0.0.md) |
-| T-04 | 硬编码 `DATABASE_URL` 与 `G:\` 路径清理 | 开发 Agent | 🔴 待分配 | [findings.md](reports/findings.md
+| T-04 | 硬编码 `DATABASE_URL` 与 `G:\` 路径清理 | 开发 Agent | 🔴 待分配 | [findings.md](reports/findings.md) |
+
+---
+
+## 5. 维护说明
+
+- 所有新增文档必须归类到上述子目录，并在对应 README 中登记。
+- 每个文档必须包含统一元信息头：`version/created_at/maintainer/status/change_log`。
+- 目录变更需同步更新本 README 的目录索引表与 `change_log`。
+- 状态图例统一：🟢 正常、🟡 有风险或待验证、🔴 阻塞。

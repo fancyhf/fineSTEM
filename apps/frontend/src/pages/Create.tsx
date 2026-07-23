@@ -1429,73 +1429,76 @@ const [runResultBlobUrl, setRunResultBlobUrl] = useState<string | null>(null); /
     // Q-005：持久记录学生回答（title → labels），后续注入 context 防止 AI 重复问
     studentProfileRef.current.set(question.title, selectedLabels);
 
-    const currentPendingCount = pendingQuestionsRef.current.length;
+    // 计算移除当前卡后的剩余数量（用 ref 同步读取，不依赖 setState 回调）
+    const remainingAfter = pendingQuestionsRef.current.filter(
+      (q) => q.id !== question.id
+    ).length;
 
-    // 移除已回答的卡片，保留其他待答卡片
-    setPendingQuestions((prev) => {
-      const updated = answeredQuestionId
-        ? prev.filter((q) => q.id !== answeredQuestionId)
-        : prev.slice(0, -1);
-      pendingQuestionsRef.current = updated;
-
-      // 多卡场景：还有其他待答卡片时，先记录答案不提交，等全部回答完再统一发送
-      const remainingCount = updated.length;
-      if (remainingCount > 0) {
-        collectedAnswersRef.current.set(question.id, {
-          title: question.title,
-          labels: selectedLabels,
-          ids: selectedIds,
-          customText: customText?.trim() || undefined,
-        });
-        console.info(`[handleQuestionAnswer] 多卡模式：已记录答案 (${currentPendingCount - remainingCount}/${currentPendingCount})，还剩 ${remainingCount} 张待答`);
+    // 多卡场景：还有其他待答卡片时，先记录答案不提交，等全部回答完再统一发送
+    if (remainingAfter > 0) {
+      collectedAnswersRef.current.set(question.id, {
+        title: question.title,
+        labels: selectedLabels,
+        ids: selectedIds,
+        customText: customText?.trim() || undefined,
+      });
+      console.info(`[handleQuestionAnswer] 多卡模式：已记录答案，还剩 ${remainingAfter} 张待答`);
+      // 只更新 UI 状态（移除已答卡），不发送消息
+      setPendingQuestions((prev) => {
+        const updated = prev.filter((q) => q.id !== question.id);
+        pendingQuestionsRef.current = updated;
         return updated;
-      }
+      });
+      return;
+    }
 
-      // 最后一张卡（或唯一一张卡）：收集所有答案统一发送
-      const allAnswers: Array<{ title: string; labels: string[]; ids: string[]; customText?: string }> = [];
-      // 把之前收集的答案按入栈顺序排列
-      for (const q of questionStackRef.current) {
-        const collected = collectedAnswersRef.current.get(q.id);
-        if (collected) allAnswers.push(collected);
-      }
-      // 加上当前这张卡的答案
-      const currentAnswer = { title: question.title, labels: selectedLabels, ids: selectedIds, customText: customText?.trim() || undefined };
-      // 避免重复（如果当前卡已在 collected 里）
-      if (!collectedAnswersRef.current.has(question.id)) {
-        allAnswers.push(currentAnswer);
-      }
-      // 清空收集器
-      collectedAnswersRef.current.clear();
+    // 最后一张卡（或唯一一张卡）：收集所有答案统一发送
+    const allAnswers: Array<{ title: string; labels: string[]; ids: string[]; customText?: string }> = [];
+    for (const q of questionStackRef.current) {
+      const collected = collectedAnswersRef.current.get(q.id);
+      if (collected) allAnswers.push(collected);
+    }
+    const currentAnswer = { title: question.title, labels: selectedLabels, ids: selectedIds, customText: customText?.trim() || undefined };
+    if (!collectedAnswersRef.current.has(question.id)) {
+      allAnswers.push(currentAnswer);
+    }
+    collectedAnswersRef.current.clear();
 
-      // 构造发送文本
-      let sendText: string;
-      if (allAnswers.length <= 1) {
-        // 单卡场景：保持原格式 [选择:id] labels
-        const selectedId = selectedIds[0] || '';
-        let answerText = selectedLabels.join('、');
-        if (customText) {
-          answerText = answerText ? `${answerText}（其他：${customText}）` : customText;
+    // 构造发送文本
+    let sendText: string;
+    if (allAnswers.length <= 1) {
+      // 单卡场景：保持原格式 [选择:id] labels
+      const selectedId = selectedIds[0] || '';
+      let answerText = selectedLabels.join('、');
+      if (customText) {
+        answerText = answerText ? `${answerText}（其他：${customText}）` : customText;
+      }
+      sendText = `[选择:${selectedId}] ${answerText}`;
+    } else {
+      // 多卡场景：每张卡的答案各一行，统一在一条消息里发送
+      const lines = allAnswers.map((a) => {
+        let text = a.labels.join('、');
+        if (a.customText) {
+          text = text ? `${text}（其他：${a.customText}）` : a.customText;
         }
-        sendText = `[选择:${selectedId}] ${answerText}`;
-      } else {
-        // 多卡场景：每张卡的答案各一行，统一在一条消息里发送
-        const lines = allAnswers.map((a) => {
-          let text = a.labels.join('、');
-          if (a.customText) {
-            text = text ? `${text}（其他：${a.customText}）` : a.customText;
-          }
-          return `[选择] ${a.title}\n回答：${text}`;
-        });
-        sendText = lines.join('\n\n');
-        console.info(`[handleQuestionAnswer] 多卡统一提交：${allAnswers.length} 张卡片的答案合并为 1 条消息`);
-      }
+        return `[选择] ${a.title}\n回答：${text}`;
+      });
+      sendText = lines.join('\n\n');
+      console.info(`[handleQuestionAnswer] 多卡统一提交：${allAnswers.length} 张卡片的答案合并为 1 条消息`);
+    }
 
-      setInputValue('');
-      isLoadingRef.current = false;
-      setIsLoading(false);
-      setTimeout(() => handleSendRef.current(sendText), 100);
+    // 更新 UI 状态（移除已答卡）
+    setPendingQuestions((prev) => {
+      const updated = prev.filter((q) => q.id !== question.id);
+      pendingQuestionsRef.current = updated;
       return updated;
     });
+
+    // 发送消息（在 setState 之外执行，避免 React 严格模式双执行副作用）
+    setInputValue('');
+    isLoadingRef.current = false;
+    setIsLoading(false);
+    setTimeout(() => handleSendRef.current(sendText), 100);
   }, []);
 
   const dismissQuestion = useCallback(() => {

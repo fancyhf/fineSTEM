@@ -49,23 +49,41 @@ async function waitForQuestionCard(page: Page, timeoutMs = AI_TIMEOUT): Promise<
 }
 
 /**
- * 点击 question-card 的第一个选项。
- * 用 data-testid="question-option" 精确定位，避免点到关闭按钮。
+ * 点击 question-card 的第一个选项并提交（点"确定"按钮）。
+ * 用 data-testid="question-option" 精确定位选项，避免点到关闭按钮。
+ * ⚠️ 必须点"确定"按钮才会触发 onAnswer → handleQuestionAnswer → 发送消息给 AI。
+ *    只点选项不点确定，只切换选中状态，不会提交。
  */
 async function clickFirstOption(page: Page): Promise<void> {
   const card = page.getByTestId('question-card').first();
   const option = card.getByTestId('question-option').first();
   await expect(option).toBeVisible({ timeout: 5000 });
   await option.click();
+  await page.waitForTimeout(300); // 等选中状态更新
+  // 点"确定"/"下一步"按钮提交答案
+  await clickSubmitButton(page);
 }
 
 /**
- * 点击 question-card 的第 N 个选项（0-based）。
+ * 点击 question-card 的第 N 个选项（0-based）并提交。
  */
 async function clickNthOption(page: Page, index: number): Promise<void> {
   const card = page.getByTestId('question-card').first();
   const options = card.getByTestId('question-option');
   await options.nth(index).click();
+  await page.waitForTimeout(300);
+  await clickSubmitButton(page);
+}
+
+/**
+ * 点击 question-card 底部的"确定"或"下一步"按钮提交答案。
+ */
+async function clickSubmitButton(page: Page): Promise<void> {
+  const card = page.getByTestId('question-card').first();
+  // 按钮文本是"确定"或"下一步"，通过文本定位
+  const submitBtn = card.locator('button', { hasText: /确定|下一步/ }).last();
+  await expect(submitBtn).toBeVisible({ timeout: 5000 });
+  await submitBtn.click();
 }
 
 /**
