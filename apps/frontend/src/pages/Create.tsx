@@ -14,6 +14,7 @@ import { QuestionCard, QuestionData } from '../components/QuestionCard';
 import { useAuth } from '../contexts/AuthContext';
 import { projectsApi, codeExecutionApi } from '../services/api';
 import { ProjectWorkspaceResponse, FileEntry } from '../types';
+import { streamLogger } from '../lib/streamLogger';
 
 interface Message {
   id: string;
@@ -21,6 +22,13 @@ interface Message {
   content: string;
   skillInfo?: { skill_id: string; skill_name: string; sub_skill_name?: string };
   toolCalls?: { tool_name: string; success: boolean; data?: unknown }[];
+  /**
+   * 思考链（推理过程）。来自 ZeroClaw 的 thinking 帧，单独存储，
+   * 不混入 content（避免污染最终回复）。渲染时放在可折叠的"思考过程"区域。
+   */
+  thinking?: string;
+  /** 续接累计字符数（用于"正在自动续接..."提示） */
+  continueStatus?: 'continuing' | 'failed';
 }
 
 function buildStreamHistory(messages: Message[]): Array<{ role: 'user' | 'assistant'; content: string }> {
@@ -89,105 +97,80 @@ function findTagEnd(text: string, tagStart: string): number {
   return -1;
 }
 
-function sanitizeAssistantNarration(content: string): string {
+export function sanitizeAssistantNarration(content: string): string {
   let cleaned = content;
   const originalLength = cleaned.length;
 
   // ── 精确移除 DSML 标签本身（只删标签，保留标签间的正文）──
   // DSML 标签格式：<｜｜DSML｜｜xxx> 或 </｜｜DSML｜｜>
   // | 是全角 U+FF5C（｜），不是半角 U+007C（|）
-  // 关键：标签必须以 < 开头（行首或空白后），防止误吃行中间的内容
-  // 例如 "projects/xxx.json</| | DSML | parameter>" 中的 "</|..." 之前是路径文本，
-  // 不应被识别为 DSML 闭合标签的开始位置
   const dsmlTagPattern = /(?:^|(?<=[\s\n]))<\/?[|\uff5c]?[|\uff5c]?DSML[|\uff5c]?[^\n]*>/gi;
   cleaned = cleaned.replace(dsmlTagPattern, '');
 
-  // ── 移除独立行的 invoke/parameter/tool_calls 关键字行（整行只有这些关键字）──
+  // ── 移除独立行的 invoke/parameter/tool_calls 关键字行 ──
   cleaned = cleaned.replace(/^\s*(?:invoke|parameter)\s+name=\S+.*$/gim, '');
   cleaned = cleaned.replace(/^\s*tool_calls\s*$/gim, '');
 
-  // ── 兜底：清理残破的 DSML 工具调用行（典型特征是含 <| / {/| 模式）──
-  // 删除任意行内出现 DSML 残破 XML 的整行
-  // 关键安全约束：行首必须有 DSML 残破模式才算可疑，正常正文中的 "<" 不删
-  // 已知 LLM 残破模式：
-  //   - <|...| DSML | ...>  （开标签）
-  //   - </|...| DSML | ...> （闭合标签，正常不应该出现）
-  //   - {/| DSML || parameter }  （LLM 残破闭合标签变体，{ 误生成 < 的产物）
-  //   - | DSML | xxx  （孤立的 DSML 段）
-  //   - |parameter| 或 | invoke |  （孤立的管道包裹工具调用）
+  // ── 清理残破的 DSML 工具调用行（行内出现 DSML 残破模式）──
+  // 2026-07-22 重构：保留 DSML 清理（这是确定的垃圾），但移除原来会误杀 AI 教学
+  // 代码的激进规则（cat/ls/find/import os/文件路径行清理）。新规则更保守：
+  // 只删"整行只由 DSML 残片 + UUID 组成、无任何自然语言"的行。
   cleaned = cleaned.split('\n').map((line) => {
     const trimmed = line.trim();
-    // 关键修复：放宽到"行内任意位置出现 DSML 残破模式"也清掉
-    // 之前要求行首 <| 才清，导致"句末挂载的 </|...|>"（"我先问你：xxx</|...|>"）漏过
-    // 安全约束：仅当行内 < 数量 ≤3 且行长度 < 2000 时才触发，避免误伤长正文
+    if (!trimmed) return line;
     const isShortLine = trimmed.length < 2000;
     const hasOpenAngle = (trimmed.match(/</g) || []).length;
+
+    // DSML 残破标签（保留原判定，这部分是确定的垃圾）
     const isBrokenDsml =
       /<\|\s*\|?\s*DSML\s*\|/.test(trimmed) ||
       /<\/\s*\|\s*\|?\s*DSML\s*\|/.test(trimmed) ||
       /<\|\s*\|/.test(trimmed) ||
-      /^\{\s*[/｜|]\s*\|/.test(trimmed) ||          // 残破闭合 {/| 或 {｜|
-      /^\{\/\s*\|\s*DSML/i.test(trimmed) ||           // 残破闭合 {/| DSML
+      /^\{\s*[/｜|]\s*\|/.test(trimmed) ||
+      /^\{\/\s*\|\s*DSML/i.test(trimmed) ||
       /^<\/?\s*[|\uff5c]/.test(trimmed) ||
-      // 末尾挂载的 DSML 残破（如 "projects/xx.json</| | DSML | parameter>"）
       /<\/?\s*[|\uff5c]\s*[|\uff5c]?\s*DSML/i.test(trimmed) ||
-      // 关键：句中/句末出现的 DSML 闭合标签（"<|...| DSML ...>" 整段）也清
-      // 安全约束：必须 < 数 ≤3 且行较短，避免误伤正常正文
       (isShortLine && hasOpenAngle <= 3 && (
         /[|\uff5c]\s*DSML\s*\|/i.test(trimmed) ||
         /<\/?\s*[|\uff5c][^>]{0,80}parameter/i.test(trimmed) ||
-        // 关键：行末挂载的孤悬残片（"xxx</|...|DSML|parameter>"）
         />\s*<\s*[|\uff5c][^>]*$/i.test(trimmed) ||
         /<\/?\s*[|\uff5c][^>]*$/i.test(trimmed)
       )) ||
       /\bDSML\s*\|/i.test(trimmed) ||
       /^\s*[|｜]\s*parameter\s*[|｜]/i.test(trimmed) ||
       /^\s*[|｜]\s*invoke\s+name\s*=/i.test(trimmed) ||
-      // 关键：UUID + 未闭合 < 的孤悬残片（如 "a1b57213-b531-...2055a</"）
-      // 这是 LLM 工具调用 trace_id 泄露到 content 中，完全不是用户可见内容
-      (isShortLine && /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}<\/?\s*$/.test(trimmed));
-    return isBrokenDsml ? '' : line;
-  }).join('\n');
+      (isShortLine && /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}<\/?\s*$/.test(trimmed));
+    if (isBrokenDsml) return '';
 
-  // ── 清理 LLM 模拟工具调用的命令行/代码残片 ──
-  // AI 有时不用真正的 tool_calls，而是输出 cat/ls/os.walk/import os 等来"模拟读文件"
-  // 这些不是用户可见的有效内容，必须清除
-  cleaned = cleaned.split('\n').map((line) => {
-    const trimmed = line.trim();
-    if (!trimmed) return line;
-    // 模式 1：shell 命令（cat/ls/find/grep/head/tail/wc 等 + 文件路径）
-    if (/^\s*(cat|ls|find|grep|head|tail|wc|less|more|file|stat|tree|diff|echo)\s+[\w/.-~]/.test(trimmed)) return '';
-    // 模式 2：Python 文件操作代码（import os; os.walk / open(...).read() / pathlib）
-    if (/^\s*(import\s+os|from\s+os\s+import|from\s+pathlib|os\.walk|os\.path\.exists|os\.listdir|open\(['"][\w/.]+['"]\)\.read|Path\(['"])/.test(trimmed)) return '';
-    // 模式 3：纯文件路径行（projects/xxx/docs/xx.json、/dev/null、/tmp/xxx 等）
-    if (/^\/(dev|null|tmp|home|usr|var|etc|opt)\//.test(trimmed)) return '';
-    if (/^(projects\/|docs\/|src\/|apps\/)[\w/.-]+\.(json|md|txt|py|js|ts|yaml|yml|csv)$/.test(trimmed)) return '';
-    // 模式 4：孤立的 UUID 行（trace_id / project_id 泄露，大小写均匹配）
-    if (/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(trimmed)) return '';
-    // 模式 4a：工具结果 JSON / JSON Patch 泄露，不属于用户可读对话内容
+    // ── 2026-07-22 删除的规则 ──
+    // 原来还会清理：cat/ls/find/grep 行、import os/open().read() 行、文件路径行。
+    // 这些规则会误杀 AI 正常的教学代码示例（如讲解 shell 命令、Python 文件操作），
+    // 是"AI 回答被吞、只输出一行"的主因之一。现在全部移除。
+    // 保留的清理只有：孤立的 UUID 行（trace_id 泄露）、JSON Patch 泄露、
+    // 孤立 skill 单词行（LLM 伪造残留）——这些都是"整行无自然语言"的确定垃圾。
+
+    // 孤立的 UUID 行（trace_id/project_id 泄露）
+    if (/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(trimmed)) return '';
+    // UUID + skill 残留
+    if (/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\s+skill$/i.test(trimmed)) return '';
+    // 孤立 skill 单词行
+    if (/^skill$/i.test(trimmed)) return '';
+    // JSON Patch / 工具结果泄露（整行是 JSON 片段，非自然语言）
     if (/["']op["']\s*:\s*["'](?:replace|add|remove)["']/.test(trimmed)) return '';
     if (/["']path["']\s*:\s*["']\//.test(trimmed)) return '';
-    if (/^[{[].*(project_id|tool_call_id|stage_passed|current_stage|teaching_mode).*[\]}]?$/i.test(trimmed)) return '';
-    // 模式 4b：孤立的 "Skill" / skill 单词行（LLM 伪造工具调用残留）
-    if (/^skill$/i.test(trimmed)) return '';
-    // 模式 4c：孤立的内部标记行：仅由 UUID + 可选的 "Skill" 组成
-    if (/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\s+skill$/i.test(trimmed)) return '';
-    // 模式 5：孤立的残缺标签碎片（常见于流式输出被中途截断时的 "</"）
+    // 孤立的残缺标签碎片（流式截断遗留的 "</"）
     if (/^<\/?$/.test(trimmed) || /^\/>$/.test(trimmed) || /^>$/.test(trimmed)) return '';
     return line;
   }).join('\n');
 
-  // 删除空行
+  // 删除多余空行
   cleaned = cleaned.replace(/\n{3,}/g, '\n\n').replace(/^\s*\n/gm, '');
 
-  // ── 末尾兜底清理：流式输出被中途截断时残留的孤悬 < / </ / <｜ 等碎片 ──
-  // 例如 AI 输出末尾出现 "好的<" 或 "正在生成代码</"，这些都是流式中断遗留
-  // 仅处理整段文本末尾，避免误伤正常的 < 字符（如 "a < b"）
+  // ── 末尾兜底清理：流式输出被中途截断时残留的孤悬 < / </ 碎片 ──
+  // 2026-07-22 收紧：只有"末尾 < 后面跟的全是空白或管道符/字母且无 >"才清，
+  // 避免 "a < b" 这种正常比较符被误删。
   cleaned = cleaned.replace(/[\s\n]*<\/?[\s\S]{0,30}$/u, (match) => {
-    // 只清理"看起来是不完整标签"的末尾片段
-    // 安全条件：片段不含 > （即未闭合），且长度 ≤ 30
     if (match.includes('>')) return match;
-    // 检查是否仅为残破标签开始（< / </ / <｜...）
     const trimmed = match.trim();
     if (/^<\/?[\s|｜\w-]{0,30}$/.test(trimmed)) {
       return '';
@@ -195,24 +178,15 @@ function sanitizeAssistantNarration(content: string): string {
     return match;
   });
 
-  // ── 移除 question/option 结构化标签 ──
-  // 关键：
-  //   1. 标签内的属性值可能含 >（如 label="正常 > 异常"），需要正确解析引号边界
-  //   2. option 标签始终清理（由 QuestionCard 独立渲染，原始内容由 parseQuestionsFromText 解析）
-  //   3. question 标签也始终清理
-
-  // 始终彻底删除所有 option 标签
+  // ── 移除 question/option 结构化标签（由 QuestionCard 独立渲染）──
   cleaned = cleaned.replace(/<option\b[^>]*>[\s\S]*?<\/option>/gi, (m) => {
     return /<\/option>/i.test(m) ? '' : m;
   });
   cleaned = removeTagWithQuoteAware(cleaned, 'option');
-  // 兜底：单行 option 标签
   cleaned = cleaned.replace(/^\s*<\/?option\b.*$/gim, '');
 
-  // 始终彻底删除所有 question 标签
   cleaned = cleaned.replace(/<question\b[^>]*>[\s\S]*?<\/question>/gi, '');
   cleaned = removeTagWithQuoteAware(cleaned, 'question');
-  // 兜底：单行 question/label/desc 标签
   cleaned = removeTagWithQuoteAware(cleaned, 'label');
   cleaned = removeTagWithQuoteAware(cleaned, 'desc');
   cleaned = cleaned.replace(/^\s*<\/?(?:question|label|desc)\b.*$/gim, '');
@@ -220,12 +194,8 @@ function sanitizeAssistantNarration(content: string): string {
   // ── 清理杂项 ──
   cleaned = cleaned.replace(/^\s*```(?:markdown|md)?\s*复制\s*$/gim, '```');
 
-  // 调试日志
   if (cleaned.length !== originalLength) {
     console.log('[sanitize] 输入:', originalLength, '→ 输出:', cleaned.length, '移除:', originalLength - cleaned.length);
-    if (cleaned.includes('DSML') || /[|\uff5c]DSML/.test(cleaned)) {
-      console.warn('[sanitize] ⚠️ 残留! 前200字:', cleaned.slice(0, 200));
-    }
   }
 
   cleaned = collapseRepeatedFragments(cleaned);
@@ -240,7 +210,7 @@ function cleanHistoricalAssistantContent(content: string): string {
   return cleanAssistantMessageContent(content);
 }
 
-function cleanAssistantMessageContent(content: string): string {
+export function cleanAssistantMessageContent(content: string): string {
   if (!content) return '';
   const segments = content.split(/(```[\s\S]*?```)/g);
   let cleaned = segments
@@ -286,7 +256,7 @@ interface ProjectContext {
   currentStage: string;
   stageProgress: number;
   evidenceCount: number;
-  teachingMode: 'guided' | 'demo' | 'hands_on' | 'lecture';
+  teachingMode: 'guided' | 'demo' | 'hands_on' | 'lecture' | 'html_visual';
 }
 
 interface SkillOption {
@@ -820,6 +790,10 @@ const [runResultBlobUrl, setRunResultBlobUrl] = useState<string | null>(null); /
     const [pendingQuestions, setPendingQuestions] = useState<QuestionData[]>([]);
     const [questionStack, setQuestionStack] = useState<QuestionData[]>([]);
     const [showContinueButton, setShowContinueButton] = useState(false);
+  // 保存最近一次流式对话的 ZeroClaw session_id。
+  // 用途：① handleContinue 复用同一 session，让 ZeroClaw 看到上一轮 AI 输出，从截断处接续；
+  //       ② 连续多轮对话也复用同一 session，保持上下文完整。
+  const lastSessionIdRef = useRef<string | undefined>(undefined);
     const [isContinuing, setIsContinuing] = useState(false);
     const lastMessageRef = useRef<string>('');
 
@@ -1435,6 +1409,14 @@ const [runResultBlobUrl, setRunResultBlobUrl] = useState<string | null>(null); /
 
   // 2026-07-19 重构：支持多卡。answeredQuestionId 标识学生回答的是哪张卡片，
   // 回答后从 pendingQuestions 移除该卡片；若还有待答卡片则继续显示，否则清空。
+  // 2026-07-20 修复：使用 isLoadingRef 同步控制加载状态，避免 React 异步状态更新导致的竞态条件
+  // 2026-07-23 修复：多卡场景下逐张记录答案，全部回答完才统一发送一条消息（而非每张卡各发一条）
+  const isLoadingRef = useRef(false);
+  // 记录多卡场景下已回答但尚未提交的答案 { questionId → { title, labels, ids, customText } }
+  const collectedAnswersRef = useRef<Map<string, { title: string; labels: string[]; ids: string[]; customText?: string }>>(new Map());
+  // 2026-07-23 Q-005 修复：持久记录学生已回答的所有信息（title → labels），注入 context 防止 AI 重复问
+  const studentProfileRef = useRef<Map<string, string[]>>(new Map());
+
   const handleQuestionAnswer = useCallback((selectedIds: string[], customText?: string, answeredQuestionId?: string) => {
     const question = pendingQuestionsRef.current.find((q) => q.id === answeredQuestionId)
       ?? pendingQuestionsRef.current[pendingQuestionsRef.current.length - 1];
@@ -1444,23 +1426,76 @@ const [runResultBlobUrl, setRunResultBlobUrl] = useState<string | null>(null); /
       .map(id => question.options.find(o => o.id === id)?.label || id)
       .filter(Boolean);
 
-    let answerText = selectedLabels.join('、');
-    if (customText) {
-      answerText = answerText ? `${answerText}（其他：${customText}）` : customText;
-    }
+    // Q-005：持久记录学生回答（title → labels），后续注入 context 防止 AI 重复问
+    studentProfileRef.current.set(question.title, selectedLabels);
 
-    const sendText = `[选择] ${question.title}\n回答：${answerText}`;
+    const currentPendingCount = pendingQuestionsRef.current.length;
+
     // 移除已回答的卡片，保留其他待答卡片
     setPendingQuestions((prev) => {
       const updated = answeredQuestionId
         ? prev.filter((q) => q.id !== answeredQuestionId)
         : prev.slice(0, -1);
       pendingQuestionsRef.current = updated;
+
+      // 多卡场景：还有其他待答卡片时，先记录答案不提交，等全部回答完再统一发送
+      const remainingCount = updated.length;
+      if (remainingCount > 0) {
+        collectedAnswersRef.current.set(question.id, {
+          title: question.title,
+          labels: selectedLabels,
+          ids: selectedIds,
+          customText: customText?.trim() || undefined,
+        });
+        console.info(`[handleQuestionAnswer] 多卡模式：已记录答案 (${currentPendingCount - remainingCount}/${currentPendingCount})，还剩 ${remainingCount} 张待答`);
+        return updated;
+      }
+
+      // 最后一张卡（或唯一一张卡）：收集所有答案统一发送
+      const allAnswers: Array<{ title: string; labels: string[]; ids: string[]; customText?: string }> = [];
+      // 把之前收集的答案按入栈顺序排列
+      for (const q of questionStackRef.current) {
+        const collected = collectedAnswersRef.current.get(q.id);
+        if (collected) allAnswers.push(collected);
+      }
+      // 加上当前这张卡的答案
+      const currentAnswer = { title: question.title, labels: selectedLabels, ids: selectedIds, customText: customText?.trim() || undefined };
+      // 避免重复（如果当前卡已在 collected 里）
+      if (!collectedAnswersRef.current.has(question.id)) {
+        allAnswers.push(currentAnswer);
+      }
+      // 清空收集器
+      collectedAnswersRef.current.clear();
+
+      // 构造发送文本
+      let sendText: string;
+      if (allAnswers.length <= 1) {
+        // 单卡场景：保持原格式 [选择:id] labels
+        const selectedId = selectedIds[0] || '';
+        let answerText = selectedLabels.join('、');
+        if (customText) {
+          answerText = answerText ? `${answerText}（其他：${customText}）` : customText;
+        }
+        sendText = `[选择:${selectedId}] ${answerText}`;
+      } else {
+        // 多卡场景：每张卡的答案各一行，统一在一条消息里发送
+        const lines = allAnswers.map((a) => {
+          let text = a.labels.join('、');
+          if (a.customText) {
+            text = text ? `${text}（其他：${a.customText}）` : a.customText;
+          }
+          return `[选择] ${a.title}\n回答：${text}`;
+        });
+        sendText = lines.join('\n\n');
+        console.info(`[handleQuestionAnswer] 多卡统一提交：${allAnswers.length} 张卡片的答案合并为 1 条消息`);
+      }
+
+      setInputValue('');
+      isLoadingRef.current = false;
+      setIsLoading(false);
+      setTimeout(() => handleSendRef.current(sendText), 100);
       return updated;
     });
-    setInputValue('');
-    setIsLoading(false);
-    setTimeout(() => handleSendRef.current(sendText), 50);
   }, []);
 
   const dismissQuestion = useCallback(() => {
@@ -1995,7 +2030,12 @@ const handleSend = async (
       },
     ) => {
       const message = (text || inputValue).trim();
-      if (!message || isLoading) return;
+      // 2026-07-20 修复：使用 isLoadingRef 同步检查，避免 React 异步状态导致的竞态条件
+      // 当 handleQuestionAnswer 调用时，isLoadingRef 已被同步设为 false，这里不会误拦截
+      if (!message || (isLoading && !isLoadingRef.current === false)) {
+        // 允许在 isLoadingRef 已经被重置为 false 时继续执行
+        if (isLoadingRef.current) return;
+      }
       
       // 保存最后一条消息用于续接
       if (!requestOverrides?.isContinue) {
@@ -2021,6 +2061,19 @@ const handleSend = async (
       current_stage: projectContext.currentStage,
       ...(requestOverrides?.context || {}),
     };
+
+    // 2026-07-23 Q-005 修复：注入已收集的学生回答（具体值），防止 AI 重复问
+    // 用 studentProfileRef（title → labels）注入具体答案，让 AI 直接读到"年级=初中"等
+    const studentProfile = studentProfileRef.current;
+    if (studentProfile.size > 0) {
+      const profileEntries: string[] = [];
+      studentProfile.forEach((labels, title) => {
+        // 截取标题前 20 字 + 答案，如"你现在是哪个年级？= 初中"
+        const shortTitle = title.length > 20 ? title.slice(0, 20) + '...' : title;
+        profileEntries.push(`${shortTitle} = ${labels.join('/')}`);
+      });
+      effectiveContext.student_profile = profileEntries;
+    }
     // 与 stem-pbl-guide Skill 状态机严格对齐：仅 stage_05_design / stage_07_execute / stage_08_evaluate 允许代码生成。
     // stage_03_constraints 等阶段即使用户说"代码为空 / 没代码"也不进入 force_code_generation，
     // 由后端系统提示词引导回当前阶段任务。
@@ -2086,8 +2139,13 @@ const handleSend = async (
       }
     }
 
-    const userMsg: Message = { id: nextMessageId(), role: 'user', content: message };
-    setMessages((prev) => [...prev, userMsg]);
+    // 续接请求不在 UI 上显示用户气泡（避免出现"请继续完成..."这种纯指令气泡），
+    // 也不清空 question 流。续接只是延续最后一条 assistant 消息。
+    const isContinueRequest = requestOverrides?.isContinue === true;
+    if (!isContinueRequest) {
+      const userMsg: Message = { id: nextMessageId(), role: 'user', content: message };
+      setMessages((prev) => [...prev, userMsg]);
+    }
     setInputValue('');
     setShowChatHistory(true);
     const isStructuredQuestionAnswer = /^\[选择\]\s/.test(message);
@@ -2099,8 +2157,9 @@ const handleSend = async (
       pendingQuestionsRef.current = [];
       setPendingQuestions([]);
     }
-    setIsLoading(true);
-    let rawAssistantContent = '';
+setIsLoading(true);
+isLoadingRef.current = true; // 同步更新 ref
+let rawAssistantContent = '';
     let assistantContent = '';
     // 追踪 content_update 事件是否可能导致内容丢失
     let receivedContentUpdate = false;
@@ -2108,7 +2167,33 @@ const handleSend = async (
     let maxVisibleContent = '';
     // 追踪最近一次的未清理累积内容（用于 parseQuestionsFromText 解析 <question> 标签）
     let lastRawAccumulated = '';
-    setMessages((prev) => [...prev, { id: nextMessageId(), role: 'assistant', content: '' }]);
+    // 续接模式：复用最后一条 assistant 消息继续追加，而不是新建一条空消息。
+    // 同时把上一轮的原始内容作为累积起点，保证 onToken 拼接时包含完整上文。
+    if (isContinueRequest) {
+      let prevContent = '';
+      let prevThinking = '';
+      setMessages((prev) => {
+        const copy = [...prev];
+        for (let i = copy.length - 1; i >= 0; i -= 1) {
+          if (copy[i].role === 'assistant') {
+            prevContent = copy[i].content || '';
+            prevThinking = copy[i].thinking || '';
+            // 清除上一轮的续接状态标记，准备进入新一轮
+            copy[i] = { ...copy[i], continueStatus: undefined };
+            break;
+          }
+        }
+        return copy;
+      });
+      rawAssistantContent = prevContent;
+      assistantContent = prevContent;
+      maxVisibleContent = prevContent;
+      // 保留 thinking 上下文（续接时继续累积到同一消息）
+      lastRawAccumulated = prevContent;
+      void prevThinking; // thinking 通过 onThinking 累积，此处不需要预填
+    } else {
+      setMessages((prev) => [...prev, { id: nextMessageId(), role: 'assistant', content: '' }]);
+    }
 
     try {
       const streamResult = await stream(
@@ -2118,6 +2203,7 @@ const handleSend = async (
           context: effectiveContext,
           skillId: activeSkill.id,
           messages: historyMessages,
+          sessionId: lastSessionIdRef.current || undefined,
         },
         (token) => {
           rawAssistantContent += token;
@@ -2192,6 +2278,10 @@ const handleSend = async (
             console.warn('[handleSend] 服务端代码生成失败:', data.reason, data.message);
           },
           onToolCall: (data) => {
+            // 2026-07-22 重构：ask_question 不在这里处理——useStreamingChat 的 tool_call
+            // 分支已通过 onQuestions 推送（见 useStreamingChat.ts ask_question 处理）。
+            // 原来这里也处理一次会导致同一 tool_call 被双路径解析，校验标准不一，
+            // 是"ask_question 卡片时灵时不灵"的原因之一。现在统一由 hook 处理。
             if (data.tool_name === 'project_creator' && data.success) {
               setShowEditor(true);
               setEditorTab('code');
@@ -2224,23 +2314,51 @@ const handleSend = async (
             receivedContentUpdate = true;
             lastRawAccumulated = dedupedContent;
             const cleanedDeduped = cleanAssistantMessageContent(dedupedContent);
-            // 智能合并：只有当 content_update 的内容比当前累积的内容更有价值时才使用
-            // 防止 content_update 发送纯工具标记（清理后变空）导致可见内容被清空
-            if (cleanedDeduped.length >= maxVisibleContent.length) {
+
+            // 记录到日志
+            streamLogger.logContentUpdate(dedupedContent, 'onContentUpdate', {
+              rawAssistantContentLength: dedupedContent.length,
+              assistantContentLength: cleanedDeduped.length,
+              maxVisibleContentLength: maxVisibleContent.length,
+            });
+
+            // 关键修复：content_update 来自服务端，是最终清理后的内容（已去除 XML 标签）
+            // 而 maxVisibleContent 是流式过程中累积的原始内容（可能包含 XML）
+            // 因此不能简单比较长度，而应该优先使用服务端提供的清理后内容
+            if (cleanedDeduped.length > 0) {
+              // 服务端提供了有效的清理后内容，使用它
               assistantContent = cleanedDeduped;
-              if (assistantContent.length > maxVisibleContent.length) {
+              // 更新 maxVisibleContent 为清理后的内容长度
+              if (assistantContent.length > maxVisibleContent.length || dedupedContent !== lastRawAccumulated) {
                 maxVisibleContent = assistantContent;
               }
+              streamLogger.logUIUpdate('update_assistantContent', assistantContent.length, {
+                rawAssistantContentLength: dedupedContent.length,
+                assistantContentLength: cleanedDeduped.length,
+                maxVisibleContentLength: maxVisibleContent.length,
+              });
             } else if (cleanedDeduped.length === 0 && maxVisibleContent.length > 0) {
               // content_update 内容被清理为空时，保留已有的最大可见内容
               console.warn('[handleSend] content_update 内容被清理为空，保留已有内容 (长度:', maxVisibleContent.length, ')');
+              streamLogger.logUIUpdate('skip_empty_content', maxVisibleContent.length, {
+                rawAssistantContentLength: dedupedContent.length,
+                assistantContentLength: 0,
+                maxVisibleContentLength: maxVisibleContent.length,
+              });
               return; // 不更新 UI，保留当前显示的内容
             }
             setMessages(prev => {
               const updated = [...prev];
               const lastIdx = updated.length - 1;
               if (lastIdx >= 0 && updated[lastIdx].role === 'assistant') {
-                updated[lastIdx] = { ...updated[lastIdx], content: assistantContent || maxVisibleContent };
+                const finalContent = assistantContent || maxVisibleContent;
+                streamLogger.logUIUpdate('setMessages_update', finalContent.length, {
+                  rawAssistantContentLength: dedupedContent.length,
+                  assistantContentLength: assistantContent.length,
+                  maxVisibleContentLength: maxVisibleContent.length,
+                  messageCount: updated.length,
+                });
+                updated[lastIdx] = { ...updated[lastIdx], content: finalContent };
               }
               return updated;
             });
@@ -2253,7 +2371,64 @@ const handleSend = async (
               }
             }
           },
+          onAutoContinue: (data) => {
+            // 自动续接状态回调
+            console.info(`[handleSend] 自动续接状态: ${data.status} (尝试 ${data.attempt}/${data.maxAttempts})`);
+            if (data.status === 'started') {
+              // 标记当前 assistant 消息处于"续接中"状态，UI 可据此显示提示
+              setMessages(prev => {
+                const updated = [...prev];
+                const lastIdx = updated.length - 1;
+                if (lastIdx >= 0 && updated[lastIdx].role === 'assistant') {
+                  updated[lastIdx] = {
+                    ...updated[lastIdx],
+                    content: (assistantContent || maxVisibleContent),
+                    continueStatus: 'continuing',
+                  };
+                }
+                return updated;
+              });
+            } else if (data.status === 'failed') {
+              // 续接失败：保留已有内容，显示"继续生成"按钮让用户手动续接
+              setMessages(prev => {
+                const updated = [...prev];
+                const lastIdx = updated.length - 1;
+                if (lastIdx >= 0 && updated[lastIdx].role === 'assistant') {
+                  updated[lastIdx] = {
+                    ...updated[lastIdx],
+                    content: (assistantContent || maxVisibleContent),
+                    continueStatus: 'failed',
+                  };
+                }
+                return updated;
+              });
+              setShowContinueButton(true);
+            }
+          },
+          onThinking: (chunk) => {
+            // 收集思考链到当前 assistant 消息的 thinking 字段，单独渲染、不污染正文
+            if (!chunk) return;
+            setMessages(prev => {
+              const updated = [...prev];
+              const lastIdx = updated.length - 1;
+              if (lastIdx >= 0 && updated[lastIdx].role === 'assistant') {
+                const prevThinking = updated[lastIdx].thinking || '';
+                updated[lastIdx] = {
+                  ...updated[lastIdx],
+                  thinking: prevThinking + chunk,
+                };
+              }
+              return updated;
+            });
+          },
           onEnd: (finalContent) => {
+            // 记录结束事件
+            streamLogger.logEnd(finalContent, {
+              rawAssistantContentLength: rawAssistantContent.length,
+              assistantContentLength: assistantContent.length,
+              maxVisibleContentLength: maxVisibleContent.length,
+            });
+
             // 流末兜底：服务端最终事件抵达时，立即尝试代码提取并写入编辑器
             // 这是修复"AI 说生成了代码但编辑器为空"的关键路径
             // 门禁：选题/规划阶段不提取代码，避免 AI 举例的代码块污染编辑器
@@ -2293,6 +2468,10 @@ const handleSend = async (
       // 最终内容以服务端 final/content_update 的清理结果为准，避免把流式中途的 UUID/Skill 等脏片段
       // 因为“最长可见内容”策略重新带回聊天气泡。
       const rawFinal = streamResult.content || lastRawAccumulated || rawAssistantContent || assistantContent;
+      // 保存本次 session_id，供 handleContinue 续接和后续对话复用
+      if (streamResult.sessionId) {
+        lastSessionIdRef.current = streamResult.sessionId;
+      }
       const finalCleaned = cleanAssistantMessageContent(rawFinal);
       assistantContent = finalCleaned || maxVisibleContent;
       if (receivedContentUpdate && assistantContent.length === 0 && maxVisibleContent.length > 0) {
@@ -2307,6 +2486,29 @@ const handleSend = async (
         }
         return updated;
       });
+
+      // ========== 流末截断检测（2026-07-21 修复）==========
+      // 原来"继续生成"按钮只在 catch 块（超时/连接错误）里才显示，
+      // 流式正常结束但内容被 finish_reason=length 截断时按钮根本不出现。
+      // 自动续接最多 2 次，仍可能不够；这里兜底：检测最终内容是否仍不完整，
+      // 是的话显示"继续生成"按钮，让用户手动触发接续。
+      // 跳过条件：用户主动发的"继续"消息（避免循环）、或本轮根本没产出内容。
+      const isContinueMessage = requestOverrides?.isContinue === true;
+      const hasContent = assistantContent.trim().length > 0;
+      // 复用 hook 内的截断判定逻辑（与 useStreamingChat 保持一致）
+      const stillIncomplete = hasContent && (
+        /\bpython|javascript|typescript|html|css|java\b\s*$/i.test(assistantContent.trim())
+        || ((assistantContent.match(/```/g) || []).length % 2 === 1)
+        || /(接下来|首先|第一步|然后|接着|最后|总之|综上所述)\s*$/i.test(assistantContent.trim())
+        || /[：:—–-]\s*$/.test(assistantContent.trim())
+      );
+      if (!isContinueMessage && hasContent && stillIncomplete) {
+        console.info('[handleSend] 流末检测到内容仍不完整，显示继续按钮');
+        setShowContinueButton(true);
+      } else if (hasContent) {
+        // 内容完整，确保继续按钮隐藏
+        setShowContinueButton(false);
+      }
 
       if (!requestOverrides?.suppressQuestionCard && pendingQuestionsRef.current.length === 0) {
         // 流末兜底：用未清理的累积内容解析 <question>（清理后的内容已删除 XML 标签）。
@@ -2467,10 +2669,29 @@ const handleSend = async (
         if (next >= 5) setShowRegisterPrompt(true);
       }
       const errMsg = error instanceof Error ? error.message : '请求失败，请稍后重试';
-      
-      // 检查是否是超时或连接错误
-      const isTimeoutError = errMsg.includes('超时') || errMsg.includes('timeout') || errMsg.includes('aborted');
-      const isConnectionError = errMsg.includes('连接') || errMsg.includes('connection') || errMsg.includes('closed');
+      const isDaemonDown = (error as Error & { isDaemonDown?: boolean }).isDaemonDown === true;
+
+      // R8 修复：daemon 不可用时给学生友好提示，不显示"继续生成"按钮（点了也没用）
+      const isTimeoutError = !isDaemonDown && (errMsg.includes('超时') || errMsg.includes('timeout') || errMsg.includes('aborted'));
+      const isConnectionError = !isDaemonDown && (errMsg.includes('连接') || errMsg.includes('connection') || errMsg.includes('closed'));
+
+      setMessages((prev) => {
+        const copy = [...prev];
+        const last = copy[copy.length - 1];
+        if (last && last.role === 'assistant') {
+          if (isDaemonDown) {
+            // daemon 挂了：友好提示，不吓到学生
+            last.content = '🔌 AI 导师暂时离线了。请稍等片刻再试，或刷新页面。如果问题持续，请联系老师。';
+          } else if (isTimeoutError || isConnectionError) {
+            last.content = `${assistantContent}\n\n[输出被截断，请点击下方"继续生成"按钮]`;
+          } else {
+            last.content = `请求失败：${errMsg}`;
+          }
+        }
+        return copy;
+      });
+
+      // daemon 挂了不显示继续按钮；超时/连接错误才显示
       
       setMessages((prev) => {
         const copy = [...prev];
@@ -2499,19 +2720,37 @@ const handleSend = async (
     handleSendRef.current = handleSend;
   });
 
-  // 处理继续生成
+  // 处理继续生成（手动续接）
+  // 关键修复（2026-07-21）：原来调用 handleSend('继续') 把"继续"当一条全新用户消息，
+  // ZeroClaw 会把它理解成一个没有上下文的孤立问题，答非所问。
+  // 正确做法：复用最近一次的 ZeroClaw session_id，在该 session 内发"继续"，
+  // ZeroClaw 保留了上一轮 AI 的完整输出，能从截断处自然接续。
   const handleContinue = useCallback(async () => {
-    if (!lastMessageRef.current || isLoading) return;
-    
+    if (isLoading) return;
+
     setIsContinuing(true);
     setShowContinueButton(false);
-    
-    // 发送续接请求
-    await handleSend('继续', undefined, {
+
+    // 把上一轮 assistant 的内容从 messages 里取出来，作为续接的显式上下文（双保险）
+    const lastAssistantContent = (() => {
+      for (let i = messages.length - 1; i >= 0; i -= 1) {
+        if (messages[i].role === 'assistant' && messages[i].content.trim()) {
+          return messages[i].content;
+        }
+      }
+      return '';
+    })();
+
+    // 续接提示语：明确告诉 AI 从哪里接续、不要重复
+    const continuePrompt = lastAssistantContent
+      ? '请继续完成上一条回复。从被截断的地方接着输出，不要重复已输出的内容，保持格式一致，确保代码块和标签正确闭合，不要添加"好的我继续"之类的过渡语。'
+      : '继续';
+
+    await handleSend(continuePrompt, undefined, {
       isContinue: true,
       suppressQuestionCard: true,
     });
-  }, [handleSend, isLoading]);
+  }, [handleSend, isLoading, messages]);
 
   // Listen for code-error messages from preview iframe (让 AI 修复此错误 按钮)
   useEffect(() => {
@@ -2834,7 +3073,7 @@ const handleSend = async (
                     messages.slice(msgIdx + 1).some(m => m.role === 'user');
                   const isCurrentQuestion = isLastAssistant && !hasUserReply;
                   return (
-                  <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div key={msg.id} data-testid={`message-${msg.role}`} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                     <div className={`max-w-[85%] rounded-2xl px-4 py-2.5 ${
                       msg.role === 'user' ? 'bg-teal-600 text-white rounded-br-sm' : 'bg-gray-50 text-gray-800 rounded-bl-sm border border-gray-100'
                     }`}>
@@ -2843,13 +3082,37 @@ const handleSend = async (
                         <span>{msg.role === 'user' ? '你' : 'fineSTEM AI'}</span>
                       </div>
                       {msg.role === 'assistant' ? (
-                        <EnhancedMarkdownText
-                          content={msg.content}
-                          isCurrentQuestion={isCurrentQuestion}
-                          projectId={projectContext.projectId?.startsWith('local-') ? null : projectContext.projectId}
-                          onWriteCode={handleWriteCodeToEditor}
-                          onRunCode={handleRunCode}
-                        />
+                        <>
+                          {msg.thinking && msg.thinking.trim() && (
+                            <details className="mb-2 group">
+                              <summary className="cursor-pointer text-[11px] text-gray-400 hover:text-gray-600 select-none flex items-center gap-1">
+                                <Sparkles className="w-3 h-3" />
+                                <span>思考过程</span>
+                                <span className="text-gray-300 group-open:hidden">(点击展开)</span>
+                              </summary>
+                              <div className="mt-1.5 pl-4 border-l-2 border-gray-100 text-[11px] text-gray-500 whitespace-pre-wrap max-h-48 overflow-y-auto">
+                                {msg.thinking}
+                              </div>
+                            </details>
+                          )}
+                          <EnhancedMarkdownText
+                            content={msg.content}
+                            isCurrentQuestion={isCurrentQuestion}
+                            projectId={projectContext.projectId?.startsWith('local-') ? null : projectContext.projectId}
+                            onWriteCode={handleWriteCodeToEditor}
+                            onRunCode={handleRunCode}
+                          />
+                          {msg.continueStatus === 'continuing' && (
+                            <div className="mt-1.5 text-[11px] text-teal-600 flex items-center gap-1">
+                              <div className="w-1 h-1 bg-teal-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                              <div className="w-1 h-1 bg-teal-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                              <span>正在自动续接…</span>
+                            </div>
+                          )}
+                          {msg.continueStatus === 'failed' && (
+                            <div className="mt-1.5 text-[11px] text-amber-600">自动续接未完成，可点击下方"继续生成"。</div>
+                          )}
+                        </>
                       ) : (
                         <div className="text-sm whitespace-pre-wrap">{msg.content}</div>
                       )}
@@ -2922,7 +3185,7 @@ const handleSend = async (
 
           <div className="px-3 pt-2 pb-3">
             <div className="relative border border-gray-200 rounded-xl bg-white focus-within:border-teal-400 focus-within:ring-1 focus-within:ring-teal-100 transition-all">
-              <textarea ref={textareaRef} value={inputValue} onChange={(e) => setInputValue(e.target.value)} onKeyDown={handleKeyDown} rows={1}
+              <textarea ref={textareaRef} data-testid="chat-input" value={inputValue} onChange={(e) => setInputValue(e.target.value)} onKeyDown={handleKeyDown} rows={1}
                 placeholder={isLoading ? 'AI 正在思考...' : showChatHistory ? '继续对话...' : '输入你的目标、项目想法或代码需求...'}
                 disabled={isLoading}
                 className="w-full resize-none border-0 bg-transparent px-3 py-2.5 text-sm outline-none placeholder-gray-400 max-h-48" />
@@ -2933,7 +3196,7 @@ const handleSend = async (
                 </div>
                 <div className="flex items-center gap-2">
                   {!user && <span className="text-[10px] text-amber-600">匿名剩余 {5 - Number(localStorage.getItem('anonymous_chat_count') || '0')} 次</span>}
-                  <button onClick={() => handleSend()} disabled={!inputValue.trim() && !showChatHistory}
+                  <button data-testid="send-button" onClick={() => handleSend()} disabled={!inputValue.trim() && !showChatHistory}
                     className="p-1 bg-gray-900 hover:bg-gray-800 disabled:bg-gray-200 text-white rounded-lg transition-colors">
                     <ChevronUp className="w-4 h-4" />
                   </button>

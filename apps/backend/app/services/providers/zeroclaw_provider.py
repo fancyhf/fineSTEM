@@ -213,6 +213,10 @@ class ZeroClawProvider:
         return str(content) if content else ""
 
     async def stream_complete(self, payload: Dict[str, Any], gateway_url: Optional[str] = None) -> AsyncGenerator[str, None]:
+        """
+        流式完成请求，yield token 字符串。
+        注意：最后一个 yield 可能是特殊的 finish_reason 标记，格式为 "__FINISH_REASON__:xxx"
+        """
         target_gateway = gateway_url.rstrip("/") if gateway_url else self.gateway_url
         if not target_gateway or not self.api_key:
             raise RuntimeError("ZeroClaw 网关或 API 密钥未配置")
@@ -223,6 +227,8 @@ class ZeroClawProvider:
         }
         request_payload = self._build_request_payload(payload, target_gateway)
         request_payload["stream"] = True
+
+        finish_reason = None
 
         async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
             async with client.stream(
@@ -243,8 +249,19 @@ class ZeroClawProvider:
                         token = self._extract_stream_token(chunk, target_gateway)
                         if token:
                             yield token
+
+                        # 检查 finish_reason
+                        choices = chunk.get("choices", [])
+                        if choices and isinstance(choices[0], dict):
+                            reason = choices[0].get("finish_reason")
+                            if reason:
+                                finish_reason = reason
                     except json.JSONDecodeError:
                         continue
+
+                # 在流结束时，如果检测到 finish_reason，yield 一个特殊标记
+                if finish_reason:
+                    yield f"__FINISH_REASON__:{finish_reason}"
 
     @staticmethod
     def _is_glm_gateway(gateway_url: str) -> bool:

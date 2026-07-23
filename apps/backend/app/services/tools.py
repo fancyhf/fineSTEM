@@ -16,6 +16,14 @@ from typing import Any, Dict, List, Optional
 from app.core.time_utils import utc_now
 from app.repositories.runtime_db import db
 from app.services.pbl_engine import ARTIFACT_TO_BLOB_KEY, advance_with_gate, save_artifact
+# 2026-07-22 重构：门禁判定函数统一从 stage_constants 导入
+from app.services.stage_constants import (
+    STAGE_ORDER,
+    can_advance_to,
+    artifact_stage_gate,
+    is_code_allowed_stage,
+    stage_index,
+)
 
 
 class ToolResult:
@@ -159,16 +167,102 @@ class SkillStateReaderTool(BaseTool):
         return ToolResult(True, data=result)
 
 
+class AskQuestionTool(BaseTool):
+    """向学生提问结构化选择题（前端渲染成可点击的选项卡片）。
+
+    2026-07-20 新增：替代"从 AI 自由文本反解选项"的不可靠机制。
+    AI 要问学生选择题时，调用此工具，参数就是结构化 JSON（title/multiple/options）。
+    前端收到 tool_call 事件后直接拿 args 渲染成 QuestionCard，零文本解析。
+    """
+
+    name = "ask_question"
+    description = (
+        "向学生提问一道单选或多选题。前端会把问题渲染成可点击的选项卡片，"
+        "学生点选项即可回答（无需打字）。需要学生做选择时必须用此工具，"
+        "不要直接输出 markdown 编号列表或 <question> XML——那些前端无法可靠识别。"
+        "一次回复可以连续调用多次本工具，实现多张卡片（多问题）。"
+    )
+    parameters_schema = {
+        "type": "object",
+        "properties": {
+            "title": {
+                "type": "string",
+                "description": "问题标题，会显示在卡片顶部（如：你现在是哪个年级）",
+            },
+            "multiple": {
+                "type": "boolean",
+                "description": "是否多选。true=多选（学生可选多个），false=单选（默认）。不传视为 false。",
+            },
+            "step": {
+                "type": "integer",
+                "description": "当前是第几步（可选，用于进度显示，如分 3 轮提问时的轮次）",
+            },
+            "total_steps": {
+                "type": "integer",
+                "description": "总共几步（可选，配合 step 显示进度）",
+            },
+            "options": {
+                "type": "array",
+                "description": "选项列表（2-8 个）。每个选项是 {id, label, description}。",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "id": {
+                            "type": "string",
+                            "description": "选项唯一标识，用语义化短词（如 junior/senior/web/game/idea）",
+                        },
+                        "label": {
+                            "type": "string",
+                            "description": "选项的简短标签（≤15 字），会显示在按钮上，可带 emoji（如：初中、🎮 打游戏）",
+                        },
+                        "description": {
+                            "type": "string",
+                            "description": "选项的详细说明（可选，显示在 label 下方）",
+                        },
+                    },
+                    "required": ["id", "label"],
+                },
+                "minItems": 2,
+                "maxItems": 8,
+            },
+        },
+        "required": ["title", "options"],
+    }
+
+    async def execute(self, params: Dict[str, Any]) -> ToolResult:
+        # 这个工具只是"提问信号"，不需要做任何实际操作或落盘。
+        # 把 args 透传回 output，让前端在 tool_result 帧也能拿到结构化数据
+        # （与 achievement_card 的 data.message 模式一致）。
+        title = str(params.get("title") or "").strip()
+        options = params.get("options") or []
+        if not title:
+            return ToolResult(False, error="缺少必填参数 title")
+        if not isinstance(options, list) or len(options) < 2:
+            return ToolResult(False, error="options 至少需要 2 个选项")
+        return ToolResult(True, data={
+            "title": title,
+            "multiple": bool(params.get("multiple", False)),
+            "step": params.get("step"),
+            "total_steps": params.get("total_steps"),
+            "options": options,
+            "message": "已向学生提问",
+        })
+
+
 class SkillStateWriterTool(BaseTool):
-    """更新项目 SKILL_STATE"""
+    """更新项目 SKILL_STATE 元数据（白名单字段）"""
 
     name = "skill_state_writer"
-    description = "更新项目的 SKILL_STATE 状态机数据，包括阶段推进、工件状态变更、教学模式切换等"
+    description = (
+        "更新项目的 SKILL_STATE 元数据（如教学模式、论文模式、阶段历史）。"
+        "**禁止**用于推进阶段（必须用 stage_advancer）或写入工件内容（必须用 artifact_writer）——"
+        "这两个字段受白名单保护，本工具会拒绝写入。"
+    )
     parameters_schema = {
         "type": "object",
         "properties": {
             "project_id": {"type": "string", "description": "项目 ID（必填）"},
-            "updates": {"type": "object", "description": "要更新的字段键值对"},
+            "updates": {"type": "object", "description": "要更新的字段键值对（仅允许元数据字段）"},
             "history_entry": {
                 "type": "object",
                 "properties": {
@@ -182,11 +276,40 @@ class SkillStateWriterTool(BaseTool):
         "required": ["project_id", "updates"],
     }
 
+    # 2026-07-22 门禁修复：白名单机制。
+    # 原实现可写任意字段（含 current_stage / standard_step_data），是绕过 stage_advancer
+    # 和 artifact_writer 门禁的裸写入通道——AI 能直接把 current_stage 写成 stage_08_evaluate
+    # 同时工件为空，完全绕过 PBL 流程。现改为只允许写元数据类字段。
+    ALLOWED_FIELDS: set[str] = {
+        "metadata",             # 教学模式、论文模式等元数据
+        "stage_history",        # 阶段历史记录（只追加，不改现状）
+        "light_step_data",      # 轻项目步骤数据
+        "light_to_standard_mapping",  # 轻项目升级映射
+    }
+    # 这些字段被白名单拦截，必须走专用工具：
+    #   current_stage / stages → stage_advancer
+    #   standard_step_data     → artifact_writer
+
     async def execute(self, params: Dict[str, Any]) -> ToolResult:
         project_id = params.get("project_id")
         updates = params.get("updates")
         if not project_id or not updates:
             return ToolResult(False, error="缺少必填参数 project_id 或 updates")
+
+        # 字段白名单过滤：拦截受保护字段
+        blocked_fields = [k for k in updates.keys() if k not in self.ALLOWED_FIELDS]
+        if blocked_fields:
+            blocked_str = "、".join(blocked_fields)
+            return ToolResult(
+                False,
+                error=(
+                    f"skill_state_writer 拒绝写入受保护字段：{blocked_str}。"
+                    f"这些字段必须用专用工具：current_stage/stages → stage_advancer；"
+                    f"standard_step_data → artifact_writer。"
+                    f"本工具只允许更新元数据：{sorted(self.ALLOWED_FIELDS)}。"
+                ),
+                data={"blocked_fields": blocked_fields, "allowed_fields": sorted(self.ALLOWED_FIELDS)},
+            )
 
         history_entry = params.get("history_entry")
         if history_entry:
@@ -262,15 +385,47 @@ class StageAdvancerTool(BaseTool):
         light_step = getattr(state, "light_step", None)
 
         if target_stage:
-            order = self.STAGE_ORDER_LIGHT if mode == "light" else self.STAGE_ORDER_STANDARD
-            try:
-                current_idx = order.index(current_stage)
-                target_idx = order.index(target_stage)
-            except ValueError:
-                return ToolResult(False, error=f"无效的阶段标识: {target_stage}")
-            if target_idx <= current_idx:
-                return ToolResult(False, error="只能前进阶段，不能回退或停留在当前阶段")
-        else:
+            # 2026-07-22 门禁修复：原来指定 target_stage 时只校验索引、不跑门禁，
+            # AI 可以传 target_stage="stage_08_evaluate" 直接跳到终点绕过所有工件检查。
+            # 现在改为：
+            #   1. 必须是下一阶段（can_advance_to 限制，禁止跨阶段跳）
+            #   2. 先跑当前阶段的门禁（check_gate），通过才允许推进
+            from app.services.pbl_engine import check_gate
+            from app.services.stage_constants import LIGHT_STAGE_ORDER
+
+            if mode == "light":
+                # 轻项目模式：校验只能推到下一步
+                try:
+                    cur_idx = LIGHT_STAGE_ORDER.index(current_stage)
+                    tgt_idx = LIGHT_STAGE_ORDER.index(target_stage)
+                except ValueError:
+                    return ToolResult(False, error=f"无效的阶段标识: {target_stage}")
+                if tgt_idx != cur_idx + 1:
+                    return ToolResult(
+                        False,
+                        error=f"轻项目只能逐步推进：当前 {current_stage}，目标 {target_stage} 不合法（只能推到下一步）",
+                    )
+            else:
+                # 标准模式：用 can_advance_to 限制只能推到下一阶段
+                if not can_advance_to(current_stage, target_stage):
+                    return ToolResult(
+                        False,
+                        error=(
+                            f"门禁拦截：只能从 {current_stage} 推进到下一阶段，"
+                            f"不允许直接跳到 {target_stage}（禁止跨阶段跳跃）。"
+                            f"请按 stage_00 → stage_01 → ... → stage_08 顺序推进。"
+                        ),
+                    )
+                # 先跑当前阶段门禁
+                passed, missing = check_gate(current_stage, getattr(state, "standard_step_data", {}))
+                if not passed:
+                    return ToolResult(
+                        False,
+                        error="门禁检查未通过：当前阶段完成条件尚未满足",
+                        data={"missing_requirements": missing, "current_stage": current_stage},
+                    )
+            # target_stage 合法且门禁通过 → 继续走 standard 推进逻辑
+            # （下方 standard 分支会用 advance_with_gate 推进，这里不直接推进）
             if mode == "light" and light_step:
                 next_map = {1: 2, 2: 3}
                 next_light = next_map.get(int(light_step))
@@ -324,6 +479,16 @@ class StageAdvancerTool(BaseTool):
                     # 异步执行：不阻塞阶段推进响应；失败只 log，绝不影响主流程。
                     if result.get("just_completed"):
                         _trigger_auto_export(project_id)
+                    # 2026-07-22 Memory 增强：推进成功后自动存储阶段进度到 ZeroClaw memory
+                    try:
+                        from app.services.zeroclaw_memory import store_stage_history
+                        from app.services.stage_constants import STAGE_ORDER
+                        completed_stages = STAGE_ORDER[:STAGE_ORDER.index(new_stage)] if new_stage in STAGE_ORDER else [current_stage]
+                        store_stage_history(project_id, new_stage, completed_stages)
+                    except Exception as mem_exc:
+                        import logging as _log
+                        _log.getLogger(__name__).warning("memory_store_stage_history failed: %s", mem_exc)
+
                     return ToolResult(True, data={
                         "previous_stage": current_stage,
                         "current_stage": new_stage,
@@ -419,6 +584,14 @@ class ArtifactWriterTool(BaseTool):
         if not state:
             return ToolResult(False, error=f"未找到项目 {project_id}")
 
+        # 2026-07-22 阶段门禁：写入某工件时，当前阶段必须 >= 该工件所属阶段。
+        # 防止 AI 在 stage_01 脑爆阶段就写 stage_08 的 evaluate 工件（越权写后续工件）。
+        current_stage = getattr(state, "current_stage", "")
+        if current_stage and artifact_name in self.ARTIFACT_CONTAINER_MAP:
+            allowed, reason = artifact_stage_gate(artifact_name, current_stage)
+            if not allowed:
+                return ToolResult(False, error=f"阶段门禁拦截：{reason}")
+
         mapping = self.ARTIFACT_CONTAINER_MAP.get(artifact_name)
         if mapping:
             result = save_artifact(project_id, artifact_name, content, db)
@@ -438,7 +611,15 @@ class EvidenceSaverTool(BaseTool):
         "type": "object",
         "properties": {
             "project_id": {"type": "string", "description": "项目 ID（必填）"},
-            "type": {"type": "string", "enum": ["code", "dialogue_summary", "screenshot", "run_result"], "description": "证据类型（必填）"},
+            "type": {
+                "type": "string",
+                # 2026-07-22 修复：枚举与 schemas/evidence.py 的合法值对齐。
+                # 原来声明 [code, dialogue_summary, screenshot, run_result] 与
+                # Evidence.type 的 Literal[code_snapshot, text_log, ...] 交集只有 screenshot，
+                # 导致非 screenshot 的证据一落库就 pydantic 校验崩溃。
+                "enum": ["code_snapshot", "text_log", "screenshot", "file_upload", "dialogue_summary", "run_result", "code"],
+                "description": "证据类型（必填）。推荐用 code_snapshot/text_log/screenshot；dialogue_summary/run_result/code 会被自动映射",
+            },
             "title": {"type": "string", "description": "证据标题（必填）"},
             "content": {"type": "string", "description": "证据内容（必填）"},
             "stage": {"type": "string", "description": "关联阶段（可选）"},
@@ -446,16 +627,36 @@ class EvidenceSaverTool(BaseTool):
         "required": ["project_id", "type", "title", "content"],
     }
 
+    # AI 友好的类型名 → 合法 Evidence.type 的映射
+    TYPE_ALIAS_MAP: dict[str, str] = {
+        "code": "code_snapshot",
+        "code_snapshot": "code_snapshot",
+        "dialogue_summary": "auto_ai_summary",
+        "run_result": "text_log",
+        "text_log": "text_log",
+        "screenshot": "screenshot",
+        "file_upload": "file_upload",
+    }
+
     async def execute(self, params: Dict[str, Any]) -> ToolResult:
         from app.schemas.evidence import Evidence
 
         project_id = params.get("project_id")
-        ev_type = params.get("type")
+        ev_type_raw = params.get("type")
         title = params.get("title")
         content = params.get("content")
         stage = params.get("stage")
 
-        if not all([project_id, ev_type, title, content]):
+        # 2026-07-22 修复：把 AI 友好的类型名映射成 Evidence 模型的合法枚举值。
+        # 避免传 "code"/"dialogue_summary" 等导致 pydantic 校验崩溃。
+        ev_type = self.TYPE_ALIAS_MAP.get(ev_type_raw or "", ev_type_raw or "")
+        if ev_type not in {"code_snapshot", "video_record", "screenshot", "text_log", "file_upload", "auto_stage_change", "auto_ai_summary"}:
+            return ToolResult(
+                False,
+                error=f"无效的证据类型: {ev_type_raw}。合法值: code_snapshot, text_log, screenshot, file_upload, dialogue_summary, run_result",
+            )
+
+        if not all([project_id, ev_type_raw, title, content]):
             return ToolResult(False, error="缺少必填参数")
 
         project = db.get_project(project_id)
@@ -801,6 +1002,20 @@ class ProjectCreatorTool(BaseTool):
                 "或者用 Python + Streamlit 做数据分析工具",
             ])
 
+        # 2026-07-22 Memory 增强：创建项目后自动存储项目画像到 ZeroClaw memory
+        try:
+            from app.services.zeroclaw_memory import store_project_profile
+            store_project_profile(created.id, {
+                "project_name": created.name,
+                "mode": created.mode,
+                "description": description,
+                "current_stage": created.current_stage,
+                "created_at": utc_now().isoformat(),
+            })
+        except Exception as mem_exc:
+            import logging as _log
+            _log.getLogger(__name__).warning("memory_store_project_profile failed: %s", mem_exc)
+
         return ToolResult(True, data={
             "project_id": created.id,
             "name": created.name,
@@ -840,10 +1055,6 @@ class AchievementCardTool(BaseTool):
     }
 
     async def execute(self, params: Dict[str, Any]) -> ToolResult:
-        from app.db.models import AchievementCard
-        from app.schemas.achievements import AchievementCardCreate
-        from app.services.stage08_sync import build_stage08_payload, merge_stage08_into_standard_data
-
         project_id = params.get("project_id")
         title = params.get("title", "")
         one_liner = params.get("one_liner", "")
@@ -855,6 +1066,26 @@ class AchievementCardTool(BaseTool):
 
         if not all([project_id, title, one_liner, problem_solved, method_used, reflection]):
             return ToolResult(False, error="缺少必填参数：project_id / title / one_liner / problem_solved / method_used / reflection")
+
+        # 2026-07-22 阶段门禁：成果档案卡只能在 stage_08_evaluate（验收阶段）生成。
+        # 原实现无门禁，AI 可在 stage_00 就创建最终成果卡，违背 PBL 流程。
+        # 注意：门禁检查必须在延迟 import 之前，否则 import 失败会让门禁形同虚设。
+        skill_state = db.get_skill_state(project_id)
+        current_stage = getattr(skill_state, "current_stage", "") if skill_state else ""
+        if current_stage and current_stage != "stage_08_evaluate":
+            return ToolResult(
+                False,
+                error=(
+                    f"阶段门禁拦截：achievement_card 只能在 stage_08_evaluate（验收阶段）生成。"
+                    f"当前阶段是 {current_stage}。请先通过 stage_advancer 按门禁推进到验收阶段。"
+                ),
+                data={"current_stage": current_stage, "required_stage": "stage_08_evaluate"},
+            )
+
+        # 门禁通过后才延迟导入（避免循环依赖）
+        from app.db.models import AchievementCard
+        from app.schemas.achievements import AchievementCardCreate
+        from app.services.stage08_sync import build_stage08_payload, merge_stage08_into_standard_data
 
         # 检查是否已有该项目的档案卡，有则更新，无则创建
         existing_card = db.get_achievement_card_by_project(project_id)
@@ -936,8 +1167,173 @@ class AchievementCardTool(BaseTool):
         })
 
 
+
+
+class ProjectMemoryStoreTool(BaseTool):
+    """存储项目级记忆到 ZeroClaw memory（跨 session 持久化）"""
+
+    name = "project_memory_store"
+    description = (
+        "存储项目级记忆到 ZeroClaw 持久记忆库。"
+        "用于跨会话持久化学生画像、阶段进度等。"
+        "键格式: finestem:project:{project_id}:{key}。"
+        "值必须是 JSON 字符串。"
+    )
+    parameters_schema = {
+        "type": "object",
+        "properties": {
+            "project_id": {"type": "string", "description": "项目 ID（必填）"},
+            "key": {
+                "type": "string",
+                "description": "记忆键后缀（如 profile / stage_history）。完整键为 finestem:project:{project_id}:{key}",
+            },
+            "value": {"type": "string", "description": "记忆值（JSON 字符串，必填）"},
+            "category": {"type": "string", "description": "分类（默认 project）"},
+        },
+        "required": ["project_id", "key", "value"],
+    }
+
+    async def execute(self, params: Dict[str, Any]) -> ToolResult:
+        from app.services.zeroclaw_memory import store_memory, KEY_PREFIX
+
+        project_id = params.get("project_id")
+        key_suffix = params.get("key")
+        value = params.get("value")
+        category = params.get("category", "project")
+
+        if not all([project_id, key_suffix, value]):
+            return ToolResult(False, error="缺少必填参数 project_id / key / value")
+
+        full_key = f"{KEY_PREFIX}:project:{project_id}:{key_suffix}"
+        result = store_memory(full_key, value, category=category)
+
+        if result.get("success"):
+            return ToolResult(True, data={
+                "key": full_key,
+                "action": result.get("action", "stored"),
+                "message": f"已存储项目记忆: {key_suffix}",
+            })
+        return ToolResult(False, error=result.get("error", "存储失败"))
+
+
+class ProjectMemoryRecallTool(BaseTool):
+    """召回项目级记忆"""
+
+    name = "project_memory_recall"
+    description = (
+        "召回项目级记忆。可指定 key 精确召回，或用 query 关键词模糊搜索。"
+        "学生重新打开项目时自动召回 profile 和 stage_history。"
+    )
+    parameters_schema = {
+        "type": "object",
+        "properties": {
+            "project_id": {"type": "string", "description": "项目 ID（必填）"},
+            "key": {
+                "type": "string",
+                "description": "记忆键后缀（如 profile / stage_history）。指定时精确匹配。",
+            },
+            "query": {"type": "string", "description": "全文搜索关键词（key 未指定时使用）"},
+        },
+        "required": ["project_id"],
+    }
+
+    async def execute(self, params: Dict[str, Any]) -> ToolResult:
+        from app.services.zeroclaw_memory import recall_memory, KEY_PREFIX
+
+        project_id = params.get("project_id")
+        key_suffix = params.get("key")
+        query = params.get("query")
+
+        if not project_id:
+            return ToolResult(False, error="缺少必填参数 project_id")
+
+        if key_suffix:
+            full_key = f"{KEY_PREFIX}:project:{project_id}:{key_suffix}"
+            result = recall_memory(key=full_key)
+        elif query:
+            result = recall_memory(query=f"{KEY_PREFIX}:project:{project_id} {query}")
+        else:
+            # 默认召回该项目的所有记忆
+            result = recall_memory(query=f"{KEY_PREFIX}:project:{project_id}")
+
+        if result.get("success"):
+            memories = result.get("memories", [])
+            # 尝试解析 JSON 值
+            parsed_memories = []
+            for mem in memories:
+                try:
+                    parsed = json.loads(mem["content"])
+                    parsed_memories.append({"key": mem["key"], "data": parsed})
+                except (json.JSONDecodeError, KeyError):
+                    parsed_memories.append(mem)
+            return ToolResult(True, data={
+                "memories": parsed_memories,
+                "count": len(parsed_memories),
+                "message": f"找到 {len(parsed_memories)} 条记忆" if parsed_memories else "无记忆",
+            })
+        return ToolResult(False, error=result.get("error", "召回失败"))
+
+
+class SopStateSyncTool(BaseTool):
+    """同步 SOP 运行状态到 SKILL_STATE"""
+
+    name = "sop_state_sync"
+    description = (
+        "将 ZeroClaw SOP 运行状态同步到项目 SKILL_STATE。"
+        "当 SOP 推进到新步骤时，同步更新项目的 current_stage 和 metadata.sop_run_id。"
+    )
+    parameters_schema = {
+        "type": "object",
+        "properties": {
+            "project_id": {"type": "string", "description": "项目 ID（必填）"},
+            "sop_run_id": {"type": "string", "description": "SOP 运行 ID"},
+            "current_step": {"type": "string", "description": "当前 SOP 步骤"},
+            "step_status": {
+                "type": "string",
+                "enum": ["pending", "in_progress", "completed", "failed", "skipped"],
+                "description": "步骤状态",
+            },
+        },
+        "required": ["project_id", "current_step", "step_status"],
+    }
+
+    async def execute(self, params: Dict[str, Any]) -> ToolResult:
+        project_id = params.get("project_id")
+        sop_run_id = params.get("sop_run_id")
+        current_step = params.get("current_step")
+        step_status = params.get("step_status")
+
+        if not all([project_id, current_step, step_status]):
+            return ToolResult(False, error="缺少必填参数 project_id / current_step / step_status")
+
+        state = db.get_skill_state(project_id)
+        if not state:
+            return ToolResult(False, error=f"未找到项目 {project_id}")
+
+        # 更新 metadata 中的 SOP 状态
+        metadata_raw = getattr(state, "metadata", "{}")
+        metadata = json.loads(metadata_raw) if isinstance(metadata_raw, str) else metadata_raw
+        metadata["sop_run_id"] = sop_run_id
+        metadata["sop_current_step"] = current_step
+        metadata["sop_step_status"] = step_status
+        metadata["sop_last_sync"] = utc_now().isoformat()
+
+        updated = db.update_skill_state(project_id, {"metadata": metadata})
+        if not updated:
+            return ToolResult(False, error=f"更新失败：未找到项目 {project_id}")
+
+        return ToolResult(True, data={
+            "project_id": project_id,
+            "sop_run_id": sop_run_id,
+            "current_step": current_step,
+            "step_status": step_status,
+            "message": f"SOP 状态已同步: {current_step} ({step_status})",
+        })
+
+
 TOOL_REGISTRY: Dict[str, BaseTool] = {
     "skill_state_reader": SkillStateReaderTool(),
+    "ask_question": AskQuestionTool(),
     "skill_state_writer": SkillStateWriterTool(),
     "stage_advancer": StageAdvancerTool(),
     "artifact_reader": ArtifactReaderTool(),
@@ -948,6 +1344,9 @@ TOOL_REGISTRY: Dict[str, BaseTool] = {
     "resource_searcher": ResourceSearcherTool(),
     "project_creator": ProjectCreatorTool(),
     "achievement_card": AchievementCardTool(),
+    "project_memory_store": ProjectMemoryStoreTool(),
+    "project_memory_recall": ProjectMemoryRecallTool(),
+    "sop_state_sync": SopStateSyncTool(),
 }
 
 

@@ -1,11 +1,14 @@
-text = '''<question type="single" title="你目前在读？">'''
+#!/usr/bin/env python3
+import sys
+sys.path.insert(0, 'G:\\mediaProjects\\fineSTEM\\apps\\backend')
 
-markers = ["<question>", "【提问】", "[提问]", "::question::", "{{question}}"]
-result = any(m in text.lower() for m in markers)
-print(f'text: {text[:50]}')
-print(f'markers: {markers}')
-print(f'result: {result}')
+import app.services.orchestrator as o
 
-# 检查每个 marker
-for m in markers:
-    print(f'  "{m}" in text: {m in text.lower()}')
+text = "test"
+try:
+    result = o._contains_question_block(text)
+    print('Result:', result)
+except Exception as e:
+    print('Error:', type(e).__name__, e)
+    import traceback
+    traceback.print_exc()

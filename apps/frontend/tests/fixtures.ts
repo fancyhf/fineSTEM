@@ -17,10 +17,9 @@ const SYSTEM_CHROMIUM_CANDIDATES = [
 
 const systemChromiumExecutablePath = SYSTEM_CHROMIUM_CANDIDATES.find((candidate) => existsSync(candidate));
 
-const API_BASE = process.env.E2E_API_URL;
-if (!API_BASE) {
-  throw new Error('E2E_API_URL 环境变量未设置，请通过 E2E_API_URL=http://localhost:<PORT>/api/v1 指定后端地址');
-}
+// 2026-07-22 测试体系重构：E2E_API_URL 改为可选（默认 localhost:3200），
+// 避免不设环境变量时所有 spec 无法加载（原来直接 throw）。
+const API_BASE = process.env.E2E_API_URL || 'http://localhost:3200/api/v1';
 
 interface TestUser {
   email: string;

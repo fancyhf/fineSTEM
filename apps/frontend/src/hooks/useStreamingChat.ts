@@ -2,6 +2,79 @@ import { useCallback } from 'react';
 import { authStorage } from '../services/api';
 import { QuestionData } from '../components/QuestionCard';
 import { parseQuestionBlock, parseQuestionBlocks } from '../lib/questionParser';
+import { streamLogger } from '../lib/streamLogger';
+
+// ──────────────────────────────────────────────────────────────
+// ZeroClaw 工具名 / 输出归一化（2026-07-22 实证修复）
+//
+// 抓帧实证：ZeroClaw 推给前端的 tool_call / tool_result 帧里，工具名带
+// `finestem__` 前缀（如 `finestem__ask_question`），但前端所有判断都用
+// 无前缀的短名（`=== 'ask_question'`）→ 永远不匹配 → 选项卡不显示、
+// 阶段推进事件丢失。根因是 ZeroClaw 按 MCP server name 给工具加了前缀。
+//
+// 同时 tool_result.output 是 MCP 双层 JSON：
+//   "{ "content": [{ "type":"text", "text": "<内层JSON字符串>" }], "isError": false }"
+// 前端需要解析出内层 JSON 的 data 字段才能拿到工具真实返回值。
+// ──────────────────────────────────────────────────────────────
+
+const MCP_TOOL_PREFIX = 'finestem__';
+
+/** 把 `finestem__ask_question` 归一化成 `ask_question`；已是短名则原样返回。 */
+export function normalizeToolName(rawName: unknown): string {
+  const name = typeof rawName === 'string' ? rawName : '';
+  return name.startsWith(MCP_TOOL_PREFIX) ? name.slice(MCP_TOOL_PREFIX.length) : name;
+}
+
+/**
+ * 解析 MCP tool_result 的双层 JSON 输出。
+ *
+ * 实际帧结构（2026-07-22 抓帧实证）：
+ *   output = '{"content":[{"type":"text","text":"<内层JSON>"}],"isError":false}'
+ * 内层 JSON 是工具真实返回值（如 {"success":true,"data":{...}}）。
+ *
+ * 解析失败时原样返回（容错：有些工具输出可能是纯文本）。
+ */
+export function parseMcpOutput(rawOutput: unknown): { success: boolean; data: unknown } {
+  if (rawOutput == null) return { success: true, data: null };
+  // 已经是对象（理论上 ZeroClaw 不会这样，但容错）
+  if (typeof rawOutput === 'object') {
+    const obj = rawOutput as Record<string, any>;
+    // 尝试 MCP content[0].text 结构
+    if (Array.isArray(obj.content) && obj.content[0]?.text) {
+      return _extractInnerJson(obj.content[0].text, obj.isError);
+    }
+    return { success: obj.isError !== true, data: obj };
+  }
+  // 字符串：尝试解析成 MCP 外层 JSON
+  const str = String(rawOutput);
+  try {
+    const outer = JSON.parse(str);
+    if (outer && typeof outer === 'object') {
+      // MCP 标准结构
+      if (Array.isArray(outer.content) && outer.content[0]?.text) {
+        return _extractInnerJson(outer.content[0].text, outer.isError);
+      }
+      // 可能直接就是结果对象
+      return { success: outer.isError !== true, data: outer };
+    }
+  } catch {
+    // 不是 JSON，当纯文本
+  }
+  return { success: !/error|failed/i.test(str), data: str };
+}
+
+function _extractInnerJson(text: string, isError?: boolean): { success: boolean; data: unknown } {
+  try {
+    const inner = JSON.parse(text);
+    // 内层是 {success, data, error} 结构
+    if (inner && typeof inner === 'object' && ('success' in inner || 'data' in inner || 'error' in inner)) {
+      return { success: inner.success !== false && isError !== true, data: inner.data ?? inner };
+    }
+    return { success: isError !== true, data: inner };
+  } catch {
+    return { success: isError !== true, data: text };
+  }
+}
 
 interface StreamPayload {
   message: string;
@@ -36,7 +109,7 @@ export interface CodeGenerationFailedEvent {
 interface StreamEvents {
   onSkillActivated?: (data: { skill_id: string; skill_name: string; sub_skill_id?: string; sub_skill_name?: string }) => void;
   onProjectCreated?: (data: { project_id: string; project_name: string; current_stage?: string }) => void;
-  onToolCall?: (data: { tool_name: string; success: boolean; data?: unknown }) => void;
+  onToolCall?: (data: { tool_name: string; success: boolean; data?: unknown; phase: 'call' | 'result' }) => void;
   onStageChanged?: (data: { stage: string; stage_name: string }) => void;
   onQuestion?: (data: QuestionData) => void;
   /**
@@ -51,6 +124,12 @@ interface StreamEvents {
   onContentUpdate?: (content: string) => void;
   onEnd?: (content: string) => void;
   /**
+   * 思考链（推理过程）回调。ZeroClaw 通过 `thinking` 帧推送模型的推理内容，
+   * 不应混入正文（否则会让回复显得混乱）。调用方可以把它渲染到可折叠的
+   * "思考过程"区域。如果未注册此回调，思考内容会被静默忽略（保持旧行为）。
+   */
+  onThinking?: (chunk: string) => void;
+  /**
    * 代码提取门禁：返回 false 时，本 hook 不再从 LLM 文本兜底提取代码块（done 帧的 extractCodeEvent）。
    * 调用方（Create.tsx）用它实现 PBL 阶段门禁——选题/规划阶段不允许把 AI 举例的代码块写入编辑器。
    * 注意：只影响"从文本兜底提取"这条路径；project_code_writer 工具事件（onCodeGenerated 直发）
@@ -58,6 +137,21 @@ interface StreamEvents {
    * 默认（未传）视为允许，保持向后兼容。
    */
   shouldExtractCode?: () => boolean;
+  /**
+   * 自动续接状态回调（2026-07-21 新增）。
+   * 当 AI 输出被截断并触发自动续接时，通知 UI 显示续接状态。
+   */
+  onAutoContinue?: (data: { attempt: number; maxAttempts: number; status: 'started' | 'completed' | 'failed' }) => void;
+  /**
+   * SOP 流程启动回调（2026-07-22 SOP/Memory 集成新增）。
+   * 当 AI 调用 sop_execute 工具启动 SOP 流程时触发。
+   */
+  onSopStarted?: (runId: string) => void;
+  /**
+   * SOP 步骤状态更新回调（2026-07-22 SOP/Memory 集成新增）。
+   * 当 sop_state_sync 或 sop_status 工具更新 SOP 进度时触发。
+   */
+  onSopStatusUpdate?: (data: { currentStep: string; stepStatus: string }) => void;
 }
 
 function getAnonymousId(): string {
@@ -77,6 +171,22 @@ function buildMessageWithSkillHint(message: string, skillId?: string): string {
 }
 
 /**
+ * PBL 9 阶段顺序（与后端 stage_constants.STAGE_ORDER 对齐）。
+ * 用于计算 stage_progress（如 3/9）注入上下文。
+ */
+const PBL_STAGE_ORDER = [
+  'stage_00_bootstrap',
+  'stage_01_brainstorm',
+  'stage_02_brief',
+  'stage_03_constraints',
+  'stage_04_track_plan',
+  'stage_05_design',
+  'stage_06_step_plan',
+  'stage_07_execute',
+  'stage_08_evaluate',
+] as const;
+
+/**
  * 构造发给 ZeroClaw 的最终消息文本，注入项目上下文。
  *
  * 背景（2026-07-19 修复）：此前项目上下文靠 connect 帧的 cwd 字段
@@ -85,6 +195,9 @@ function buildMessageWithSkillHint(message: string, skillId?: string): string {
  *
  * 现在改为在每条用户消息前注入结构化上下文块，AI 读到即知当前项目。
  * 上下文用明确分隔符包裹，避免污染用户原意。
+ *
+ * 2026-07-22 SOP/Memory 集成增强：新增 mode / stage_progress / evidence_count
+ * 和 memory hint，帮助 AI 感知项目进度并触发记忆召回。
  */
 function buildOutgoingMessage(
   message: string,
@@ -100,7 +213,42 @@ function buildOutgoingMessage(
     if (context.project_name) ctxLines.push(`project_name: ${context.project_name}`);
     if (context.current_stage) ctxLines.push(`current_stage: ${context.current_stage}`);
     if (context.teaching_mode) ctxLines.push(`teaching_mode: ${context.teaching_mode}`);
+
+    // 2026-07-22 SOP/Memory：注入教学模式和阶段进度
+    const mode = context.mode as string | undefined;
+    if (mode) ctxLines.push(`mode: ${mode}`);
+
+    const currentStage = context.current_stage as string | undefined;
+    if (currentStage) {
+      const idx = PBL_STAGE_ORDER.indexOf(
+        currentStage as (typeof PBL_STAGE_ORDER)[number],
+      );
+      if (idx >= 0) {
+        ctxLines.push(`stage_progress: ${idx + 1}/9`);
+      }
+    }
+
+    const evidenceCount = context.evidence_count as number | undefined;
+    if (typeof evidenceCount === 'number' && evidenceCount > 0) {
+      ctxLines.push(`evidence_count: ${evidenceCount}`);
+    }
+
+    // 2026-07-23 Q-005 修复：注入已收集的学生信息（具体答案值），防止 AI 重复问
+    // 格式如 "年级 = 初中; 时间预算 = 6小时"
+    const studentProfile = context.student_profile as string[] | undefined;
+    if (Array.isArray(studentProfile) && studentProfile.length > 0) {
+      ctxLines.push(`student_profile: ${studentProfile.join('; ')}`);
+    }
+
     parts.push(`<context>\n${ctxLines.join('\n')}\n</context>`);
+
+    // memory hint：当项目已有进度时，提示 AI 召回历史记忆
+    if (currentStage && currentStage !== 'stage_00_bootstrap') {
+      parts.push(
+        `<memory_hint>该项目已有历史进度（${currentStage}）。` +
+          `如果是新会话，请先调用 project_memory_recall 查询项目历史记忆。</memory_hint>`,
+      );
+    }
   }
 
   // skill 标识（保留原有机制）
@@ -171,6 +319,69 @@ function stripQuestionXml(text: string): { clean: string; hasQuestion: boolean }
   return { clean: cleaned, hasQuestion };
 }
 
+// 2026-07-20 智能截断检测：检测内容是否看起来不完整
+function _detectIncompleteContent(text: string): boolean {
+  if (!text || text.length < 10) return false;
+  
+  const trimmed = text.trim();
+  
+  // 1. 以未闭合的代码块结尾（奇数个 ```）
+  const codeBlockMatches = trimmed.match(/```/g);
+  if (codeBlockMatches && codeBlockMatches.length % 2 === 1) {
+    return true;
+  }
+  
+  // 2. 以未闭合的 XML/HTML 标签结尾
+  const openTags = trimmed.match(/<([a-zA-Z][a-zA-Z0-9]*)[^>]*>/g);
+  const closeTags = trimmed.match(/<\/[a-zA-Z][a-zA-Z0-9]*>/g);
+  if (openTags && closeTags && openTags.length > closeTags.length) {
+    // 检查最后是否有未闭合标签
+    const lastOpenMatch = trimmed.match(/<([a-zA-Z][a-zA-Z0-9]*)[^>]*>[^<]*$/);
+    if (lastOpenMatch) {
+      const tagName = lastOpenMatch[1];
+      const closePattern = new RegExp(`</${tagName}>`);
+      if (!closePattern.test(trimmed)) {
+        return true;
+      }
+    }
+  }
+  
+  // 3. 以编程语言名称结尾（可能想输出代码块但被截断）
+  const langPattern = /(python|javascript|typescript|html|css|java|c\+\+|go|rust|php|ruby|swift|kotlin)\s*$/i;
+  if (langPattern.test(trimmed)) {
+    return true;
+  }
+  
+  // 4. 以列表项开头但未完成（如 "1. "、"- "、"* " 结尾）
+  const lines = trimmed.split('\n');
+  const lastLine = lines[lines.length - 1].trim();
+  if (/^(\d+\.\s*[-*]\s*)$/.test(lastLine)) {
+    return true;
+  }
+  
+  // 5. 以问句结尾但太短（可能是被截断的引导）
+  if (/[？?]\s*$/.test(trimmed) && trimmed.length < 100) {
+    // 检查是否是完整的问句（有上下文）
+    const sentences = trimmed.split(/[。！？.!?]/);
+    if (sentences.length <= 2) {
+      return true;
+    }
+  }
+  
+  // 6. 以 "接下来"、"首先"、"第一步" 等引导词结尾
+  const guidePatterns = /(接下来|首先|第一步|然后|接着|最后|总之|综上所述|综上所述)\s*$/i;
+  if (guidePatterns.test(trimmed)) {
+    return true;
+  }
+  
+  // 7. 以冒号或破折号结尾（可能想列举但被截断）
+  if (/[：:—–-]\s*$/.test(trimmed)) {
+    return true;
+  }
+  
+  return false;
+}
+
 
 // 从 LLM 文本中提取可执行代码块 → 触发 onCodeGenerated
 function extractCodeEvent(text: string, projectId?: string): CodeGeneratedEvent | null {
@@ -227,6 +438,13 @@ function guessFilename(lang: string): string {
 //       chunk / thinking / tool_call / tool_result / done / aborted /
 //       approval_request / history_trimmed / plan / error
 // -----------------------------------------------------------------------------
+
+// 自动续接配置
+const AUTO_CONTINUE_CONFIG = {
+  maxAttempts: 2,           // 最多尝试续接次数
+  enableAutoContinue: true, // 是否启用自动续接
+};
+
 export function useStreamingChat() {
   const stream = useCallback(async (
     payload: StreamPayload,
@@ -237,42 +455,90 @@ export function useStreamingChat() {
     const agent = getZcAgentAlias();
     const baseUrl = getZeroClawWsBaseUrl();
     const sessionId = payload.sessionId || `finestem-${Date.now()}`;
-    const wsUrl = `${baseUrl}/ws/chat?token=${encodeURIComponent(token)}&agent=${encodeURIComponent(agent)}&session_id=${encodeURIComponent(sessionId)}`;
-    const ws = new WebSocket(wsUrl);
+    
+    // 启动日志会话
+    streamLogger.startSession(sessionId, payload.projectId);
 
-    await new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => {
+    // 执行带自动续接的流式对话
+    return await _doStreamWithAutoContinue(
+      payload,
+      onToken,
+      events,
+      token,
+      agent,
+      baseUrl,
+      sessionId,
+      0,  // 续接尝试次数
+      ''  // 累积的内容
+    );
+  }, []);
+
+  return { stream };
+}
+
+// 内部函数：执行流式对话，支持自动续接
+//
+// 关键修复（2026-07-21）：续接时必须复用同一个 ZeroClaw session_id。
+// 原实现在续接时把 sessionId 改成 `sessionId_c1`，新会话没有任何对话历史，
+// ZeroClaw 不知道"上面的输出"是什么，续接请求就变成一个没有上文的孤立问题，
+// 要么答非所问，要么再次被截断 → 表现为"自动续接/继续按钮没用"。
+// 正确做法：保持 session_id 不变，让 ZeroClaw 在同一会话内继续，AI 自然
+// 能看到前一轮自己的输出并从截断处接续。
+async function _doStreamWithAutoContinue(
+  payload: StreamPayload,
+  onToken: (token: string) => void,
+  events: StreamEvents | undefined,
+  token: string,
+  agent: string,
+  baseUrl: string,
+  sessionId: string,
+  continueAttempt: number,
+  accumulatedContent: string
+): Promise<StreamResult> {
+  // 复用原始 session_id：ZeroClaw 会保留同一会话的历史，续接才有效
+  const wsUrl = `${baseUrl}/ws/chat?token=${encodeURIComponent(token)}&agent=${encodeURIComponent(agent)}&session_id=${encodeURIComponent(sessionId)}`;
+  const ws = new WebSocket(wsUrl);
+
+  await new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      ws.close();
+      reject(new Error('WebSocket 连接超时'));
+    }, 10000);
+
+    ws.onopen = () => {
+      clearTimeout(timeout);
+      resolve();
+    };
+    ws.onerror = () => {
+      clearTimeout(timeout);
+      // R8 修复：daemon 单点防护。给学生友好提示，给开发者技术信息。
+      const err = new Error('AI 服务暂时不可用，请稍后重试。如果问题持续，请检查网络连接。') as Error & { isDaemonDown?: boolean };
+      err.isDaemonDown = true;
+      console.error('[useStreamingChat] WebSocket 连接失败 — ZeroClaw daemon 可能未运行。检查 127.0.0.1:42617/health');
+      reject(err);
+    };
+  });
+
+  return await new Promise<StreamResult>((resolve, reject) => {
+    let fullContent = accumulatedContent;  // 从累积内容开始
+    let sessionContent = '';               // 本次会话的新内容
+    let connectedOk = false;
+    let codeEventFired = false;
+    let questionFired = false;  // ask_question 工具路径已渲染卡片时设 true，防止 done 帧重复渲染
+    let receivedSessionStart = false;
+    let finishReason: string | null = null;
+
+    const totalTimeout = setTimeout(() => {
+      ws.close();
+      reject(new Error('AI 响应超时，请稍后重试'));
+    }, 120000);
+
+    const handshakeTimeout = setTimeout(() => {
+      if (!connectedOk) {
         ws.close();
-        reject(new Error('WebSocket 连接超时'));
-      }, 10000);
-
-      ws.onopen = () => {
-        clearTimeout(timeout);
-        resolve();
-      };
-      ws.onerror = () => {
-        clearTimeout(timeout);
-        reject(new Error('WebSocket 连接失败 — 检查 ZeroClaw daemon 是否运行在 127.0.0.1:42617'));
-      };
-    });
-
-    return await new Promise<StreamResult>((resolve, reject) => {
-      let fullContent = '';
-      let connectedOk = false;
-      let codeEventFired = false;
-      let receivedSessionStart = false;
-
-      const totalTimeout = setTimeout(() => {
-        ws.close();
-        reject(new Error('AI 响应超时，请稍后重试'));
-      }, 120000);
-
-      const handshakeTimeout = setTimeout(() => {
-        if (!connectedOk) {
-          ws.close();
-          reject(new Error('ZeroClaw 握手失败：等不到 connected 帧'));
-        }
-      }, 8000);
+        reject(new Error('ZeroClaw 握手失败：等不到 connected 帧'));
+      }
+    }, 8000);
 
       ws.onmessage = async (event) => {
         let data: Record<string, any>;
@@ -318,22 +584,62 @@ export function useStreamingChat() {
         // 业务事件
         if (type === 'chunk' && typeof data.content === 'string') {
           fullContent += data.content;
+          sessionContent += data.content;  // 记录本次会话的新内容
+          streamLogger.logToken(data.content, {
+            rawAssistantContentLength: fullContent.length,
+            sessionContentLength: sessionContent.length,
+            continueAttempt,
+          });
           onToken(data.content);
           return;
         }
 
         if (type === 'thinking' && typeof data.content === 'string') {
-          // 推理过程暂作为流式 token 输出，可后续改为可折叠展示
+          // 思考链（推理过程）。原来直接 return 导致内容被丢弃，用户看不到。
+          // 现在通过专门回调 onThinking 透传给上层，由 Create.tsx 决定如何渲染
+          // （可折叠的"思考过程"区域）。不混入正文，避免污染最终回复。
+          streamLogger.log('thinking', { length: data.content.length });
+          try { events?.onThinking?.(data.content as string); } catch (e) { console.error('[useStreamingChat] onThinking failed', e); }
           return;
         }
 
         if (type === 'tool_call') {
           try {
+            // 2026-07-22 实证修复：ZeroClaw 工具名带 finestem__ 前缀，
+            // 必须归一化成短名（ask_question / project_creator 等）才能匹配后续判断。
+            const toolName = normalizeToolName(data.name);
             events?.onToolCall?.({
-              tool_name: data.name as string,
+              tool_name: toolName,
               success: true,
               data: data.args,
+              phase: 'call',
             });
+            // ask_question 工具：AI 通过工具调用表达结构化提问。
+            // 实证：args 含 title/options/step/total_steps，结构完整可直接渲染。
+            if (toolName === 'ask_question' && data.args) {
+              const args = data.args as Record<string, any>;
+              const questionData: QuestionData = {
+                id: `tool-${data.id || Date.now()}`,
+                title: args.title || '请选择',
+                multiple: args.multiple === true,
+                step: args.step,
+                totalSteps: args.total_steps,
+                options: (args.options || []).map((opt: any, idx: number) => ({
+                  id: opt.id || `opt-${idx}`,
+                  label: opt.label || opt.id || `选项 ${idx + 1}`,
+                  description: opt.description,
+                })),
+              };
+              if (questionData.options.length > 0) {
+                console.info('[useStreamingChat] ask_question 工具调用，渲染卡片:', questionData.title);
+                questionFired = true;  // 标记已通过工具路径渲染，防止 done 帧重复
+                if (events?.onQuestions) {
+                  events.onQuestions([questionData]);
+                } else if (events?.onQuestion) {
+                  events.onQuestion(questionData);
+                }
+              }
+            }
           } catch (e) {
             console.error('[useStreamingChat] onToolCall failed', e);
           }
@@ -342,15 +648,22 @@ export function useStreamingChat() {
 
         if (type === 'tool_result') {
           try {
-            const success = !/error|failed/i.test(String(data.output || ''));
+            // 2026-07-22 实证修复：工具名归一化 + MCP 双层 output 解析。
+            // 实际 output 是 '{"content":[{"text":"<内层JSON>"}],"isError":false}'，
+            // 需要解析出内层 JSON 的 data 才是工具真实返回值。
+            const toolName = normalizeToolName(data.name);
+            const parsed = parseMcpOutput(data.output);
+            const success = parsed.success;
+            const outData = parsed.data;
             events?.onToolCall?.({
-              tool_name: data.name as string,
+              tool_name: toolName,
               success,
-              data: data.output,
+              data: outData,
+              phase: 'result',
             });
-            // 命名为 project_creator / project_code_writer 的工具产出对应 PBL 事件
-            if (data.name === 'project_creator' && success && data.output) {
-              const out = data.output as Record<string, any>;
+            // project_creator：创建项目后拿 project_id / current_stage
+            if (toolName === 'project_creator' && success && outData) {
+              const out = outData as Record<string, any>;
               events?.onProjectCreated?.({
                 project_id: out.project_id || out.id || '',
                 project_name: out.name || out.project_name || '新项目',
@@ -363,8 +676,9 @@ export function useStreamingChat() {
                 });
               }
             }
-            if (data.name === 'project_code_writer' && success && data.output) {
-              const out = data.output as Record<string, any>;
+            // project_code_writer：代码写入工作区
+            if (toolName === 'project_code_writer' && success && outData) {
+              const out = outData as Record<string, any>;
               codeEventFired = true;
               events?.onCodeGenerated?.({
                 project_id: out.project_id || payload.projectId,
@@ -376,12 +690,48 @@ export function useStreamingChat() {
                 source: 'tool',
               });
             }
-            if (data.name === 'stage_advancer' && success && data.output) {
-              const out = data.output as Record<string, any>;
+            // stage_advancer：阶段推进
+            if (toolName === 'stage_advancer' && success && outData) {
+              const out = outData as Record<string, any>;
               const stage = out.new_stage || out.current_stage || '';
               if (stage) {
                 events?.onStageChanged?.({ stage, stage_name: stage });
               }
+            }
+            // 2026-07-22 SOP/Memory 集成：5 种新工具结果处理
+            // project_memory_store：记忆存储结果（主要用于日志，不需 UI 反馈）
+            if (toolName === 'project_memory_store' && success && outData) {
+              const out = outData as Record<string, any>;
+              console.info('[useStreamingChat] memory stored:', out.key, out.action);
+            }
+            // project_memory_recall：记忆召回结果
+            if (toolName === 'project_memory_recall' && success && outData) {
+              const out = outData as Record<string, any>;
+              console.info('[useStreamingChat] memory recalled:', out.count, 'entries');
+            }
+            // sop_state_sync：SOP 状态同步到项目
+            if (toolName === 'sop_state_sync' && success && outData) {
+              const out = outData as Record<string, any>;
+              events?.onSopStatusUpdate?.({
+                currentStep: out.current_step || '',
+                stepStatus: out.step_status || '',
+              });
+            }
+            // sop_execute：SOP 流程启动
+            if (toolName === 'sop_execute' && success && outData) {
+              const out = outData as Record<string, any>;
+              const runId = out.run_id || out.sop_run_id || '';
+              if (runId) {
+                events?.onSopStarted?.(runId);
+              }
+            }
+            // sop_status：SOP 状态查询结果
+            if (toolName === 'sop_status' && success && outData) {
+              const out = outData as Record<string, any>;
+              events?.onSopStatusUpdate?.({
+                currentStep: out.current_step || out.step || '',
+                stepStatus: out.step_status || out.status || '',
+              });
             }
           } catch (e) {
             console.error('[useStreamingChat] onToolCall result mapping failed', e);
@@ -392,27 +742,122 @@ export function useStreamingChat() {
         if (type === 'done') {
           clearTimeout(totalTimeout);
           let content = typeof data.full_response === 'string' ? data.full_response : fullContent;
+          sessionContent = content.substring(accumulatedContent.length); // 本次新内容
+
+          // 2026-07-20 智能截断检测
+          const finishReason = data.finish_reason || data.finishReason;
+          const isLengthTruncated = finishReason === 'length';
+          const isContentIncomplete = _detectIncompleteContent(content);
+          const shouldSuggestContinue = isLengthTruncated || isContentIncomplete;
+
           // === 诊断日志（2026-07-19）：帮助定位"AI 没输出 XML 时为什么没卡片"===
           console.info('[useStreamingChat][done] AI 原始回复长度:', content?.length || 0);
-          console.info('[useStreamingChat][done] AI 原始回复全文:', content);
+          console.info('[useStreamingChat][done] finish_reason:', finishReason);
+          console.info('[useStreamingChat][done] 是否截断:', shouldSuggestContinue);
           console.info('[useStreamingChat][done] 是否含 <question> 标签:', /<question/i.test(content || ''));
-          // 解析 <question> XML → 优先用多卡回调 onQuestions，同时兼容单卡 onQuestion
-          try {
-            const questions = parseQuestionBlocks(content);
-            console.info('[useStreamingChat][done] parseQuestionBlocks 解析出', questions.length, '张卡片');
-            if (questions.length > 0) {
-              if (events?.onQuestions) {
-                events.onQuestions(questions);
-              } else if (events?.onQuestion) {
-                // 向后兼容：没注册 onQuestions 时，只传第一个
-                events.onQuestion(questions[0]);
-              }
+
+          // 记录到详细日志
+          streamLogger.log('done', {
+            fullContentLength: fullContent.length,
+            finishReason,
+            isLengthTruncated,
+            isContentIncomplete,
+            shouldSuggestContinue,
+            hasQuestionTag: /<question/i.test(content || ''),
+            continueAttempt,
+          });
+
+          // ========== 自动续接逻辑 ==========
+          if (shouldSuggestContinue && 
+              AUTO_CONTINUE_CONFIG.enableAutoContinue && 
+              continueAttempt < AUTO_CONTINUE_CONFIG.maxAttempts) {
+            console.info(`[useStreamingChat] 检测到截断，自动续接 (尝试 ${continueAttempt + 1}/${AUTO_CONTINUE_CONFIG.maxAttempts})`);
+            streamLogger.log('auto_continue_triggered', {
+              attempt: continueAttempt + 1,
+              maxAttempts: AUTO_CONTINUE_CONFIG.maxAttempts,
+              reason: isLengthTruncated ? 'length' : 'incomplete_content',
+              contentLength: content.length,
+            });
+            
+            // 通知 UI 续接开始
+            try { events?.onAutoContinue?.({ attempt: continueAttempt + 1, maxAttempts: AUTO_CONTINUE_CONFIG.maxAttempts, status: 'started' }); } catch (e) { console.error(e); }
+            
+            ws.close();
+
+            // 构建续接消息：只发简短接续指令。
+            // ZeroClaw 复用同一 session，它内部保留了上一轮 AI 的完整输出，
+            // 所以这里不需要把上一轮内容塞进 messages（那样反而会重复）。
+            // accumulatedContent 通过参数继续传递给下一轮，用于累计字符和截断检测。
+            const continuePayload: StreamPayload = {
+              ...payload,
+              message: '请继续完成上一条回复，从被截断处接着输出，不要重复已输出的内容，保持格式一致，确保代码块和标签正确闭合。',
+              messages: undefined,
+              sessionId, // 显式复用同一 session
+            };
+
+            // 递归调用进行续接
+            try {
+              const result = await _doStreamWithAutoContinue(
+                continuePayload,
+                onToken,
+                events,
+                token,
+                agent,
+                baseUrl,
+                sessionId,
+                continueAttempt + 1,
+                content  // 传递累积的内容
+              );
+              // 通知 UI 续接完成
+              try { events?.onAutoContinue?.({ attempt: continueAttempt + 1, maxAttempts: AUTO_CONTINUE_CONFIG.maxAttempts, status: 'completed' }); } catch (e) { console.error(e); }
+              resolve(result);
+              return;
+            } catch (e) {
+              console.error('[useStreamingChat] 自动续接失败:', e);
+              // 通知 UI 续接失败
+              try { events?.onAutoContinue?.({ attempt: continueAttempt + 1, maxAttempts: AUTO_CONTINUE_CONFIG.maxAttempts, status: 'failed' }); } catch (e) { console.error(e); }
+              // 续接失败，返回当前内容（继续执行后续代码）
             }
-          } catch (e) {
-            console.error('[useStreamingChat] parseQuestionBlocks failed', e);
+          }
+          
+          // 如果检测到截断但无法自动续接（达到最大尝试次数或禁用），在 content 中标记
+          if (shouldSuggestContinue && content) {
+            content = content + '\n\n[输出可能不完整，如需继续请说"继续"]'
+          }
+          
+          // 解析问题卡片——只信任两条路径：
+          // 1. ask_question tool_call 帧（主路径，在 tool_call 分支已处理，questionFired=true）
+          // 2. <question> XML（旧格式兼容，parseQuestionBlocks）
+          //
+          // ⚠️ 不再使用 markdown fallback（parseQuestionsFromText）！
+          // 原因（Q-003）：markdown fallback 会把 AI 的总结/状态汇报（如"1.选题完成 2.开题中"）
+          // 误解析成选项卡，导致用户看到错误的卡片。误识别比偶尔丢卡更严重。
+          // AI 应该通过 ask_question 工具表达选项，而非文字列表/表格。
+          let hasRenderedQuestion = questionFired;
+          if (!questionFired) {
+            try {
+              const questions = parseQuestionBlocks(content);
+              console.info('[useStreamingChat][done] parseQuestionBlocks(XML) 解析出', questions.length, '张卡片');
+              if (questions.length > 0) {
+                hasRenderedQuestion = true;
+                if (events?.onQuestions) {
+                  events.onQuestions(questions);
+                } else if (events?.onQuestion) {
+                  events.onQuestion(questions[0]);
+                }
+              }
+            } catch (e) {
+              console.error('[useStreamingChat] parseQuestionBlocks failed', e);
+            }
+          } else {
+            console.info('[useStreamingChat][done] ask_question 已通过工具路径渲染，跳过文本解析');
           }
           // 剥离 XML 块 → 用户看到的内容
           const { clean } = stripQuestionXml(content);
+          streamLogger.logContentUpdate(clean, 'stripQuestionXml', {
+            rawAssistantContentLength: content.length,
+            assistantContentLength: clean.length,
+          });
           if (clean !== content) {
             content = clean;
             try { events?.onContentUpdate?.(clean); } catch (e) { console.error(e); }
@@ -431,6 +876,14 @@ export function useStreamingChat() {
             console.info('[useStreamingChat] shouldExtractCode=false，跳过 done 帧文本代码兜底提取');
           }
           try { events?.onEnd?.(content); } catch (e) { console.error('[useStreamingChat] onEnd failed', e); }
+
+          // 记录结束事件并导出日志
+          streamLogger.logEnd(content, {
+            rawAssistantContentLength: fullContent.length,
+            assistantContentLength: content.length,
+            continueAttempts: continueAttempt,
+          });
+
           ws.close();
           resolve({ content, sessionId });
           return;
@@ -445,6 +898,7 @@ export function useStreamingChat() {
 
         if (type === 'error') {
           clearTimeout(totalTimeout);
+          streamLogger.logError(data.message || 'ZeroClaw 错误', 'websocket_error');
           ws.close();
           reject(new Error(typeof data.message === 'string' ? data.message : 'ZeroClaw 错误'));
           return;
@@ -477,7 +931,4 @@ export function useStreamingChat() {
         reject(new Error('ZeroClaw WebSocket 错误'));
       };
     });
-  }, []);
-
-  return { stream };
-}
+  }

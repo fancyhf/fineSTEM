@@ -18,46 +18,20 @@ from pathlib import Path
 from typing import Any
 
 from app.core.config import settings
+# 2026-07-22 重构：阶段常量统一从 stage_constants 导入（单一事实来源），
+# 消除原先散落在 tools.py / pbl_engine.py / orchestrator.py / project_repo.py / memory.py
+# 五处的重复定义。本模块保留 ARTIFACT_FOR_STAGE / ARTIFACT_TO_BLOB_KEY /
+# ARTIFACT_TO_FILENAME 作为向后兼容的再导出（其他模块仍 from pbl_engine import 它们）。
+from app.services.stage_constants import (
+    ARTIFACT_FOR_STAGE,
+    ARTIFACT_TO_BLOB_KEY,
+    ARTIFACT_TO_FILENAME,
+    ARTIFACT_TO_STAGE,
+    STAGE_ORDER,
+    stage_index,
+)
 
 logger = logging.getLogger(__name__)
-
-# ── 阶段 -> 工件 映射 ──────────────────────────────────────────
-# 用于知道每个阶段该产出哪个工件；None 表示该阶段无工件要求。
-ARTIFACT_FOR_STAGE: dict[str, str | None] = {
-    "stage_00_bootstrap": None,
-    "stage_01_brainstorm": "brainstorm",
-    "stage_02_brief": "project_brief",
-    "stage_03_constraints": "constraints",
-    "stage_04_track": "track_plan",
-    "stage_05_design": "design",
-    "stage_06_step_plan": "step_plan",
-    "stage_07_execute": "dev_log",
-    "stage_08_evaluate": "evaluate",
-}
-
-# ── 工件 -> standard_step_data blob key 映射 ───────────────────
-ARTIFACT_TO_BLOB_KEY: dict[str, str] = {
-    "brainstorm": "brainstorm_content",
-    "project_brief": "brief_content",
-    "constraints": "constraints_content",
-    "track_plan": "track_plan_content",
-    "design": "design_content",
-    "step_plan": "step_plan_content",
-    "dev_log": "dev_log_content",
-    "evaluate": "evaluate_content",
-}
-
-# ── 工件 -> 落盘文件名 映射 ─────────────────────────────────────
-ARTIFACT_TO_FILENAME: dict[str, str] = {
-    "brainstorm": "00_brainstorm.md",
-    "project_brief": "01_project_brief.md",
-    "constraints": "02_constraints.md",
-    "track_plan": "03_track_plan.md",
-    "design": "04_design.md",
-    "step_plan": "05_step_plan.md",
-    "dev_log": "06_dev_log.md",
-    "evaluate": "07_evaluation.md",
-}
 
 
 def _slugify(name: str) -> str:
@@ -84,9 +58,15 @@ def check_gate(stage: str, standard_step_data: Any) -> tuple[bool, list[str]]:
     """
     检查阶段门禁。
 
-    门禁规则：工件存在且非空（不做内容结构解析）。
-    - stage_00_bootstrap 始终通过（初始化阶段）。
-    - 其他阶段：检查对应工件的 blob key 是否存在且非空。
+    门禁规则（2026-07-22 强化）：
+    1. stage_00_bootstrap 始终通过（初始化阶段）。
+    2. 其他阶段：先检查对应工件 blob key 是否存在且非空（快速失败）。
+    3. 非空后，尝试用 Pydantic 阶段数据模型做结构校验，发现缺失字段则返回精确 missing 清单。
+       - 结构校验失败不直接拦截（兼容 markdown 形式工件、存量数据），但会把缺失项加入 missing 提示。
+       - 只有"工件完全为空"才硬拦截。
+
+    设计取舍：不强制要求工件必须是合法 JSON，因为脑爆记录、开发日志等是 markdown 文本，
+    不是结构化数据。结构校验只对"看起来像 JSON 的工件"生效，作为精确诊断辅助。
 
     参数:
         stage: 阶段标识，如 "stage_01_brainstorm"。
@@ -106,11 +86,92 @@ def check_gate(stage: str, standard_step_data: Any) -> tuple[bool, list[str]]:
 
     data = _ensure_dict(standard_step_data)
     content = data.get(blob_key)
-    if content and isinstance(content, str) and content.strip():
-        return True, []
+    # 第 1 道门：工件必须存在且非空（硬门禁）
+    if not content or not (isinstance(content, str) and content.strip()):
+        missing_desc = f"{artifact_name}（字段 {blob_key} 为空或缺失）"
+        return False, [missing_desc]
 
-    missing_desc = f"{artifact_name}（字段 {blob_key} 为空或缺失）"
-    return False, [missing_desc]
+    # 第 2 道门：结构校验（软门禁，只产出诊断信息，不拦截非 JSON 工件）
+    # 对 markdown 类工件（brainstorm/dev_log）跳过；对 JSON 类工件尝试解析校验。
+    structural_missing = _structural_check(stage, artifact_name, content)
+    # 结构缺失不阻断推进（避免老项目全卡死），但会体现在 missing 里供 AI 参考
+    return True, structural_missing
+
+
+def _structural_check(stage: str, artifact_name: str, content: str) -> list[str]:
+    """
+    对 JSON 类工件做结构校验，返回缺失字段清单（不抛异常，不阻断）。
+
+    - markdown 类工件（brainstorm/dev_log）：不做结构校验，返回空。
+    - JSON 类工件：尝试解析 + Pydantic 校验，失败则记录具体缺失项。
+    - 任何异常都吞掉只返回空 list（结构校验是"辅助诊断"，不是"硬门禁"）。
+    """
+    import logging
+    _log = logging.getLogger(__name__)
+
+    # markdown 类工件不校验结构
+    if artifact_name in ("brainstorm", "dev_log"):
+        return []
+
+    # 尝试把 content 解析成 dict（工件可能是 JSON 字符串，也可能是 markdown 里嵌 JSON）
+    try:
+        if isinstance(content, str):
+            stripped = content.strip()
+            # 简单判定：看起来像 JSON 才解析
+            if not (stripped.startswith("{") or stripped.startswith("[")):
+                return []
+            parsed = json.loads(stripped)
+        else:
+            parsed = content
+        if not isinstance(parsed, dict):
+            return []
+    except (json.JSONDecodeError, TypeError):
+        # 内容不是合法 JSON，跳过结构校验（可能 AI 用 markdown 写了）
+        return []
+
+    # 按阶段做关键字段检查（与 schemas/projects.py 的 Stage0XData 对齐）
+    # 这里用手动检查而非 Pydantic 实例化，避免模型字段变更时这里静默失效。
+    stage_required_fields: dict[str, list[tuple[str, str]]] = {
+        # stage: [(字段名, 人类可读描述), ...]
+        "stage_02_brief": [
+            ("title", "项目标题"),
+            ("success_criteria", "成功标准（≥2 条）"),
+            ("risks", "风险清单（≥2 条）"),
+        ],
+        "stage_03_constraints": [
+            ("must_have", "必须做的功能（≤3 条）"),
+            ("wont_do", "不做的功能（≥2 条）"),
+        ],
+        "stage_04_track": [
+            ("track", "技术轨道（web/game_dev/ai_ml/data_viz/creative_coding）"),
+            ("tech_stack", "技术栈"),
+        ],
+        "stage_05_design": [
+            ("acceptance_criteria", "验收用例（≥3 条）"),
+        ],
+        "stage_06_step_plan": [
+            ("steps", "分步计划（每步含 run/check/rollback）"),
+        ],
+        "stage_08_evaluate": [
+            ("acceptance_results", "验收结果（≥2 项）"),
+            ("reflections", "反思（≥2 条）"),
+        ],
+    }
+    required = stage_required_fields.get(stage, [])
+    missing: list[str] = []
+    for field, desc in required:
+        value = parsed.get(field)
+        # 判定"缺失"：None、空字符串、空列表、空 dict 都算
+        is_empty = (
+            value is None
+            or (isinstance(value, str) and not value.strip())
+            or (isinstance(value, (list, dict)) and len(value) == 0)
+        )
+        if is_empty:
+            missing.append(f"{artifact_name}.{field}（{desc}）")
+    if missing:
+        _log.info("structural_check_missing stage=%s missing=%s", stage, missing)
+    return missing
 
 
 def advance_with_gate(project_id: str, db) -> dict:

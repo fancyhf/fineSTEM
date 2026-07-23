@@ -1,4 +1,23 @@
 """
+⚠️ DEPRECATED — 本文件不在主链路上（2026-07-22 架构审计确认）
+
+当前 AI 主链路：前端 useStreamingChat.ts 直连 ZeroClaw WebSocket（ws://127.0.0.1:42617/ws/chat），
+ZeroClaw 通过 MCP 调用后端 tools.py 的 12 个 PBL 工具。本文件（orchestrator.py）实现的
+FastAPI 编排路径（/api/v1/agent/ws）没有前端调用方。
+
+保留原因：作为 ZeroClaw 不可用时的潜在 FastAPI 回退路径。但当前不做维护——
+其内部的 STAGE_ORDER 等常量已与 stage_constants.py 漂移，门禁检查（如 _execute_tool
+对 artifact_writer 的 path 检查）是死代码（取 params["path"] 但真实字段是 artifact_name）。
+
+如果要重新启用本文件，必须：
+1. 把内部所有 STAGE_ORDER / CODE_ALLOWED_STAGES 等改为从 stage_constants.py 导入
+2. 修复 _execute_tool 的 artifact_writer 门禁字段名（path → artifact_name）
+3. 更新 stream_chat_with_events 的截断续接逻辑（已迁至前端 useStreamingChat.ts）
+
+参见：.trae/documents/技术与架构/ZeroClaw集成重构_v1.0.0.md
+
+---
+
 Agent 编排服务（v2：Tool Calling + Skill 路由）
 
 用途：协调 LLM Tool Calling 与 Skill 路由，驱动 PBL 研学流程
@@ -1041,13 +1060,23 @@ class AgentOrchestratorService:
                     "stream": True,
                 }
                 try:
+                    stream_finish_reason = None
                     async for token in self.provider.stream_complete(payload, gateway_url=gateway):
+                        # 检测 finish_reason 标记
+                        if token.startswith("__FINISH_REASON__:"):
+                            stream_finish_reason = token.split(":", 1)[1]
+                            logger.info("stream_finish_reason_detected reason=%s", stream_finish_reason)
+                            continue
                         full_content += token
                         yield ("token", {"token": token})
                         streamed = True
                     # 记录成功使用的网关和模型
                     active_gateway = gateway
                     active_model = model_name
+                    # 如果检测到 length 截断，标记为截断
+                    if stream_finish_reason == "length":
+                        logger.warning("stream_truncated_by_length finish_reason=%s", stream_finish_reason)
+                        is_truncated = True
                     break
                 except (httpx.HTTPError, RuntimeError):
                     continue
@@ -1061,7 +1090,9 @@ class AgentOrchestratorService:
 # ========== 检测输出是否被截断并自动续接 ==========
             # 问题：AI 输出经常在代码块中间、句子中间被截断，导致用户需要不断输入"继续"
             # 解决方案：检测截断特征（未闭合的代码块、不完整的语句），自动请求 AI 继续完成
-            is_truncated = False
+            # 注意：is_truncated 可能在流处理时已经被设置为 True（当 finish_reason == "length"）
+            if 'is_truncated' not in locals():
+                is_truncated = False
 
             # 在检测前先记录当前状态
             if full_content:
@@ -1087,13 +1118,7 @@ class AgentOrchestratorService:
 
                 # 使用记录的网关和模型创建新的 payload
                 if active_gateway and active_model:
-                    continue_payload = {
-                        "model": active_model,
-                        "messages": messages,
-                        "stream": True,
-                    }
-
-                    # 添加续接提示到消息列表
+                    # 添加续接提示到消息列表 - 使用副本避免修改原始 messages
                     continue_prompt = """请继续完成上面的输出。你的回复在中间被截断了。
 
 续接规则：
@@ -1102,29 +1127,50 @@ class AgentOrchestratorService:
 3. **确保完整性**：确保代码块正确闭合（```），语句完整
 4. **不要添加**"好的，我继续"之类的过渡语，直接输出内容"""
 
-                    messages.append({"role": "user", "content": continue_prompt})
+                    # 创建消息副本用于续接对话
+                    continue_messages = messages.copy()
+                    continue_messages.append({"role": "assistant", "content": full_content})
+                    continue_messages.append({"role": "user", "content": continue_prompt})
+
+                    continue_payload = {
+                        "model": active_model,
+                        "messages": continue_messages,
+                        "stream": True,
+                    }
 
                     # 最多尝试续接 2 次
                     max_continue_attempts = 2
                     for attempt in range(max_continue_attempts):
                         continued_content = ""
+                        continue_finish_reason = None
                         try:
                             async for token in self.provider.stream_complete(continue_payload, gateway_url=active_gateway):
+                                # 检测 finish_reason 标记
+                                if token.startswith("__FINISH_REASON__:"):
+                                    continue_finish_reason = token.split(":", 1)[1]
+                                    continue
                                 continued_content += token
                                 yield ("token", {"token": token})
                                 full_content += token
                                 streamed = True
 
                             # 检查续接后是否仍然截断
-                            if not self._is_output_truncated(full_content):
+                            still_truncated = self._is_output_truncated(full_content)
+                            # 如果续接仍然因为 length 截断，继续尝试
+                            if continue_finish_reason == "length":
+                                still_truncated = True
+                                logger.warning("auto_continue_still_length_truncated attempt=%d", attempt + 1)
+
+                            if not still_truncated:
                                 logger.info("auto_continue_success attempt=%d total_length=%d", attempt + 1, len(full_content))
                                 break
                             else:
                                 logger.warning("auto_continue_still_truncated attempt=%d will_retry", attempt + 1)
-                                messages.append({"role": "assistant", "content": continued_content})
-                                messages.append({"role": "user", "content": "请继续完成，确保输出完整。"})
+                                # 添加续接的对话到消息列表用于下一次尝试
+                                continue_messages.append({"role": "assistant", "content": continued_content})
+                                continue_messages.append({"role": "user", "content": "请继续完成，确保输出完整。"})
                                 # 更新 payload 以包含新的消息
-                                continue_payload["messages"] = messages.copy()
+                                continue_payload["messages"] = continue_messages.copy()
                         except (httpx.HTTPError, RuntimeError) as e:
                             logger.error("auto_continue_failed attempt=%d error=%s", attempt + 1, str(e))
                             break
@@ -1158,10 +1204,18 @@ class AgentOrchestratorService:
                         "stream": True,
                     }
                     try:
+                        force_continue_finish_reason = None
                         async for token in self.provider.stream_complete(continue_payload, gateway_url=active_gateway):
+                            # 检测 finish_reason 标记
+                            if token.startswith("__FINISH_REASON__:"):
+                                force_continue_finish_reason = token.split(":", 1)[1]
+                                continue
                             yield ("token", {"token": token})
                             full_content += token
-                        logger.info("force_continue_success total_length=%d", len(full_content))
+                        if force_continue_finish_reason == "length":
+                            logger.warning("force_continue_still_truncated finish_reason=length")
+                        else:
+                            logger.info("force_continue_success total_length=%d", len(full_content))
                     except (httpx.HTTPError, RuntimeError) as e:
                         logger.error("force_continue_failed error=%s", str(e))
 

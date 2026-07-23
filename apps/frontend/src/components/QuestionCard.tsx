@@ -53,6 +53,10 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
   const visibleGroups = data.optionGroups?.filter((group) => group.optionIds.length > 0) ?? [];
   const hasGroupedOptions = visibleGroups.length > 1;
   const isMultiple = data.requireEachGroup || hasGroupedOptions || (data.multiple ?? false);
+  // debug: 确认 multiple 传递链路（Q-006 排查）
+  if (data.multiple && !isMultiple) {
+    console.error('[QuestionCard] multiple=true 但 isMultiple=false!', { data_multiple: data.multiple, isMultiple, requireEachGroup: data.requireEachGroup, hasGroupedOptions });
+  }
   const missingRequiredGroups = data.requireEachGroup
     ? visibleGroups.filter((group) => !group.optionIds.some((optionId) => selectedIds.includes(optionId)))
     : [];
@@ -80,7 +84,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
     .filter(Boolean);
 
   return (
-    <div className="my-3 rounded-xl border border-teal-200 bg-gradient-to-br from-white to-teal-50/30 overflow-hidden shadow-sm">
+    <div data-testid="question-card" className="my-3 rounded-xl border border-teal-200 bg-gradient-to-br from-white to-teal-50/30 overflow-hidden shadow-sm">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-2.5 bg-teal-50/80 border-b border-teal-100">
         <div className="flex items-center gap-2">
@@ -89,6 +93,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
         </div>
         {onDismiss && (
           <button
+            data-testid="question-dismiss"
             onClick={onDismiss}
             className="p-0.5 hover:bg-teal-100 rounded text-gray-400 hover:text-gray-600 transition-colors"
           >
@@ -102,7 +107,14 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
         {data.subtitle && (
           <p className="text-[11px] text-gray-400 mb-1.5">{data.subtitle}</p>
         )}
-        <p className="text-sm text-gray-800 leading-relaxed mb-3">{data.title}</p>
+        <p className="text-sm text-gray-800 leading-relaxed mb-3">
+          {data.title}
+          {isMultiple && (
+            <span className="ml-2 px-1.5 py-0.5 text-[10px] font-normal bg-blue-50 text-blue-600 rounded border border-blue-200 align-middle">
+              可多选
+            </span>
+          )}
+        </p>
 
         {/* Options */}
         <div className="space-y-2">
@@ -124,6 +136,8 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
             return (
               <button
                 key={option.id}
+                data-testid="question-option"
+                data-option-id={option.id}
                 onClick={() => toggleOption(option.id)}
                 className={`w-full text-left px-3 py-2.5 rounded-lg border transition-all group ${
                   isSelected
@@ -132,14 +146,18 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
                 }`}
               >
                 <div className="flex items-start gap-2.5">
-                  {/* Radio / Checkbox */}
-                  <div className={`mt-0.5 flex-shrink-0 w-4 h-4 rounded-full border-2 flex items-center justify-center transition-colors ${
+                  {/* Radio（单选=圆点） / Checkbox（多选=方框+勾） */}
+                  <div className={`mt-0.5 flex-shrink-0 w-4 h-4 border-2 flex items-center justify-center transition-colors ${
+                    isMultiple ? 'rounded' : 'rounded-full'
+                  } ${
                     isSelected
                       ? 'border-teal-500 bg-teal-500'
                       : 'border-gray-300 group-hover:border-gray-400'
                   }`}>
                     {isSelected && (
-                      <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                      isMultiple
+                        ? <svg className="w-2.5 h-2.5 text-white" viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                        : <div className="w-1.5 h-1.5 rounded-full bg-white" />
                     )}
                   </div>
                   <div className="flex-1 min-w-0">

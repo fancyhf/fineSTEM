@@ -12,6 +12,7 @@ export function ContinueButton({ onContinue, isLoading, visible }: ContinueButto
 
   return (
     <button
+      data-testid="continue-button"
       onClick={onContinue}
       disabled={isLoading}
       className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg text-sm font-medium transition-colors"

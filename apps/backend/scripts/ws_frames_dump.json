@@ -1,0 +1,507 @@
+[
+  {
+    "t_ms": 119,
+    "frame": {
+      "message_count": 0,
+      "resumed": false,
+      "session_id": "finestem-capture-1784727370",
+      "type": "session_start"
+    }
+  },
+  {
+    "t_ms": 121,
+    "frame": {
+      "message": "Connection established",
+      "type": "connected"
+    }
+  },
+  {
+    "t_ms": 2960,
+    "frame": {
+      "content": "好的",
+      "type": "chunk"
+    }
+  },
+  {
+    "t_ms": 2971,
+    "frame": {
+      "content": "！",
+      "type": "chunk"
+    }
+  },
+  {
+    "t_ms": 2998,
+    "frame": {
+      "content": "让我",
+      "type": "chunk"
+    }
+  },
+  {
+    "t_ms": 2998,
+    "frame": {
+      "content": "先",
+      "type": "chunk"
+    }
+  },
+  {
+    "t_ms": 3025,
+    "frame": {
+      "content": "了解",
+      "type": "chunk"
+    }
+  },
+  {
+    "t_ms": 3025,
+    "frame": {
+      "content": "你的",
+      "type": "chunk"
+    }
+  },
+  {
+    "t_ms": 3048,
+    "frame": {
+      "content": "基础",
+      "type": "chunk"
+    }
+  },
+  {
+    "t_ms": 3048,
+    "frame": {
+      "content": "情况",
+      "type": "chunk"
+    }
+  },
+  {
+    "t_ms": 3077,
+    "frame": {
+      "content": "，",
+      "type": "chunk"
+    }
+  },
+  {
+    "t_ms": 3077,
+    "frame": {
+      "content": "我们",
+      "type": "chunk"
+    }
+  },
+  {
+    "t_ms": 3099,
+    "frame": {
+      "content": "开始",
+      "type": "chunk"
+    }
+  },
+  {
+    "t_ms": 3100,
+    "frame": {
+      "content": "吧",
+      "type": "chunk"
+    }
+  },
+  {
+    "t_ms": 3152,
+    "frame": {
+      "content": " 🦀",
+      "type": "chunk"
+    }
+  },
+  {
+    "t_ms": 3152,
+    "frame": {
+      "content": "\n\n",
+      "type": "chunk"
+    }
+  },
+  {
+    "t_ms": 3152,
+    "frame": {
+      "content": "让我",
+      "type": "chunk"
+    }
+  },
+  {
+    "t_ms": 3182,
+    "frame": {
+      "content": "先",
+      "type": "chunk"
+    }
+  },
+  {
+    "t_ms": 3182,
+    "frame": {
+      "content": "读取",
+      "type": "chunk"
+    }
+  },
+  {
+    "t_ms": 3206,
+    "frame": {
+      "content": "一下",
+      "type": "chunk"
+    }
+  },
+  {
+    "t_ms": 3206,
+    "frame": {
+      "content": "记忆",
+      "type": "chunk"
+    }
+  },
+  {
+    "t_ms": 3235,
+    "frame": {
+      "content": "，",
+      "type": "chunk"
+    }
+  },
+  {
+    "t_ms": 3235,
+    "frame": {
+      "content": "了解",
+      "type": "chunk"
+    }
+  },
+  {
+    "t_ms": 3258,
+    "frame": {
+      "content": "你的",
+      "type": "chunk"
+    }
+  },
+  {
+    "t_ms": 3283,
+    "frame": {
+      "content": "背景",
+      "type": "chunk"
+    }
+  },
+  {
+    "t_ms": 3283,
+    "frame": {
+      "content": "。",
+      "type": "chunk"
+    }
+  },
+  {
+    "t_ms": 3543,
+    "frame": {
+      "args": {
+        "query": "fineSTEM project"
+      },
+      "id": "call_00_wPR5m4jwlwXLepffrZGX7226",
+      "name": "memory_recall",
+      "type": "tool_call"
+    }
+  },
+  {
+    "t_ms": 3554,
+    "frame": {
+      "id": "call_00_wPR5m4jwlwXLepffrZGX7226",
+      "name": "memory_recall",
+      "output": "No memories found.",
+      "type": "tool_result"
+    }
+  },
+  {
+    "t_ms": 4355,
+    "frame": {
+      "content": "看起来",
+      "type": "chunk"
+    }
+  },
+  {
+    "t_ms": 4526,
+    "frame": {
+      "content": "我们是",
+      "type": "chunk"
+    }
+  },
+  {
+    "t_ms": 4552,
+    "frame": {
+      "content": "第一次",
+      "type": "chunk"
+    }
+  },
+  {
+    "t_ms": 4552,
+    "frame": {
+      "content": "见面",
+      "type": "chunk"
+    }
+  },
+  {
+    "t_ms": 4579,
+    "frame": {
+      "content": "！",
+      "type": "chunk"
+    }
+  },
+  {
+    "t_ms": 4579,
+    "frame": {
+      "content": "让我",
+      "type": "chunk"
+    }
+  },
+  {
+    "t_ms": 4612,
+    "frame": {
+      "content": "先",
+      "type": "chunk"
+    }
+  },
+  {
+    "t_ms": 4612,
+    "frame": {
+      "content": "问问",
+      "type": "chunk"
+    }
+  },
+  {
+    "t_ms": 4636,
+    "frame": {
+      "content": "你的",
+      "type": "chunk"
+    }
+  },
+  {
+    "t_ms": 4636,
+    "frame": {
+      "content": "基本情况",
+      "type": "chunk"
+    }
+  },
+  {
+    "t_ms": 4661,
+    "frame": {
+      "content": "，",
+      "type": "chunk"
+    }
+  },
+  {
+    "t_ms": 4661,
+    "frame": {
+      "content": "一步一步",
+      "type": "chunk"
+    }
+  },
+  {
+    "t_ms": 4689,
+    "frame": {
+      "content": "来",
+      "type": "chunk"
+    }
+  },
+  {
+    "t_ms": 4689,
+    "frame": {
+      "content": "～\n\n",
+      "type": "chunk"
+    }
+  },
+  {
+    "t_ms": 4689,
+    "frame": {
+      "content": "**",
+      "type": "chunk"
+    }
+  },
+  {
+    "t_ms": 4737,
+    "frame": {
+      "content": "第",
+      "type": "chunk"
+    }
+  },
+  {
+    "t_ms": 4737,
+    "frame": {
+      "content": " ",
+      "type": "chunk"
+    }
+  },
+  {
+    "t_ms": 4737,
+    "frame": {
+      "content": "1",
+      "type": "chunk"
+    }
+  },
+  {
+    "t_ms": 4745,
+    "frame": {
+      "content": " ",
+      "type": "chunk"
+    }
+  },
+  {
+    "t_ms": 4745,
+    "frame": {
+      "content": "步",
+      "type": "chunk"
+    }
+  },
+  {
+    "t_ms": 4745,
+    "frame": {
+      "content": "：",
+      "type": "chunk"
+    }
+  },
+  {
+    "t_ms": 4773,
+    "frame": {
+      "content": "年级",
+      "type": "chunk"
+    }
+  },
+  {
+    "t_ms": 4773,
+    "frame": {
+      "content": "情况",
+      "type": "chunk"
+    }
+  },
+  {
+    "t_ms": 4800,
+    "frame": {
+      "content": "**",
+      "type": "chunk"
+    }
+  },
+  {
+    "t_ms": 5691,
+    "frame": {
+      "args": {
+        "options": [
+          {
+            "description": "刚接触编程，想从基础开始",
+            "id": "junior",
+            "label": "初中（7-9年级）"
+          },
+          {
+            "description": "有一定基础，想做更有挑战的项目",
+            "id": "senior",
+            "label": "高中（10-12年级）"
+          }
+        ],
+        "step": 1,
+        "title": "你现在是哪个年级？",
+        "total_steps": 3
+      },
+      "id": "call_00_GbQgj0HisrQ8X66pMbb84904",
+      "name": "finestem__ask_question",
+      "type": "tool_call"
+    }
+  },
+  {
+    "t_ms": 5697,
+    "frame": {
+      "id": "call_00_GbQgj0HisrQ8X66pMbb84904",
+      "name": "finestem__ask_question",
+      "output": "{\n  \"content\": [\n    {\n      \"text\": \"{\\\"success\\\": true, \\\"data\\\": {\\\"title\\\": \\\"你现在是哪个年级？\\\", \\\"multiple\\\": false, \\\"step\\\": 1, \\\"total_steps\\\": 3, \\\"options\\\": [{\\\"description\\\": \\\"刚接触编程，想从基础开始\\\", \\\"id\\\": \\\"junior\\\", \\\"label\\\": \\\"初中（7-9年级）\\\"}, {\\\"description\\\": \\\"有一定基础，想做更有挑战的项目\\\", \\\"id\\\": \\\"senior\\\", \\\"label\\\": \\\"高中（10-12年级）\\\"}], \\\"message\\\": \\\"已向学生提问\\\"}}\",\n      \"type\": \"text\"\n    }\n  ],\n  \"isError\": false\n}",
+      "type": "tool_result"
+    }
+  },
+  {
+    "t_ms": 6364,
+    "frame": {
+      "content": "点",
+      "type": "chunk"
+    }
+  },
+  {
+    "t_ms": 6480,
+    "frame": {
+      "content": "一下",
+      "type": "chunk"
+    }
+  },
+  {
+    "t_ms": 6510,
+    "frame": {
+      "content": "上面的",
+      "type": "chunk"
+    }
+  },
+  {
+    "t_ms": 6510,
+    "frame": {
+      "content": "卡片",
+      "type": "chunk"
+    }
+  },
+  {
+    "t_ms": 6532,
+    "frame": {
+      "content": "告诉我",
+      "type": "chunk"
+    }
+  },
+  {
+    "t_ms": 6563,
+    "frame": {
+      "content": "你的",
+      "type": "chunk"
+    }
+  },
+  {
+    "t_ms": 6563,
+    "frame": {
+      "content": "年级",
+      "type": "chunk"
+    }
+  },
+  {
+    "t_ms": 6600,
+    "frame": {
+      "content": "，",
+      "type": "chunk"
+    }
+  },
+  {
+    "t_ms": 6621,
+    "frame": {
+      "content": "我们",
+      "type": "chunk"
+    }
+  },
+  {
+    "t_ms": 6621,
+    "frame": {
+      "content": "继续",
+      "type": "chunk"
+    }
+  },
+  {
+    "t_ms": 6661,
+    "frame": {
+      "content": "！",
+      "type": "chunk"
+    }
+  },
+  {
+    "t_ms": 6702,
+    "frame": {
+      "content": "😊",
+      "type": "chunk"
+    }
+  },
+  {
+    "t_ms": 6738,
+    "frame": {
+      "cost_usd": 0.0,
+      "full_response": "点一下上面的卡片告诉我你的年级，我们继续！😊",
+      "input_tokens": 75273,
+      "last_input_tokens": 25349,
+      "max_context_tokens": 32000,
+      "model": "deepseek-chat",
+      "output_tokens": 274,
+      "provider": "deepseek",
+      "tokens_used": 75547,
+      "type": "done"
+    }
+  }
+]

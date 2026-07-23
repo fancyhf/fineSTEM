@@ -60,9 +60,14 @@ class Stage03ConstraintsData(BaseModel):
 class Stage04TrackData(BaseModel):
     """
     Stage 04: 轨道选择阶段数据
+
+    2026-07-22 对齐：track 枚举从原来的 web/kaggle/hardware 扩展到实际 5 轨道
+    （与 stem-pbl-guide skill 的 track_library.md 一致）。tech_stack 允许 dict 或 str，
+    兼容 AI 输出的多种格式。
     """
-    template_id: Literal['web', 'kaggle', 'hardware'] = Field(default='web', description="技术轨道")
-    tech_stack: Optional[str] = Field(None, description="技术栈")
+    track: Literal['web', 'web_app', 'game_dev', 'ai_ml', 'data_viz', 'creative_coding', 'kaggle', 'hardware'] = Field(default='web', description="技术轨道")
+    tech_stack: Optional[Any] = Field(None, description="技术栈（字符串或 {frontend,backend,tools} 结构）")
+    rationale: Optional[str] = Field(None, description="选择理由")
     resource_check: Optional[Dict[str, bool]] = Field(default_factory=dict, description="资源检查")
 
 
