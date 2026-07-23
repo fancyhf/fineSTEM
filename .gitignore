@@ -60,14 +60,22 @@ apps/backend/runtime/
 apps/backend/projects/[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]-*/
 apps/frontend/tests/test-results/
 
-# Test artifacts
-.trae/documents/testing/
+# Test artifacts - generated outputs (should NOT be tracked)
+.trae/documents/testing/e2e_multicard/screenshots/
+.trae/documents/testing/e2e_multicard/e2e_results.json
+.trae/documents/testing/log/
 *.trace.zip
 test-failed-*.png
 error-context.md
 test-results/
 apps/frontend/eslint-report-*.json
 apps/frontend/eslint-summary-*.txt
+
+# Test artifacts - documentation (SHOULD be tracked)
+# .trae/documents/testing/pbl-conversation-flow/ - keep test plans and reports
+# .trae/documents/testing/qa-handoff/ - keep QA handoff docs
+# .trae/documents/testing/reports/ - keep test reports
+# .trae/documents/testing/*.md - keep test plans, guides, and instructions
 
 # Bug reports and screenshots
 bug/
