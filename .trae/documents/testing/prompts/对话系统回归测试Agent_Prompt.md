@@ -17,7 +17,7 @@
 ## 必读
 
 1. `.trae/documents/问题清单_长期维护.md` — 10 个问题的详细描述和测试要求
-2. `.trae/documents/testing/对话系统回归测试计划_v1.0.0.md` — 完整测试计划（25 个用例）
+2. `.trae/documents/testing/plans/对话系统回归测试计划_v1.0.0.md` — 完整测试计划（25 个用例）
 
 ## 执行步骤
 

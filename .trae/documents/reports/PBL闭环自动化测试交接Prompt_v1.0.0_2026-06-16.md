@@ -34,7 +34,7 @@ stage_00    01         02        03         04        05         06        07   
 
 ### 1.3 已有的证据
 
-- `scripts/run_create_smoke.py`（最新版，smoke 脚本），已有 5 个前端 E2E spec + 2 个后端测试文件，最后一次干净终端运行盖章通过（`overall_passed: true`）。见 `.trae/documents/testing/create-smoke-summary_20260616_135129.json`。
+- `scripts/run_create_smoke.py`（最新版，smoke 脚本），已有 5 个前端 E2E spec + 2 个后端测试文件，最后一次干净终端运行盖章通过（`overall_passed: true`）。见 `.trae/documents/testing/logs/2026-06-16/create-smoke-summary_20260616_135129.json`。
 - 教学模式（guided/demo/hands_on/lecture）的前端切换+后端提示词注入 已工作。
 - 项目创建、代码保存/恢复、聊天保存/恢复 基本链路存在。
 

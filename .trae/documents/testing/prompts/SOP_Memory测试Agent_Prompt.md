@@ -53,7 +53,7 @@ H:\dev-env\zeroclaw\bin\zeroclaw.exe sop list
 
 ## 必读
 
-1. `.trae/documents/testing/SOP_Memory专项测试计划_v1.0.0.md`（v1.1.0 版本，76 用例）
+1. `.trae/documents/testing/plans/SOP_Memory专项测试计划_v1.0.0.md`（v1.1.0 版本，76 用例）
 2. `.trae/documents/testing/测试工作指南_v1.0.0.md` — 测试规范
 
 ---

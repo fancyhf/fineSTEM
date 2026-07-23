@@ -13,7 +13,7 @@
 ## 第一步：读背景文档（必读，按顺序）
 
 1. `G:/mediaProjects/fineSTEM/.trae/documents/testing/测试工作指南_v1.0.0.md` —— 测试规范（职责边界、日志/报告格式、禁止事项）。**特别注意第 12 节红线：你不能改产品代码。**
-2. `G:/mediaProjects/fineSTEM/.trae/documents/testing/ZeroClaw重构专项测试计划_v1.0.0.md` —— 本次测试的用例清单（你要执行的就是这个）
+2. `G:/mediaProjects/fineSTEM/.trae/documents/testing/plans/ZeroClaw重构专项测试计划_v1.0.0.md` —— 本次测试的用例清单（你要执行的就是这个）
 3. `G:/mediaProjects/fineSTEM/.trae/documents/技术与架构/ZeroClaw集成重构_v1.0.0.md` —— 被测系统的改动说明（诊断问题时参考）
 
 读完再动手。如果文档里提到的路径/命令对不上，先记录到报告的"环境异常"里，不要自己猜。

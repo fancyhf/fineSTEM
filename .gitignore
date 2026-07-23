@@ -63,10 +63,8 @@ apps/frontend/tests/test-results/
 # Test artifacts - generated outputs (should NOT be tracked)
 .trae/documents/testing/e2e_multicard/screenshots/
 .trae/documents/testing/e2e_multicard/e2e_results.json
+.trae/documents/testing/logs/
 .trae/documents/testing/log/
-.trae/documents/testing/create-smoke-summary_*.json
-.trae/documents/testing/report_local_*.html
-.trae/documents/testing/round*_summary.json
 *.trace.zip
 test-failed-*.png
 error-context.md

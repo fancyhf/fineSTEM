@@ -295,8 +295,8 @@
 | 后端单元测试 | `apps/backend/tests/test_pbl_dialogue_flow.py` |
 | 前端 E2E 测试 | `apps/frontend/tests/specs/pbl-question-card-full-test.spec.ts` |
 | 前端 E2E 测试 | `apps/frontend/tests/specs/pbl-stage-progression.spec.ts` |
-| 测试用例文档 | `.trae/documents/testing/PBL_AI对话流测试用例文档_v1.0.0_2026-07-20_180539.md` |
-| 测试观察指南 | `.trae/documents/testing/PBL_AI对话流测试观察指南_v1.0.0_2026-07-20_180539.md` |
+| 测试用例文档 | `.trae/documents/testing/pbl-conversation-flow/PBL_AI对话流测试用例文档_v1.0.0_2026-07-20_180539.md` |
+| 测试观察指南 | `.trae/documents/testing/pbl-conversation-flow/PBL_AI对话流测试观察指南_v1.0.0_2026-07-20_180539.md` |
 | 测试执行脚本 | `apps/frontend/tests/run-pbl-tests.ps1` |
 
 ### 6.2 相关代码文件

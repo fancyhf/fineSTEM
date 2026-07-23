@@ -90,5 +90,5 @@
 
 ## 产物
 
-- JSON 摘要（机读）：[round1_summary.json](file:///g:/mediaProjects/fineSTEM/.trae/documents/testing/round1_summary.json)
-- 本报告（人读）：[round1_report.md](file:///g:/mediaProjects/fineSTEM/.trae/documents/testing/round1_report.md)
+- JSON 摘要（机读）：[logs/2026-06-30/round1_summary.json](file:///g:/mediaProjects/fineSTEM/.trae/documents/testing/logs/2026-06-30/round1_summary.json)
+- 本报告（人读）：[reports/round1_report.md](file:///g:/mediaProjects/fineSTEM/.trae/documents/testing/reports/round1_report.md)
