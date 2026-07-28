@@ -1,12 +1,13 @@
 # testing/ — 测试计划、报告与 QA 交接
 
-version: v1.0.1
+version: v1.0.2
 created_at: 2026-07-23 00:00:00.000
 maintainer: 测试 Agent
 status: active
 change_log:
   - 2026-07-23 00:00:00.000 初始创建：测试目录索引与 Agent 同步规则。
   - 2026-07-23 12:00:00.000 结构调整：将根目录下的测试计划、Prompt、报告、PBL 用例/指南、E2E 脚本、清理指令归集到对应子目录，根目录仅保留导航文档。
+  - 2026-07-23 17:30:00.000 清理根目录：将根目录下测试脚本、报告、指南归档到 scripts/testing/ 与对应子目录，并补充脚本位置指引。
 
 ## 用途
 
@@ -28,10 +29,26 @@ change_log:
 | [plans/](plans/) | 各专项/回归/验收测试计划 | 🟡 高频更新 |
 | [prompts/](prompts/) | 测试 Agent 执行 Prompt 与清理指令 | 🟢 稳定 |
 | [reports/](reports/) | 各轮次测试报告（R01/R02/R03...） | 🟡 高频更新 |
+| [guides/](guides/) | 专项测试操作指南（热重载、自动续接等） | 🟢 已归档 |
 | [logs/](logs/) | pytest/vitest/Playwright 原始日志与汇总，按日期分子目录 | 🟢 已统一 |
 | [qa-handoff/](qa-handoff/) | 交给第三方 QA 的 Prompt | 🟢 稳定 |
 | [e2e_multicard/](e2e_multicard/) | 多卡 E2E 测试脚本、验收脚本与截图 | 🟢 已归档 |
 | [pbl-conversation-flow/](pbl-conversation-flow/) | PBL 对话流程测试计划、用例、观察指南与报告 | 🟢 已归档 |
+
+## 测试脚本位置
+
+自动化测试脚本统一存放在 [`scripts/testing/`](../../../scripts/testing/)，不再保留在项目根目录：
+
+| 脚本 | 说明 | 常用命令 |
+|------|------|----------|
+| `scripts/testing/smart_test_runner.ps1` | 智能测试运行器（支持热重载） | 见 [hot_reload_testing_guide.md](guides/hot_reload_testing_guide.md) |
+| `scripts/testing/run_backend_tests.ps1` | 后端 API 测试 | `powershell scripts/testing/run_backend_tests.ps1` |
+| `scripts/testing/run_playwright_tests.cmd` | Playwright E2E 测试 | 双击运行 |
+| `scripts/testing/run_playwright_with_hot_reload.cmd` | 热重载 Playwright 测试 | 双击运行 |
+| `scripts/testing/run_complete_test_suite.cmd` | 完整测试套件 | 双击运行 |
+| `scripts/testing/run_all_tests.cmd` / `.bat` | 全量自动化测试 | 双击运行 |
+| `scripts/testing/quick_test.py` | 快速验证（截断检测 + 短代码生成） | `python scripts/testing/quick_test.py` |
+| `scripts/check_db.py` | 数据库检查工具 | `python scripts/check_db.py` |
 
 ## 核心必读文档
 
@@ -39,6 +56,8 @@ change_log:
 |------|------|----------|
 | [测试体系总览_v2.0.0.md](测试体系总览_v2.0.0.md) | 完整用例编号体系、覆盖率对照 | 所有 Agent |
 | [测试工作指南_v1.0.0.md](测试工作指南_v1.0.0.md) | 测试 Agent 唯一操作手册 | 测试 Agent、开发 Agent |
+| [guides/auto_continue_testing_guide.md](guides/auto_continue_testing_guide.md) | AI 自动续接功能测试指南 | 测试 Agent、开发 Agent |
+| [guides/hot_reload_testing_guide.md](guides/hot_reload_testing_guide.md) | 热重载测试操作指南 | 测试 Agent、开发 Agent |
 | [plans/SOP_Memory专项测试计划_v1.0.0.md](plans/SOP_Memory专项测试计划_v1.0.0.md) | SOP & Memory 专项测试 | 测试 Agent |
 | [plans/对话系统回归测试计划_v1.0.0.md](plans/对话系统回归测试计划_v1.0.0.md) | 对话系统回归测试 | 测试 Agent |
 
@@ -47,6 +66,9 @@ change_log:
 | 报告 | 日期 | 轮次 | 结论 | 状态 |
 |------|------|------|------|------|
 | [reports/对话系统回归测试报告_2026-07-23.md](reports/对话系统回归测试报告_2026-07-23.md) | 2026-07-23 | 回归 | 待补充 | 🟡 进行中 |
+| [reports/auto_continue_testing_summary.md](reports/auto_continue_testing_summary.md) | 2026-07-18 | - | 自动续接测试实施总结 | 🟢 已归档 |
+| [reports/auto_continue_execution_report.md](reports/auto_continue_execution_report.md) | 2026-07-20 | - | 自动续接测试执行报告 | 🟢 已归档 |
+| [reports/auto_continue_playwright_report.md](reports/auto_continue_playwright_report.md) | 2026-07-20 | - | 自动续接 Playwright 报告 | 🟢 已归档 |
 | [reports/SOP_Memory测试报告_2026-07-22_R03.md](reports/SOP_Memory测试报告_2026-07-22_R03.md) | 2026-07-22 | R03 | 配置修复后通过 | 🟢 已归档 |
 | [reports/SOP_Memory测试报告_2026-07-22_R02.md](reports/SOP_Memory测试报告_2026-07-22_R02.md) | 2026-07-22 | R02 | WebSocket 端到端需人工验证 | 🟡 待验证 |
 | [reports/SOP_Memory测试报告_2026-07-22_R01.md](reports/SOP_Memory测试报告_2026-07-22_R01.md) | 2026-07-22 | R01 | 发现配置缺失与 auto_approve 问题 | 🟢 已归档 |
@@ -70,6 +92,7 @@ change_log:
 | 新增测试计划 | 测试 Agent | 本 README“核心必读文档” + `plans/` |
 | 新增测试 Prompt | 测试 Agent | 本 README + `prompts/` |
 | 新增测试报告 | 测试 Agent | 本 README“最新测试报告”表 + `reports/` |
+| 新增/变更测试脚本 | 测试 Agent / 开发 Agent | `scripts/testing/` + 本 README“测试脚本位置”表 + [scripts/testing/README.md](../../../scripts/testing/README.md) |
 | 新增日志/截图 | 测试 Agent | `logs/<YYYY-MM-DD>/` 或 `e2e_multicard/screenshots/` |
 | 新增 QA handoff | 开发 Agent | `qa-handoff/` + [qa-handoff/README.md](qa-handoff/README.md) |
 | 新增测试 Agent 清理/操作指令 | 测试 Agent | `prompts/` |
@@ -89,3 +112,4 @@ change_log:
 - 禁止测试 Agent 修改 `apps/backend/app/` 或 `apps/frontend/src/` 产品代码。
 - 禁止无日志/截图直接给出测试结论。
 - 禁止在 testing/ 根目录新增非导航类文档；新增计划/报告/Prompt 必须放入对应子目录。
+- 禁止将测试脚本、测试报告、测试指南直接放在项目根目录；统一放入 `scripts/testing/` 或本目录对应子目录。

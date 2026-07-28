@@ -42,7 +42,7 @@ async function advanceToExecuteStage(page: Page, token: string, projectId: strin
     { stage: 'stage_01_brainstorm', artifact: 'brainstorm', content: '# 脑爆\n测试项目' },
     { stage: 'stage_02_brief', artifact: 'project_brief', content: '# 项目简介\n教学模式测试' },
     { stage: 'stage_03_constraints', artifact: 'constraints', content: '# 约束\n无特殊约束' },
-    { stage: 'stage_04_track', artifact: 'track_plan', content: '# 轨道\nWeb 应用' },
+    { stage: 'stage_04_track', artifact: 'track_plan', content: '{"track": "web", "tech_stack": ["HTML", "CSS", "JavaScript"]}' },
     { stage: 'stage_05_design', artifact: 'design', content: '# 设计\n前端设计' },
     { stage: 'stage_06_step_plan', artifact: 'step_plan', content: '# 分步\nStep1 初始化' },
     { stage: 'stage_07_execute', artifact: 'dev_log', content: '# 开发日志\nDay1 开始' },

@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🍅 时光专注器</title>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0f0e17;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-family: 'Segoe UI', 'PingFang SC', system-ui, sans-serif;
+    }
+    #app {
+      width: 640px;
+      max-width: 96vw;
+      text-align: center;
+      user-select: none;
+    }
+
+    .title {
+      font-size: 28px;
+      font-weight: 700;
+      color: #fffffe;
+      margin-bottom: 8px;
+      letter-spacing: 2px;
+    }
+    .subtitle {
+      color: #a7a9be;
+      font-size: 14px;
+      margin-bottom: 20px;
+    }
+
+    .phase-tag {
+      display: inline-block;
+      padding: 4px 16px;
+      border-radius: 20px;
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 16px;
+    }
+    .phase-tag.work   { background: #ff8906; color: #0f0e17; }
+    .phase-tag.break  { background: #1DD1A1; color: #0f0e17; }
+    .phase-tag.paused { background: #f59e0b; color: #0f0e17; }
+    .phase-tag.idle   { background: rgba(255,255,255,0.08); color: #a7a9be; }
+
+    .timer-ring {
+      position: relative;
+      width: 260px;
+      height: 260px;
+      margin: 0 auto 16px;
+    }
+    .timer-ring svg {
+      transform: rotate(-90deg);
+    }
+    .ring-bg {
+      fill: none;
+      stroke: rgba(255,255,255,0.08);
+      stroke-width: 6;
+    }
+    .ring-progress {
+      fill: none;
+      stroke: #ff8906;
+      stroke-width: 6;
+      stroke-linecap: round;
+      transition: stroke-dashoffset 0.5s ease;
+    }
+    .ring-progress.break-mode {
+      stroke: #1DD1A1;
+    }
+    .timer-text {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .timer-text .time {
+      font-size: 56px;
+      font-weight: 800;
+      color: #fffffe;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 2px;
+    }
+    .timer-text .label {
+      font-size: 14px;
+      color: #a7a9be;
+      margin-top: 4px;
+    }
+
+    .controls {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .controls button {
+      border: none;
+      border-radius: 14px;
+      padding: 10px 28px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+    .controls button:hover { transform: scale(1.05); }
+    .controls button:active { transform: scale(0.96); }
+    .btn-start {
+      background: #ff8906;
+      color: #0f0e17;
+    }
+    .btn-pause {
+      background: rgba(255,255,255,0.1);
+      color: #fffffe;
+      border: 1px solid rgba(255,255,255,0.15) !important;
+    }
+    .btn-reset {
+      background: rgba(255,255,255,0.06);
+      color: #a7a9be;
+    }
+
+    .bottom-area {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-top: 8px;
+    }
+    @media (max-width: 500px) {
+      .bottom-area { grid-template-columns: 1fr; }
+    }
+    .panel {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 16px;
+      padding: 16px;
+      text-align: left;
+    }
+    .panel h3 {
+      color: #fffffe;
+      font-size: 15px;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .todo-input-row {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+    .todo-input-row input {
+      flex: 1;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 10px;
+      padding: 8px 12px;
+      color: #fffffe;
+      font-size: 14px;
+      outline: none;
+    }
+    .todo-input-row input::placeholder { color: #a7a9be; }
+    .todo-input-row input:focus { border-color: #ff8906; }
+    .todo-input-row button {
+      background: #ff8906;
+      color: #0f0e17;
+      border: none;
+      border-radius: 10px;
+      padding: 8px 14px;
+      font-weight: 700;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .todo-list { list-style: none; max-height: 160px; overflow-y: auto; }
+    .todo-list li {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 4px;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      cursor: pointer;
+      color: #a7a9be;
+      font-size: 14px;
+    }
+    .todo-list li:hover { color: #fffffe; }
+    .todo-list li.done {
+      text-decoration: line-through;
+      color: rgba(167,169,190,0.4);
+    }
+    .todo-list li .del {
+      margin-left: auto;
+      cursor: pointer;
+      opacity: 0.4;
+      font-size: 16px;
+    }
+    .todo-list li .del:hover { opacity: 1; color: #FF6B6B; }
+    .todo-empty {
+      color: rgba(167,169,190,0.4);
+      font-size: 13px;
+      text-align: center;
+      padding: 16px 0;
+    }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .stat-card {
+      background: rgba(255,255,255,0.04);
+      border-radius: 12px;
+      padding: 12px;
+      text-align: center;
+    }
+    .stat-card .num {
+      font-size: 28px;
+      font-weight: 800;
+      color: #fffffe;
+    }
+    .stat-card .lbl {
+      font-size: 12px;
+      color: #a7a9be;
+      margin-top: 2px;
+    }
+
+    .sound-row {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 10px;
+      flex-wrap: wrap;
+    }
+    .sound-btn {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 10px;
+      padding: 6px 14px;
+      color: #a7a9be;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .sound-btn:hover { border-color: #ff8906; color: #fffffe; }
+    .sound-btn.active {
+      background: #ff8906;
+      color: #0f0e17;
+      border-color: #ff8906;
+    }
+
+    .notif-tip {
+      font-size: 11px;
+      color: rgba(167,169,190,0.4);
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <h1 class="title">🍅 时光专注器</h1>
+    <p class="subtitle">番茄工作法 · 专注25分钟 · 休息5分钟</p>
+
+    <div class="phase-tag" :class="phaseClass">{{ phaseLabel }}</div>
+
+    <div class="timer-ring">
+      <svg width="260" height="260" viewBox="0 0 260 260">
+        <circle class="ring-bg" cx="130" cy="130" r="118"/>
+        <circle
+          class="ring-progress" :class="{ 'break-mode': currentPhaseType === 'break' }"
+          cx="130" cy="130" r="118"
+          stroke-dasharray="741.4"
+          :stroke-dashoffset="ringOffset"
+        />
+      </svg>
+      <div class="timer-text">
+        <div class="time">{{ displayTime }}</div>
+        <div class="label">{{ statusLabel }}</div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button v-if="phase === 'idle'" class="btn-start" @click="startTimer">▶ 开始</button>
+      <button v-if="phase === 'running'" class="btn-pause" @click="pauseTimer">⏸ 暂停</button>
+      <button v-if="phase === 'paused'" class="btn-start" @click="resumeTimer">▶ 继续</button>
+      <button v-if="phase !== 'idle'" class="btn-reset" @click="resetTimer">◼ 停止</button>
+    </div>
+
+    <div class="bottom-area">
+      <div class="panel">
+        <h3>📋 待办任务</h3>
+        <div class="todo-input-row">
+          <input v-model="newTodo" placeholder="添加任务…" @keyup.enter="addTodo" />
+          <button @click="addTodo">+</button>
+        </div>
+        <ul class="todo-list">
+          <li v-for="t in todos" :key="t.id" :class="{ done: t.done }" @click="toggleTodo(t.id)">
+            {{ t.done ? '✅' : '⬜' }} {{ t.text }}
+            <span class="del" @click.stop="removeTodo(t.id)">✕</span>
+          </li>
+        </ul>
+        <div v-if="todos.length === 0" class="todo-empty">还没有任务，添加一个吧 📝</div>
+      </div>
+
+      <div class="panel">
+        <h3>📊 今日统计</h3>
+        <div class="stat-grid">
+          <div class="stat-card">
+            <div class="num">{{ todayFocus }}</div>
+            <div class="lbl">完成番茄</div>
+          </div>
+          <div class="stat-card">
+            <div class="num">{{ totalFocusAll }}</div>
+            <div class="lbl">总番茄🍅</div>
+          </div>
+        </div>
+        <h3 style="margin-top:12px;">🔔 提示音效</h3>
+        <div class="sound-row">
+          <button
+            v-for="s in sounds"
+            :key="s.id"
+            class="sound-btn"
+            :class="{ active: currentSound === s.id }"
+            @click="selectSound(s.id)"
+          >{{ s.label }}</button>
+        </div>
+        <div v-if="notifDenied" class="notif-tip">⚠️ 桌面通知被拒绝，可在浏览器设置中开启</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const { createApp, ref, computed, watch, onMounted, onUnmounted } = Vue;
+
+    function createSoundEngine() {
+      let ctx = null;
+      function getCtx() {
+        if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+        return ctx;
+      }
+
+      function playDefault() {
+        const c = getCtx();
+        const osc = c.createOscillator();
+        const gain = c.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = 880;
+        gain.gain.setValueAtTime(0.3, c.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.4);
+        osc.connect(gain).connect(c.destination);
+        osc.start(); osc.stop(c.currentTime + 0.4);
+      }
+
+      function playDingdong() {
+        const c = getCtx();
+        [660, 880].forEach((freq, i) => {
+          const osc = c.createOscillator();
+          const gain = c.createGain();
+          osc.type = 'sine';
+          osc.frequency.value = freq;
+          gain.gain.setValueAtTime(0.3, c.currentTime + i * 0.25);
+          gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + i * 0.25 + 0.5);
+          osc.connect(gain).connect(c.destination);
+          osc.start(c.currentTime + i * 0.25);
+          osc.stop(c.currentTime + i * 0.25 + 0.5);
+        });
+      }
+
+      function playChord() {
+        const c = getCtx();
+        [523, 659, 784].forEach((freq) => {
+          const osc = c.createOscillator();
+          const gain = c.createGain();
+          osc.type = 'triangle';
+          osc.frequency.value = freq;
+          gain.gain.setValueAtTime(0.15, c.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.8);
+          osc.connect(gain).connect(c.destination);
+          osc.start(); osc.stop(c.currentTime + 0.8);
+        });
+      }
+
+      function playElectronic() {
+        const c = getCtx();
+        [440, 554, 660].forEach((freq, i) => {
+          const osc = c.createOscillator();
+          const gain = c.createGain();
+          osc.type = 'square';
+          osc.frequency.value = freq;
+          gain.gain.setValueAtTime(0.1, c.currentTime + i * 0.12);
+          gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + i * 0.12 + 0.2);
+          osc.connect(gain).connect(c.destination);
+          osc.start(c.currentTime + i * 0.12);
+          osc.stop(c.currentTime + i * 0.12 + 0.2);
+        });
+      }
+
+      return { playDefault, playDingdong, playChord, playElectronic };
+    }
+
+    const soundEngine = createSoundEngine();
+    const SOUND_MAP = {
+      'default': () => soundEngine.playDefault(),
+      'dingdong': () => soundEngine.playDingdong(),
+      'chord': () => soundEngine.playChord(),
+      'electronic': () => soundEngine.playElectronic(),
+    };
+
+    function formatTime(sec) {
+      const m = Math.floor(sec / 60);
+      const s = Math.floor(sec % 60);
+      return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+    }
+
+    function todayKey() {
+      const d = new Date();
+      return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+    }
+
+    createApp({
+      setup() {
+        const phase = ref('idle');
+        const phaseType = ref('idle');
+        const totalSeconds = ref(25 * 60);
+        const remainingSeconds = ref(25 * 60);
+        let timerId = null;
+        let lastTickTime = null;
+
+        const WORK_TIME = 25 * 60;
+        const BREAK_TIME = 5 * 60;
+
+        const sounds = [
+          { id: 'default',    label: '🔔 默认' },
+          { id: 'dingdong',   label: '⏰ 叮咚' },
+          { id: 'chord',      label: '🎵 和弦' },
+          { id: 'electronic', label: '🕹️ 电子' },
+        ];
+        const currentSound = ref(localStorage.getItem('pomodoro_sound') || 'default');
+
+        function selectSound(id) {
+          currentSound.value = id;
+          localStorage.setItem('pomodoro_sound', id);
+        }
+
+        function playAlarm() {
+          const play = SOUND_MAP[currentSound.value];
+          if (play) play();
+        }
+
+        const todos = ref(JSON.parse(localStorage.getItem('pomodoro_todos') || '[]'));
+        const newTodo = ref('');
+
+        function saveTodos() {
+          localStorage.setItem('pomodoro_todos', JSON.stringify(todos.value));
+        }
+
+        function addTodo() {
+          const text = newTodo.value.trim();
+          if (!text) return;
+          todos.value.push({ id: Date.now(), text, done: false });
+          newTodo.value = '';
+          saveTodos();
+        }
+
+        function toggleTodo(id) {
+          const t = todos.value.find(x => x.id === id);
+          if (t) { t.done = !t.done; saveTodos(); }
+        }
+
+        function removeTodo(id) {
+          todos.value = todos.value.filter(x => x.id !== id);
+          saveTodos();
+        }
+
+        const stats = ref(JSON.parse(localStorage.getItem('pomodoro_stats') || '{}'));
+
+        function saveStats() {
+          localStorage.setItem('pomodoro_stats', JSON.stringify(stats.value));
+        }
+
+        const todayFocus = computed(() => stats.value[todayKey()] || 0);
+        const totalFocusAll = computed(() => {
+          return Object.values(stats.value).reduce((a, b) => a + b, 0);
+        });
+
+        function recordFocus() {
+          const key = todayKey();
+          stats.value[key] = (stats.value[key] || 0) + 1;
+          saveStats();
+        }
+
+        const notifDenied = ref(false);
+
+        function requestNotif() {
+          if (!('Notification' in window)) return;
+          if (Notification.permission === 'default') {
+            Notification.requestPermission().then(p => {
+              notifDenied.value = p === 'denied';
+            });
+          } else if (Notification.permission === 'denied') {
+            notifDenied.value = true;
+          }
+        }
+
+        function sendNotif(title, body) {
+          if (!('Notification' in window)) return;
+          if (Notification.permission === 'granted') {
+            new Notification(title, { body, icon: '🍅' });
+          }
+        }
+
+        const displayTime = computed(() => formatTime(remainingSeconds.value));
+
+        const RING_CIRCUMFERENCE = 741.4;
+        const ringOffset = computed(() => {
+          const ratio = remainingSeconds.value / totalSeconds.value;
+          return RING_CIRCUMFERENCE * (1 - ratio);
+        });
+
+        const currentPhaseType = computed(() => {
+          if (phase.value === 'paused') return phaseType.value;
+          return phase.value === 'break' ? 'break' : (phase.value === 'work' ? 'work' : 'idle');
+        });
+
+        const phaseClass = computed(() => {
+          if (phase.value === 'running') return phaseType.value;
+          if (phase.value === 'paused') return 'paused';
+          return 'idle';
+        });
+
+        const phaseLabel = computed(() => {
+          if (phase.value === 'idle') return '⏳ 待开始';
+          if (phase.value === 'paused') return '⏸ 已暂停';
+          if (phaseType.value === 'work') return '🍅 工作中';
+          if (phaseType.value === 'break') return '☕ 休息中';
+          return '⏳ 待开始';
+        });
+
+        const statusLabel = computed(() => {
+          if (phase.value === 'idle') return '点击开始';
+          if (phaseType.value === 'work') return '专注中';
+          if (phaseType.value === 'break') return '休息中';
+          return '已暂停';
+        });
+
+        function startLoop() {
+          lastTickTime = null;
+          if (timerId) cancelAnimationFrame(timerId);
+          function loop() {
+            tick();
+            timerId = requestAnimationFrame(loop);
+          }
+          timerId = requestAnimationFrame(loop);
+        }
+
+        function stopLoop() {
+          if (timerId) {
+            cancelAnimationFrame(timerId);
+            timerId = null;
+          }
+        }
+
+        function tick() {
+          if (phase.value !== 'running') return;
+
+          const now = Date.now();
+          if (lastTickTime === null) {
+            lastTickTime = now;
+          }
+
+          const elapsed = (now - lastTickTime) / 1000;
+          lastTickTime = now;
+
+          const newRemaining = Math.max(0, remainingSeconds.value - elapsed);
+          remainingSeconds.value = newRemaining;
+
+          if (newRemaining <= 0) {
+            remainingSeconds.value = 0;
+            completePhase();
+          }
+        }
+
+        function completePhase() {
+          stopLoop();
+          playAlarm();
+
+          if (phaseType.value === 'work') {
+            recordFocus();
+            sendNotif('🍅 番茄完成！', '专注时间结束，该休息了～');
+            phaseType.value = 'break';
+            phase.value = 'running';
+            totalSeconds.value = BREAK_TIME;
+            remainingSeconds.value = BREAK_TIME;
+            startLoop();
+          } else if (phaseType.value === 'break') {
+            sendNotif('☕ 休息结束！', '休息时间到，开始下一个番茄吧～');
+            phaseType.value = 'idle';
+            phase.value = 'idle';
+            totalSeconds.value = WORK_TIME;
+            remainingSeconds.value = WORK_TIME;
+          }
+        }
+
+        function startTimer() {
+          if (phase.value !== 'idle') return;
+          requestNotif();
+          phaseType.value = 'work';
+          phase.value = 'running';
+          totalSeconds.value = WORK_TIME;
+          remainingSeconds.value = WORK_TIME;
+          startLoop();
+        }
+
+        function pauseTimer() {
+          if (phase.value !== 'running') return;
+          phase.value = 'paused';
+          stopLoop();
+        }
+
+        function resumeTimer() {
+          if (phase.value !== 'paused') return;
+          phase.value = 'running';
+          startLoop();
+        }
+
+        function resetTimer() {
+          stopLoop();
+          phase.value = 'idle';
+          phaseType.value = 'idle';
+          totalSeconds.value = WORK_TIME;
+          remainingSeconds.value = WORK_TIME;
+        }
+
+        onMounted(() => {
+          requestNotif();
+        });
+
+        onUnmounted(() => {
+          stopLoop();
+        });
+
+        return {
+          phase, displayTime, ringOffset, phaseClass, phaseLabel, statusLabel,
+          currentPhaseType,
+          startTimer, pauseTimer, resumeTimer, resetTimer,
+          todos, newTodo, addTodo, toggleTodo, removeTodo,
+          todayFocus, totalFocusAll,
+          sounds, currentSound, selectSound,
+          notifDenied,
+        };
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>

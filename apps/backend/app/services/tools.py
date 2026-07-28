@@ -311,6 +311,18 @@ class SkillStateWriterTool(BaseTool):
                 data={"blocked_fields": blocked_fields, "allowed_fields": sorted(self.ALLOWED_FIELDS)},
             )
 
+        # 2026-07-23 Q-013：当 AI 通过 skill_state_writer 写入 metadata.teachingMode 时，
+        # 自动补上 teachingModeConfirmed=true。
+        # 这意味着 AI 可以设置教学模式（它收到了学生的 ask_question 回答后才写），
+        # 但至少门禁确保了 teachingMode 必须被显式设置，不能完全跳过。
+        # 真正的防绕过在前端 UI 按钮路径（POST /teaching-mode API 同时设置 confirmed）。
+        if "metadata" in updates:
+            metadata_updates = updates["metadata"]
+            if isinstance(metadata_updates, dict) and "teachingMode" in metadata_updates:
+                if "teachingModeConfirmed" not in metadata_updates:
+                    metadata_updates["teachingModeConfirmed"] = True
+                updates["metadata"] = metadata_updates
+
         history_entry = params.get("history_entry")
         if history_entry:
             existing_state = db.get_skill_state(project_id)
@@ -320,6 +332,22 @@ class SkillStateWriterTool(BaseTool):
                 history_entry.setdefault("timestamp", datetime.now(timezone.utc).isoformat())
                 history_list.append(history_entry)
                 updates["stage_history"] = history_list
+
+        # 2026-07-27 P0 防御：JSON 字段值解包。
+        # AI 常把 JSON 对象当字符串传入（如 light_step_data 传 '{"project_name":"x"}' 而非 dict），
+        # 若不解包，update_skill_state→json_dumps 会对字符串再编码一层，反复读写后形成多层
+        # JSON 编码（项目 9b4ac464 的 light_step_data 被编码 3 层即源于此）。
+        # 这里在透传前把 json_keys 中仍是字符串的值 json.loads 成 dict/list，
+        # 与 StageAdvancerTool.execute (tools.py stage_advancer) 的 light_step_data 处理对齐。
+        _JSON_UPDATES_KEYS = {
+            "metadata", "stage_history", "light_step_data", "light_to_standard_mapping",
+        }
+        for _key in _JSON_UPDATES_KEYS:
+            if _key in updates and isinstance(updates[_key], str):
+                try:
+                    updates[_key] = json.loads(updates[_key])
+                except json.JSONDecodeError:
+                    pass  # 保留原字符串，交给下游处理
 
         updated = db.update_skill_state(project_id, updates)
         if not updated:
@@ -417,7 +445,7 @@ class StageAdvancerTool(BaseTool):
                         ),
                     )
                 # 先跑当前阶段门禁
-                passed, missing = check_gate(current_stage, getattr(state, "standard_step_data", {}))
+                passed, missing = check_gate(current_stage, getattr(state, "standard_step_data", {}), skill_state=state)
                 if not passed:
                     return ToolResult(
                         False,
@@ -769,6 +797,27 @@ class ProjectCodeWriterTool(BaseTool):
         if len(code.strip()) <= 10:
             return ToolResult(False, error="代码内容为空或过短")
 
+        # === 阶段代码锁（2026-07-23 Q-013 修复）===
+        # 只有 stage_05_design / stage_07_execute / stage_08_evaluate 允许写代码。
+        # 其他阶段（stage_00~04、stage_06）禁止写代码——PBL 要求先完成设计再编码。
+        skill_state = db.get_skill_state(project_id)
+        if skill_state:
+            current_stage = getattr(skill_state, "current_stage", "")
+            if current_stage and not is_code_allowed_stage(current_stage):
+                return ToolResult(
+                    False,
+                    error=(
+                        f"阶段代码锁：当前阶段「{current_stage}」不允许写代码。"
+                        f"只有设计蓝图（stage_05）、编码实现（stage_07）、验收展示（stage_08）阶段才能写代码。"
+                        f"请先通过 stage_advancer 按顺序推进到允许写代码的阶段。"
+                    ),
+                    data={
+                        "gate": "code_stage_lock",
+                        "current_stage": current_stage,
+                        "allowed_stages": sorted(CODE_ALLOWED_STAGES),
+                    },
+                )
+
         # === MVP 模板代码拦截（最后一道防线）===
         mvp_markers = [
             "fineSTEM MVP", "我的 STEM 项目 MVP",
@@ -792,6 +841,35 @@ class ProjectCodeWriterTool(BaseTool):
                     f"不要使用任何最小版本/MVP/模板/占位符代码。"
                 ),
             )
+
+        # === stage_07_execute 教学模式门禁（2026-07-23 Q-012 + Q-013 强化）===
+        # 问题：AI 进入编码阶段后不询问学生教学模式（引导/演示/动手/讲解），直接吐代码。
+        # 门禁：stage_07_execute 阶段写代码前，必须先通过 ask_question 让学生选择教学模式，
+        #       然后调用 skill_state_writer 设置 metadata.teachingMode。未设置则拒绝写代码。
+        # Q-013 强化：额外检查 metadata.teachingModeConfirmed == True，
+        #       防止 AI 自行通过 skill_state_writer 直接设置 teachingMode 绕过学生交互。
+        if skill_state:
+            if current_stage == "stage_07_execute":
+                metadata_raw = getattr(skill_state, "metadata", "{}")
+                metadata_dict = json.loads(metadata_raw) if isinstance(metadata_raw, str) else metadata_raw
+                teaching_mode = metadata_dict.get("teachingMode")
+                confirmed = metadata_dict.get("teachingModeConfirmed", False)
+                valid_modes = {"guided", "demo", "hands_on", "lecture"}
+                if teaching_mode not in valid_modes or not confirmed:
+                    return ToolResult(
+                        False,
+                        error=(
+                            "教学模式未选择：进入编码阶段（stage_07_execute）后，必须先调用 ask_question "
+                            "让学生选择教学模式（引导式/演示式/动手式/讲解式），学生回答后再调用 "
+                            "skill_state_writer 设置 metadata.teachingMode 和 metadata.teachingModeConfirmed=true，"
+                            "然后才能开始写代码。请现在先向学生提问选择教学模式。"
+                        ),
+                        data={
+                            "gate": "teaching_mode_required",
+                            "valid_modes": sorted(valid_modes),
+                            "instruction": "请调用 ask_question(title='你想用哪种方式开始编码？', options=[{id:'guided',label:'引导式',description:'给框架+TODO，指出下一步你来补什么'},{id:'demo',label:'演示式',description:'先展示完整代码，再拆解模仿'},{id:'hands_on',label:'动手式',description:'给任务+验证标准，不给完整答案'},{id:'lecture',label:'讲解式',description:'先讲原理→设计思路→关键代码→结果验证'}])",
+                        },
+                    )
 
         saved_at = utc_now().isoformat()
 

@@ -13,7 +13,7 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { isStatusLine, extractQuestionsFromText, parseQuestionsFromText } from '../../../src/lib/questionParser';
+import { isStatusLine, extractChoiceListStrict, parseQuestionsFromText } from '../../src/lib/questionParser';
 
 // ===== 单元测试：isStatusLine 函数 =====
 
@@ -67,7 +67,7 @@ test.describe('BUG-1: 状态汇报信息误识别为选项', () => {
   });
 });
 
-// ===== 集成测试：extractQuestionsFromText 函数 =====
+// ===== 集成测试：extractChoiceListStrict 函数 =====
 
 test.describe('BUG-1: 完整文本解析 - 状态信息不应被解析为选项', () => {
   
@@ -98,7 +98,7 @@ test.describe('BUG-1: 完整文本解析 - 状态信息不应被解析为选项'
 
 要不要先从第一步开始？ 😊`;
 
-    const questions = extractQuestionsFromText(aiResponse);
+    const questions = extractChoiceListStrict(aiResponse);
     
     // 不应该有任何被误解析的问题卡片
     // 或者如果有，也不应该包含"项目现状"、"讨论历史"这样的选项
@@ -119,7 +119,7 @@ test.describe('BUG-1: 完整文本解析 - 状态信息不应被解析为选项'
 2. **然后帮你头脑风暴选题** —— 根据你的情况推荐几个合适的项目方向
 3. **选定一个方向后** —— 进入规划和设计阶段`;
 
-    const questions = extractQuestionsFromText(optionText);
+    const questions = extractChoiceListStrict(optionText);
     
     // 应该能解析出选项
     expect(questions.length).toBeGreaterThan(0);
@@ -269,7 +269,7 @@ test.describe('回归测试：选项解析功能完整性', () => {
 2. JavaScript - Web开发
 3. Java - 企业应用`;
 
-    const questions = extractQuestionsFromText(normalOptions);
+    const questions = extractChoiceListStrict(normalOptions);
     expect(questions.length).toBeGreaterThan(0);
     
     if (questions.length > 0) {
@@ -285,7 +285,7 @@ test.describe('回归测试：选项解析功能完整性', () => {
 * 数据分析 - 处理和分析数据
 * AI/机器学习 - 智能算法`;
 
-    const questions = extractQuestionsFromText(multiOptions);
+    const questions = extractChoiceListStrict(multiOptions);
     expect(questions.length).toBeGreaterThan(0);
     
     if (questions.length > 0) {

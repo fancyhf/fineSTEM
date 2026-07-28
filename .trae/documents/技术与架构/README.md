@@ -1,11 +1,12 @@
 # 技术与架构/ — 架构设计、部署运维与技术文档
 
-version: v1.0.0
+version: v1.0.1
 created_at: 2026-07-23 00:00:00.000
 maintainer: 技术顾问 / DevOps
 status: active
 change_log:
   - 2026-07-23 00:00:00.000 初始创建：技术目录索引与同步规则。
+  - 2026-07-23 17:30:00.000 归档根目录部署文档：将 `DEPLOYMENT.md` 归档为 `FineSTEM_MVP_Deployment_v2.0.md` 并在本表登记。
 
 ## 用途
 
@@ -33,6 +34,7 @@ change_log:
 | [ZeroClaw集成重构_v1.0.0.md](ZeroClaw集成重构_v1.0.0.md) | 重构方案 | 🟢 已实施 | ZeroClaw 集成根因分析与修复 |
 | [ZeroClaw部署与运维指南_v1.0.0.md](ZeroClaw部署与运维指南_v1.0.0.md) | 运维指南 | 🟢 已归档 | ZeroClaw 部署运维 |
 | [FineSTEM MVP 部署计划.md](FineSTEM%20MVP%20部署计划.md) | 部署计划 | 🟢 已归档 | MVP 部署计划 |
+| [FineSTEM_MVP_Deployment_v2.0.md](FineSTEM_MVP_Deployment_v2.0.md) | 部署文档 | 🟢 已归档 | MVP 部署实施文档（v2.0） |
 | [SOP_Memory集成技术实现总结_v1.0.0.md](SOP_Memory集成技术实现总结_v1.0.0.md) | 实现总结 | 🟢 已实施 | SOP & Memory 集成技术总结 |
 | [fineSTEM_Agent_Skill_开发文档_v1.0.0.md](fineSTEM_Agent_Skill_开发文档_v1.0.0.md) | 开发文档 | 🟢 已归档 | Agent Skill 开发规范 |
 | [template-work-prompt.md](template-work-prompt.md) | 模板提示词 | 🟢 已归档 | 模板生成任务输入规范 |

@@ -54,16 +54,18 @@ def _ensure_dict(value: Any) -> dict:
     return {}
 
 
-def check_gate(stage: str, standard_step_data: Any) -> tuple[bool, list[str]]:
+def check_gate(stage: str, standard_step_data: Any, skill_state: Any = None) -> tuple[bool, list[str]]:
     """
     检查阶段门禁。
 
-    门禁规则（2026-07-22 强化）：
+    门禁规则（2026-07-23 Q-013 强化）：
     1. stage_00_bootstrap 始终通过（初始化阶段）。
-    2. 其他阶段：先检查对应工件 blob key 是否存在且非空（快速失败）。
-    3. 非空后，尝试用 Pydantic 阶段数据模型做结构校验，发现缺失字段则返回精确 missing 清单。
+    2. 其他阶段：先检查对应工件 blob key 是否存在且非空（硬门禁，快速失败）。
+    3. stage_04_track：track 和 tech_stack 必须存在且非空（硬门禁，防止跳过技术架构选择）。
+    4. stage_07_execute：metadata.teachingMode 必须已设置（硬门禁，防止跳过教学模式选择）。
+    5. 非空后，尝试用 Pydantic 阶段数据模型做结构校验，发现缺失字段则返回精确 missing 清单。
        - 结构校验失败不直接拦截（兼容 markdown 形式工件、存量数据），但会把缺失项加入 missing 提示。
-       - 只有"工件完全为空"才硬拦截。
+       - 只有"工件完全为空"或"关键硬门禁字段缺失"才硬拦截。
 
     设计取舍：不强制要求工件必须是合法 JSON，因为脑爆记录、开发日志等是 markdown 文本，
     不是结构化数据。结构校验只对"看起来像 JSON 的工件"生效，作为精确诊断辅助。
@@ -71,6 +73,7 @@ def check_gate(stage: str, standard_step_data: Any) -> tuple[bool, list[str]]:
     参数:
         stage: 阶段标识，如 "stage_01_brainstorm"。
         standard_step_data: 标准步骤数据（dict 或 JSON 字符串）。
+        skill_state: 可选的 SKillState 对象，用于 stage_07 教学模式门禁检查。
 
     返回:
         (passed, missing): passed=是否通过，missing=缺失项描述列表。
@@ -91,11 +94,93 @@ def check_gate(stage: str, standard_step_data: Any) -> tuple[bool, list[str]]:
         missing_desc = f"{artifact_name}（字段 {blob_key} 为空或缺失）"
         return False, [missing_desc]
 
-    # 第 2 道门：结构校验（软门禁，只产出诊断信息，不拦截非 JSON 工件）
+    # 第 2 道门：关键阶段硬门禁（2026-07-23 Q-013 新增）
+    hard_missing = _hard_gate_check(stage, artifact_name, content, data, skill_state)
+    if hard_missing:
+        return False, hard_missing
+
+    # 第 3 道门：结构校验（软门禁，只产出诊断信息，不拦截非 JSON 工件）
     # 对 markdown 类工件（brainstorm/dev_log）跳过；对 JSON 类工件尝试解析校验。
     structural_missing = _structural_check(stage, artifact_name, content)
     # 结构缺失不阻断推进（避免老项目全卡死），但会体现在 missing 里供 AI 参考
     return True, structural_missing
+
+
+def _hard_gate_check(
+    stage: str,
+    artifact_name: str,
+    content: str,
+    data: dict,
+    skill_state: Any = None,
+) -> list[str]:
+    """
+    关键阶段硬门禁校验（2026-07-23 Q-013 新增）。
+
+    对特定阶段的关键字段做硬性校验——不通过则阻断推进，不只是警告。
+    这解决了原来软门禁可被 markdown 文本绕过的问题。
+
+    参数:
+        stage: 阶段标识。
+        artifact_name: 工件名。
+        content: 工件内容字符串。
+        data: standard_step_data 字典。
+        skill_state: 可选的 SkillState 对象。
+
+    返回:
+        missing: 缺失项列表。空列表表示通过，非空则阻断推进。
+    """
+    missing: list[str] = []
+
+    if stage == "stage_04_track":
+        # 技术轨道硬门禁：track 和 tech_stack 必须存在
+        # 先尝试从 JSON 内容中解析
+        parsed = _try_parse_json(content)
+        if parsed:
+            track = parsed.get("track")
+            tech_stack = parsed.get("tech_stack")
+            if not track or (isinstance(track, str) and not track.strip()):
+                missing.append(f"{artifact_name}.track（技术轨道未选择：必须从 web/game_dev/ai_ml/data_viz/creative_coding 中选择一个）")
+            if not tech_stack or (isinstance(tech_stack, (list, str)) and (
+                (isinstance(tech_stack, list) and len(tech_stack) == 0) or
+                (isinstance(tech_stack, str) and not tech_stack.strip())
+            )):
+                missing.append(f"{artifact_name}.tech_stack（技术栈未选择：必须明确学生将使用的编程语言和框架）")
+        else:
+            # 内容不是 JSON（可能是 markdown），无法验证 track/tech_stack
+            missing.append(f"{artifact_name}（技术轨道工件必须是 JSON 格式，包含 track 和 tech_stack 字段。当前内容不是有效 JSON，请重新生成结构化工件）")
+
+    elif stage == "stage_07_execute":
+        # 教学模式硬门禁：metadata.teachingMode 必须已设置
+        if skill_state is not None:
+            metadata_raw = getattr(skill_state, "metadata", "{}")
+            try:
+                metadata_dict = json.loads(metadata_raw) if isinstance(metadata_raw, str) else metadata_raw
+                if not isinstance(metadata_dict, dict):
+                    metadata_dict = {}
+            except (json.JSONDecodeError, TypeError):
+                metadata_dict = {}
+            teaching_mode = metadata_dict.get("teachingMode")
+            confirmed = metadata_dict.get("teachingModeConfirmed", False)
+            valid_modes = {"guided", "demo", "hands_on", "lecture"}
+            if teaching_mode not in valid_modes or not confirmed:
+                missing.append(
+                    "metadata.teachingMode（教学模式未选择：必须先调用 ask_question 让学生选择教学模式，"
+                    "学生回答后设置 metadata.teachingMode 和 metadata.teachingModeConfirmed=true）"
+                )
+
+    return missing
+
+
+def _try_parse_json(content: str) -> dict | None:
+    """尝试把字符串解析成 dict，失败返回 None。"""
+    try:
+        stripped = content.strip() if isinstance(content, str) else ""
+        if not (stripped.startswith("{") or stripped.startswith("[")):
+            return None
+        parsed = json.loads(stripped)
+        return parsed if isinstance(parsed, dict) else None
+    except (json.JSONDecodeError, TypeError):
+        return None
 
 
 def _structural_check(stage: str, artifact_name: str, content: str) -> list[str]:
@@ -204,7 +289,7 @@ def advance_with_gate(project_id: str, db) -> dict:
         }
 
     current_stage = state.current_stage
-    passed, missing = check_gate(current_stage, state.standard_step_data)
+    passed, missing = check_gate(current_stage, state.standard_step_data, skill_state=state)
 
     if not passed:
         return {

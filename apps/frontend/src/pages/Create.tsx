@@ -5,6 +5,7 @@ import { ContinueButton } from '../components/ContinueButton';
 import { Card } from '../components/ui/Card';
 import { CodeGeneratedEvent, useStreamingChat } from '../hooks/useStreamingChat';
 import { parseQuestionsFromText } from '../lib/questionParser';
+import { confirmAndShow } from '../lib/questionConfirm';
 import { MarkdownText } from '../components/MarkdownText';
 import { LightRegisterPrompt } from '../components/LightRegisterPrompt';
 import { CodePreview } from '../components/CodePreview';
@@ -296,7 +297,7 @@ const SKILL_OPTIONS: SkillOption[] = [
 const SCENE_ENTRIES = [
   { icon: MessageSquare, label: '问问题', desc: '快速提问与获取答案' },
   { icon: Code, label: '解释代码', desc: '读懂代码并找到优化点' },
-  { icon: Rocket, label: '开始项目', desc: '新建项目或继续创作' },
+  { icon: Rocket, label: '开始项目', desc: '新建项目或继续创作', action: 'guide' as const },
   { icon: FileText, label: '写报告', desc: '整理结果并生成文稿' },
 ];
 
@@ -751,6 +752,9 @@ export function Create() {
   const { user } = useAuth();
   const [searchParams] = useSearchParams();
   const [messages, setMessages] = useState<Message[]>([]);
+  // messagesRef：保存最新 messages 快照，供异步回调（项目创建后补存、页面离开保存）
+  // 读取，避免闭包捕获陈旧值。每次 messages 变化时由下方 useEffect 同步。
+  const messagesRef = useRef<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [activeScene, setActiveScene] = useState<string | null>(null);
@@ -877,6 +881,27 @@ const [runResultBlobUrl, setRunResultBlobUrl] = useState<string | null>(null); /
 
     return true;
   }, []);
+
+  /**
+   * 可靠的对话保存函数（2026-07-28 对话丢失事故修复）。
+   *
+   * 背景：原保存逻辑嵌在 useEffect 里，依赖 messages/projectId 变化才触发，
+   * 且受 restoreAutosaveGuard 拦截。项目创建前积累的对话、或 guard 未清除时，
+   * 对话永不落库（用户聊过但打开项目空白）。
+   *
+   * 本函数直接读 messagesRef（最新值）+ 显式传入的 projectId，绕过 guard，
+   * 供关键节点调用：项目创建后、页面离开前、流式回复结束后。
+   */
+  const saveChatNow = useCallback((projectId?: string) => {
+    const pid = projectId || projectContext.projectId;
+    if (!pid || pid.startsWith('local-')) return;
+    const msgs = messagesRef.current;
+    if (!msgs || msgs.length === 0) return;
+    projectsApi.saveChatHistory(pid, { messages: msgs }).catch((error) => {
+      console.error('[autosave:chat] saveChatNow 保存失败:', error);
+    });
+  }, [projectContext.projectId]);
+
   const buildWorkspaceSavePayload = useCallback((code: string, language: string, fileName: string) => {
     const filesSnapshot = upsertWorkspaceFiles(projectFiles, fileName, code, language);
     return {
@@ -978,7 +1003,8 @@ const [runResultBlobUrl, setRunResultBlobUrl] = useState<string | null>(null); /
       if (lastRaw && lastRaw.role === 'assistant' && typeof lastRaw.content === 'string') {
         const rawContent = lastRaw.content;
         const parsed = parseQuestionsFromText(rawContent);
-        if (parsed.length > 0) showPendingQuestions(parsed);
+        // Q-003 修复：恢复历史会话时，文本兜底解析出的卡片需后端二次确认
+        if (parsed.length > 0) void confirmAndShow(parsed, showPendingQuestions);
       }
     }
   }, [clearQuestionFlow, showPendingQuestions]);
@@ -1221,6 +1247,9 @@ const [runResultBlobUrl, setRunResultBlobUrl] = useState<string | null>(null); /
     return () => { if (codeSaveTimerRef.current) clearTimeout(codeSaveTimerRef.current); };
   }, [activeFileName, buildWorkspaceSavePayload, consumeRestoreAutosaveGuard, editorCode, projectContext.projectId, editorLanguage]);
 
+  // 同步 messages 到 ref，供异步回调读取最新值（避免闭包陈旧）
+  useEffect(() => { messagesRef.current = messages; }, [messages]);
+
   useEffect(() => {
     if (!projectContext.projectId || projectContext.projectId.startsWith('local-')) return;
     if (messages.length === 0) return;
@@ -1241,6 +1270,24 @@ const [runResultBlobUrl, setRunResultBlobUrl] = useState<string | null>(null); /
     }
     return () => { if (chatSaveTimerRef.current) clearTimeout(chatSaveTimerRef.current); };
   }, [consumeRestoreAutosaveGuard, messages, projectContext.projectId]);
+
+  // 2026-07-28 对话丢失修复：页面离开/隐藏时强制保存对话。
+  // 用户刷新、切标签页、最小化窗口时，防抖定时器（3s）可能还没触发就丢失。
+  // 监听 visibilitychange（切后台/最小化/切标签，最高频丢失场景）和 pagehide（卸载），
+  // 用 saveChatNow（走正常 fetch + token）立即保存。
+  useEffect(() => {
+    const handleLeave = () => {
+      if (document.visibilityState !== 'visible') {
+        saveChatNow();
+      }
+    };
+    document.addEventListener('visibilitychange', handleLeave);
+    window.addEventListener('pagehide', handleLeave);
+    return () => {
+      document.removeEventListener('visibilitychange', handleLeave);
+      window.removeEventListener('pagehide', handleLeave);
+    };
+  }, [projectContext.projectId, saveChatNow]);
 
   const ensureActiveProjectForAdvance = useCallback(async () => {
     if (projectContext.projectId && !projectContext.projectId.startsWith('local-')) {
@@ -1340,12 +1387,16 @@ const [runResultBlobUrl, setRunResultBlobUrl] = useState<string | null>(null); /
           console.error('[ensureProjectCreated] 新项目代码保存失败:', error);
         });
       }
+      // 2026-07-28 对话丢失修复：项目创建成功后，立即补存此前积累的对话。
+      // 项目创建是延迟的，创建前聊的对话此时还在 messagesRef 里但从未落库。
+      // 不传参则读 projectContext.projectId（此时可能尚未更新），故显式传 createdProject.id。
+      saveChatNow(createdProject.id);
       return createdProject;
     } else {
       projectCreatingRef.current = false;
       return null;
     }
-  }, [activeFileName, buildWorkspaceSavePayload, projectContext.projectId, projectContext.currentStage, projectContext.mode, projectContext.projectName, createProjectViaAPI]);
+  }, [activeFileName, buildWorkspaceSavePayload, projectContext.projectId, projectContext.currentStage, projectContext.mode, projectContext.projectName, createProjectViaAPI, saveChatNow]);
 
   const nextMessageId = () => { messageSeqRef.current += 1; return String(messageSeqRef.current); };
 
@@ -2067,14 +2118,16 @@ const handleSend = async (
 
     // 2026-07-23 Q-005 修复：注入已收集的学生回答（具体值），防止 AI 重复问
     // 用 studentProfileRef（title → labels）注入具体答案，让 AI 直接读到"年级=初中"等
+    // 2026-07-23 Q-005+: 限制最近 5 条，防止 context 过长导致 AI 混乱
     const studentProfile = studentProfileRef.current;
     if (studentProfile.size > 0) {
-      const profileEntries: string[] = [];
+      // Map 保持插入顺序，取最后 5 条（最近的回答）
+      const allEntries: string[] = [];
       studentProfile.forEach((labels, title) => {
-        // 截取标题前 20 字 + 答案，如"你现在是哪个年级？= 初中"
-        const shortTitle = title.length > 20 ? title.slice(0, 20) + '...' : title;
-        profileEntries.push(`${shortTitle} = ${labels.join('/')}`);
+        const shortTitle = title.length > 15 ? title.slice(0, 15) + '...' : title;
+        allEntries.push(`${shortTitle} = ${labels.join('/')}`);
       });
+      const profileEntries = allEntries.slice(-5);  // 最近 5 条
       effectiveContext.student_profile = profileEntries;
     }
     // 与 stem-pbl-guide Skill 状态机严格对齐：仅 stage_05_design / stage_07_execute / stage_08_evaluate 允许代码生成。
@@ -2370,7 +2423,8 @@ let rawAssistantContent = '';
               // 2026-07-19：废弃文本 fallback，只解析 XML。
               const fallback = parseQuestionsFromText(dedupedContent);
               if (fallback.length > 0) {
-                showPendingQuestions(fallback);
+                // Q-003 修复：文本兜底解析出的卡片需后端二次确认
+                void confirmAndShow(fallback, showPendingQuestions);
               }
             }
           },
@@ -2518,7 +2572,8 @@ let rawAssistantContent = '';
         // 2026-07-19：废弃文本 fallback，只解析 XML。多卡场景一次性解析所有 <question> 块。
         const finalFallback = parseQuestionsFromText(lastRawAccumulated || rawFinal);
         if (finalFallback.length > 0) {
-          showPendingQuestions(finalFallback);
+          // Q-003 修复：文本兜底解析出的卡片需后端二次确认
+          void confirmAndShow(finalFallback, showPendingQuestions);
         }
       }
 
@@ -2716,6 +2771,10 @@ let rawAssistantContent = '';
     } finally {
       setIsLoading(false);
       setIsContinuing(false);
+      // 2026-07-28 对话丢失修复：每轮流式回复结束后强制保存对话。
+      // 这是最高频、最可靠的保存时机。延迟一拍让 React 先把本轮 setMessages
+      // 刷到 messagesRef（saveChatNow 读 ref），避免闭包陈旧值。
+      setTimeout(() => saveChatNow(), 0);
     }
   };
   // handleSendRef 更新放在 useEffect 中，避免 render 期间修改 ref
@@ -2780,10 +2839,14 @@ let rawAssistantContent = '';
 
   const handleSceneClick = (label: string) => {
     setActiveScene(label);
+    // 「开始项目」特殊处理：显示引导欢迎界面而非直接发消息
+    if (label === '开始项目') {
+      setShowChatHistory(false);
+      return;
+    }
     const prompts: Record<string, string> = {
       '问问题': '我想问一个 STEM 相关的问题',
       '解释代码': '帮我分析一段代码的问题',
-      '开始项目': '我想做一个项目，帮我选题和规划',
       '写报告': '我需要帮助撰写一份研究报告或论文',
     };
     handleSend(prompts[label] || `切换到${label}模式`, label);
@@ -2802,9 +2865,14 @@ let rawAssistantContent = '';
                 className={`w-full flex items-center px-2.5 py-1.5 rounded-lg text-left transition-colors group ${
                   activeScene === entry.label ? 'bg-teal-50 text-teal-700' : 'text-gray-600 hover:bg-gray-50'
                 }`}>
-                <entry.icon className={`w-3.5 h-3.5 mr-2 ${activeScene === entry.label ? 'text-teal-600' : 'text-gray-400'}`} />
-                <div className="min-w-0">
-                  <div className="text-xs font-medium truncate">{entry.label}</div>
+                <entry.icon className={`w-3.5 h-3.5 mr-2 flex-shrink-0 ${activeScene === entry.label ? 'text-teal-600' : 'text-gray-400'}`} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs font-medium truncate">{entry.label}</span>
+                    {entry.action === 'guide' && (
+                      <span className="inline-flex items-center px-1 py-[1px] rounded text-[9px] font-medium bg-amber-100 text-amber-700 flex-shrink-0">引导</span>
+                    )}
+                  </div>
                   <div className="text-[10px] text-gray-400 truncate">{entry.desc}</div>
                 </div>
               </button>

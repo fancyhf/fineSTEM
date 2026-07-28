@@ -40,7 +40,7 @@ def get_provider_config(requested_provider: Optional[str] = None):
     elif provider == "deepseek":
         config["api_key"] = os.getenv("DEEPSEEK_API_KEY")
         config["base_url"] = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
-        config["model"] = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
+        config["model"] = os.getenv("DEEPSEEK_MODEL", "deepseek-v4-pro")
     elif provider == "openai":
         config["api_key"] = os.getenv("OPENAI_API_KEY")
         config["base_url"] = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")

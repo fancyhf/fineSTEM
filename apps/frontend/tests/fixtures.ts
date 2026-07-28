@@ -70,9 +70,10 @@ export const test = base.extend<{
       return;
     }
 
+    const headed = process.env.PLAYWRIGHT_HEADED === '1' || process.env.HEADED === '1';
     const launchedBrowser = await playwright.chromium.launch({
       executablePath: systemChromiumExecutablePath,
-      headless: true,
+      headless: !headed,
     });
 
     try {

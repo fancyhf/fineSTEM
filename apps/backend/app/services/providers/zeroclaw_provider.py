@@ -276,7 +276,7 @@ class ZeroClawProvider:
 
         if "messages" in payload:
             result = {
-                "model": str(payload.get("model") or "deepseek-chat"),
+                "model": str(payload.get("model") or "deepseek-v4-pro"),
                 "messages": payload["messages"],
                 "max_tokens": settings.ZEROCLAW_MAX_TOKENS,
             }
@@ -291,7 +291,7 @@ class ZeroClawProvider:
         if not self._is_glm_gateway(gateway_url) and not self._is_deepseek_gateway(gateway_url):
             return payload
 
-        model = str(payload.get("model") or "deepseek-chat")
+        model = str(payload.get("model") or "deepseek-v4-pro")
         message = str(payload.get("message") or "")
         context = payload.get("context") or {}
 

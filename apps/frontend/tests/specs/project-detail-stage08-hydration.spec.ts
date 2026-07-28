@@ -56,7 +56,7 @@ test.describe('阶段8页面回填', () => {
       { stage: 'stage_01_brainstorm', artifact: 'brainstorm', content: '# 脑爆' },
       { stage: 'stage_02_brief', artifact: 'project_brief', content: '# 简介' },
       { stage: 'stage_03_constraints', artifact: 'constraints', content: '# 约束' },
-      { stage: 'stage_04_track', artifact: 'track_plan', content: '# 轨道' },
+      { stage: 'stage_04_track', artifact: 'track_plan', content: '{"track": "web", "tech_stack": ["HTML", "CSS", "JavaScript"]}' },
       { stage: 'stage_05_design', artifact: 'design', content: '# 设计' },
       { stage: 'stage_06_step_plan', artifact: 'step_plan', content: '# 计划' },
       { stage: 'stage_07_execute', artifact: 'dev_log', content: '# 日志' },

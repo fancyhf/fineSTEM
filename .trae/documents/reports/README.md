@@ -1,11 +1,12 @@
 # reports/ — 进度、计划与问题报告
 
-version: v1.0.0
+version: v1.0.1
 created_at: 2026-07-23 00:00:00.000
 maintainer: 项目经理
 status: active
 change_log:
   - 2026-07-23 00:00:00.000 初始创建：报告目录索引与同步规则。
+  - 2026-07-23 17:30:00.000 归档根目录方案文档：将 `AUTO_CONTINUE_SOLUTION.md` 归档为 `auto_continue_solution.md` 并在本表登记。
 
 ## 用途
 
@@ -35,6 +36,7 @@ change_log:
 | [phase2_development_plan.md](phase2_development_plan.md) | 阶段计划 | 🟢 已归档 | Phase 2 开发计划 |
 | [phase3_plus_development_plan.md](phase3_plus_development_plan.md) | 阶段计划 | 🟢 已归档 | Phase 3+ 开发计划 |
 | [incident_workspace_code_overwrite_2026-07-18.md](incident_workspace_code_overwrite_2026-07-18.md) | 事故报告 | 🟢 已归档 | 代码覆盖事故记录 |
+| [auto_continue_solution.md](auto_continue_solution.md) | 方案文档 | 🟢 已归档 | AI 对话卡断问题解决方案 |
 | [开发遗漏深度审计报告_2026-04-26_v9.md](开发遗漏深度审计报告_2026-04-26_v9.md) | 审计报告 | 🟢 已归档 | 需求 vs 代码偏差分析 |
 
 ## 命名规则

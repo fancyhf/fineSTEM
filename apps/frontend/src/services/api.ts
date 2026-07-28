@@ -436,6 +436,22 @@ export const agentApi = {
   metrics: () => api.get<Record<string, number>>('/agent/metrics'),
 };
 
+// Chat API（Q-003 修复：问题卡片二次确认）
+export interface VerifyQuestionOption {
+  label: string;
+  description?: string;
+}
+export interface VerifyQuestionResult {
+  is_real_question: boolean;
+  reason: string;
+}
+export const chatApi = {
+  // 前端文本兜底解析出候选卡片后，调后端做权威二次判断，拦截功能介绍等误识别。
+  // 失败/超时降级为放行（is_real_question=true），避免漏掉真问题。
+  verifyQuestion: (title: string, options: VerifyQuestionOption[]) =>
+    api.post<VerifyQuestionResult>('/chat/verify-question', { title, options }),
+};
+
 export const documentsApi = {
   generate: (
     projectId: string,

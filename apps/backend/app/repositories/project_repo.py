@@ -21,8 +21,35 @@ STAGES = [
 ]
 
 
+# 合法 stage 状态（与 schemas/projects.py:StageBase.status Literal 对齐）
+_LEGAL_STAGE_STATUSES = {"locked", "active", "completed", "skipped"}
+
+# 历史/外部误写的非法状态字面量 → 规范化映射
+# 2026-07-27 修复：项目 4e8f476a 的 stages 存了 in_progress/not_started，
+# 触发 Pydantic ValidationError → /workspace 接口 500 → 前端 AI 对话流无法恢复。
+# 此处一次性兜底所有常见非法字面量，确保读取（_to_skill_state）与
+# 写入（update_skill_state）两条路径都不会再把脏值喂给 SkillState schema。
+_ILLEGAL_STATUS_MAP = {
+    "valid": "completed",       # 历史遗留
+    "done": "completed",
+    "finished": "completed",
+    "completed": "completed",   # 已合法，显式列出避免下方兜底误判
+    "active": "active",         # 已合法
+    "skipped": "skipped",       # 已合法
+    "in_progress": "active",    # 进行中 = 当前活动阶段
+    "in-progress": "active",
+    "running": "active",
+    "started": "active",
+    "not_started": "locked",    # 未开始 = 锁定
+    "not-started": "locked",
+    "pending": "locked",
+    "todo": "locked",
+    "locked": "locked",         # 已合法
+}
+
+
 def _normalize_stage_statuses(stages: dict) -> dict:
-    """兼容清洗历史写入的非法阶段状态。"""
+    """兼容清洗历史/外部写入的非法阶段状态，保证只产出合法四态。"""
     if not isinstance(stages, dict):
         return {}
     normalized: dict = {}
@@ -30,16 +57,25 @@ def _normalize_stage_statuses(stages: dict) -> dict:
         if isinstance(stage_value, BaseModel):
             stage_value = stage_value.model_dump(mode="json")
         if isinstance(stage_value, dict):
-            if stage_value.get("status") == "valid":
-                stage_value["status"] = "completed"
+            status = stage_value.get("status")
+            stage_value["status"] = _normalize_status_value(status)
             normalized[stage_key] = stage_value
             continue
         if isinstance(stage_value, str):
-            fallback_status = "completed" if "completed" in stage_value or "valid" in stage_value else "active"
-            normalized[stage_key] = {"status": fallback_status, "data": {}}
+            # 旧格式：整个值是状态字符串
+            normalized[stage_key] = {"status": _normalize_status_value(stage_value), "data": {}}
             continue
         normalized[stage_key] = {"status": "locked", "data": {}}
     return normalized
+
+
+def _normalize_status_value(status: object) -> str:
+    """把任意 status 值规范化为合法四态之一；未知/缺失一律降级为 locked。"""
+    if isinstance(status, str):
+        mapped = _ILLEGAL_STATUS_MAP.get(status.strip().lower())
+        if mapped:
+            return mapped
+    return "locked"
 
 
 def _normalize_initial_data(raw: object) -> dict:
@@ -343,7 +379,11 @@ class ProjectRepo(BaseRepository):
         row.mode = skill_state.mode
         row.current_stage = skill_state.current_stage
         row.light_step = str(skill_state.light_step) if skill_state.light_step else None
-        row.stages = json_dumps(skill_state.stages, "{}")
+        # 2026-07-27 P0 防御：与 update_skill_state 对齐，写入时也规范化 stages。
+        # 历史 create_skill_state 直接 json_dumps(skill_state.stages)，未经过
+        # _normalize_stage_statuses，是 stages 非法状态值（in_progress/not_started 等）
+        # 漏网的唯一未保护入口。此处补齐，使全量写入路径与增量更新一致。
+        row.stages = json_dumps(_normalize_stage_statuses(skill_state.stages), "{}")
         row.skill_metadata = json_dumps(skill_state.metadata, "{}")
         row.light_to_standard_mapping = json_dumps(skill_state.light_to_standard_mapping) if skill_state.light_to_standard_mapping else None
         row.stage_history = json_dumps(skill_state.stage_history, "[]")

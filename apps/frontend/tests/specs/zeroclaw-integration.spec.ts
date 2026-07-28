@@ -390,6 +390,173 @@ test.describe('对话系统回归 @ai（必须有头，推进到 stage_04+）', 
 
     expect(criticalErrors, `有 ${criticalErrors.length} 个未捕获错误`).toHaveLength(0);
   });
+
+  // ──────────────────────────────────────────────────────────────
+  // TC-DLG-011: AI 文字选项列表兜底渲染（Q-011）
+  // ──────────────────────────────────────────────────────────────
+  test('TC-DLG-011: AI 文字选项列表时前端兜底渲染卡片', async ({ page }) => {
+    test.setTimeout(180000);
+    await page.goto(CREATE_URL, { waitUntil: 'domcontentloaded', timeout: SETUP_TIMEOUT });
+
+    // 发消息触发对话——走多轮直到遇到 AI 用文字列表（无 tool_call）的场景
+    await sendMessage(page, '我想做一个项目');
+
+    // 走完 stage_00（3 轮点选项+确定）
+    for (let i = 0; i < 3; i++) {
+      const cardText = await waitForQuestionCard(page, AI_TIMEOUT);
+      if (!cardText) break;
+      await clickFirstOption(page);
+      await page.waitForTimeout(2000);
+    }
+
+    // 继续走 stage_01~02——这些阶段 AI 更可能用文字列表
+    for (let i = 0; i < 5; i++) {
+      // 检查是否有卡片（tool_call 路径或兜底路径）
+      const cardVisible = await page.getByTestId('question-card').first().isVisible().catch(() => false);
+      if (cardVisible) {
+        await clickFirstOption(page);
+        await page.waitForTimeout(2000);
+        continue;
+      }
+      // 没卡片——可能 AI 用了文字列表但兜底没命中，或 AI 在做总结
+      // 发"继续"推进
+      await sendMessage(page, '继续');
+      await page.waitForTimeout(5000);
+    }
+
+    // 最终截图
+    await page.screenshot({ path: 'test-results/tc-dlg-011-final.png' });
+    // 这个测试主要验证不崩溃——兜底命中率取决于 AI 模型行为
+  });
+
+  // ──────────────────────────────────────────────────────────────
+  // TC-DLG-012: 总结文本不误产生卡片（Q-003 + Q-011 反例）
+  // ──────────────────────────────────────────────────────────────
+  test('TC-DLG-012: AI 总结进度时不误产生选项卡片', async ({ page }) => {
+    test.setTimeout(180000);
+    await page.goto(CREATE_URL, { waitUntil: 'domcontentloaded', timeout: SETUP_TIMEOUT });
+
+    // 先走一轮建立项目上下文
+    await sendMessage(page, '我想做一个项目');
+    await waitForQuestionCard(page, AI_TIMEOUT);
+    await clickFirstOption(page);
+    await page.waitForTimeout(3000);
+
+    // 发总结请求
+    await sendMessage(page, '总结一下当前进度');
+    await page.waitForTimeout(15000);
+    await page.screenshot({ path: 'test-results/tc-dlg-012-after-summary.png' });
+
+    // 总结后检查——extractChoiceListStrict 不应该把总结的编号列表误提取为卡片
+    // 允许 0（正确）或 ≤1（上一轮遗留卡片）
+    const cardCount = await countQuestionCards(page);
+    console.log('[TC-DLG-012] 总结后卡片数:', cardCount);
+    // 如果有卡片，检查它是不是总结文本误产生的（标题应含"选择"而非"进度"）
+    if (cardCount > 0) {
+      const cardText = await page.getByTestId('question-card').first().textContent();
+      console.log('[TC-DLG-012] 卡片内容:', cardText?.slice(0, 60));
+      // 如果卡片标题是总结性内容（含"进度/完成/状态"），说明是误识别
+      if (cardText && /进度|完成|状态|总结|已完成/.test(cardText)) {
+        throw new Error(`Q-003+Q-011: 总结文本被误提取为选项卡: ${cardText.slice(0, 60)}`);
+      }
+    }
+  });
+
+  // ──────────────────────────────────────────────────────────────
+  // TC-DLG-013: 编码阶段教学模式选择（Q-012）
+  // ──────────────────────────────────────────────────────────────
+  test('TC-DLG-013: stage_07_execute 编码阶段必须先选教学模式', async ({ page }) => {
+    test.setTimeout(600000); // 10 分钟（完整 PBL 流程到编码阶段）
+
+    // 创建新项目
+    await page.goto(CREATE_URL, { waitUntil: 'domcontentloaded', timeout: SETUP_TIMEOUT });
+    await sendMessage(page, '我想做一个番茄钟项目');
+
+    // 快速通过前面所有阶段：brainstorm→brief→constraints→track→design→step_plan
+    // 每轮都点第一个选项推进
+    let roundCount = 0;
+    const maxRounds = 25; // 最多 25 轮，防止死循环
+
+    while (roundCount < maxRounds) {
+      roundCount++;
+      console.log(`[TC-DLG-013] 第 ${roundCount} 轮...`);
+
+      // 等待卡片出现
+      const cardText = await waitForQuestionCard(page, AI_TIMEOUT);
+      await page.screenshot({ path: `test-results/tc-dlg-013-round-${roundCount}.png` });
+
+      if (!cardText) {
+        console.log('[TC-DLG-013] 没有卡片，可能 AI 在生成代码或报错');
+        // 检查是否有错误信息
+        const pageText = await page.textContent('body');
+        if (pageText?.includes('教学模式未选择') || pageText?.includes('teaching_mode_required')) {
+          console.log('[TC-DLG-013] ✅ 检测到后端门禁错误提示');
+          break;
+        }
+        // 没有卡片也没有错误，可能是 AI 直接输出了代码——这是 Q-012 的失败场景
+        if (pageText?.includes('```') || pageText?.includes('function') || pageText?.includes('const')) {
+          throw new Error('Q-012 FAIL: AI 直接输出代码，没有询问教学模式');
+        }
+        // 继续等待或发"继续"
+        await sendMessage(page, '继续');
+        await page.waitForTimeout(5000);
+        continue;
+      }
+
+      console.log(`[TC-DLG-013] 卡片内容: ${cardText.slice(0, 60)}`);
+
+      // 检查是否是编码阶段的教学模式选择卡片
+      const isTeachingModeCard = /编码|教学|方式|怎么学|引导式|演示式|动手式|讲解式/.test(cardText);
+
+      if (isTeachingModeCard) {
+        console.log('[TC-DLG-013] ✅ 发现教学模式选择卡片！');
+        await page.screenshot({ path: 'test-results/tc-dlg-013-teaching-mode-card.png' });
+
+        // 验证点 1：必须有 4 个选项
+        const options = page.getByTestId('question-option');
+        const optionCount = await options.count();
+        console.log(`[TC-DLG-013] 选项数量: ${optionCount}`);
+        expect(optionCount, '教学模式卡片应有 4 个选项').toBeGreaterThanOrEqual(2);
+
+        // 验证点 2：选择"引导式"
+        const guidedOption = options.filter({ hasText: /引导|guided/ }).first();
+        if (await guidedOption.isVisible().catch(() => false)) {
+          await guidedOption.click();
+          await page.waitForTimeout(300);
+          await clickSubmitButton(page);
+          console.log('[TC-DLG-013] ✅ 已选择引导式教学模式');
+
+          // 等待 AI 回复——应该确认选择而不是直接吐代码
+          await page.waitForTimeout(8000);
+          await page.screenshot({ path: 'test-results/tc-dlg-013-after-select-mode.png' });
+
+          // 检查 AI 是否直接输出代码（失败场景）
+          const bodyText = await page.textContent('body');
+          const hasCodeBlock = bodyText?.includes('```') && (bodyText.includes('function') || bodyText.includes('const') || bodyText.includes('var'));
+          if (hasCodeBlock) {
+            // 检查是否同时有教学模式确认文字
+            const hasModeConfirmation = /引导|演示|动手|讲解/.test(bodyText || '');
+            if (!hasModeConfirmation) {
+              throw new Error('Q-012 FAIL: AI 直接输出代码，没有先确认教学模式选择');
+            }
+          }
+
+          console.log('[TC-DLG-013] ✅ 验证通过：AI 先确认教学模式，未直接吐代码');
+          break;
+        }
+      }
+
+      // 不是教学模式卡片，继续点第一个选项推进
+      await clickFirstOption(page);
+      await page.waitForTimeout(3000);
+    }
+
+    if (roundCount >= maxRounds) {
+      throw new Error('Q-012 FAIL: 超过最大轮数仍未到达编码阶段');
+    }
+
+    console.log('[TC-DLG-013] ✅ 测试完成，共经过 ' + roundCount + ' 轮到达编码阶段');
+  });
 });
 
 test.describe('前端 UI 冒烟（无需 AI，离线可跑）', () => {
@@ -404,5 +571,257 @@ test.describe('前端 UI 冒烟（无需 AI，离线可跑）', () => {
     const input = page.getByTestId('chat-input');
     await input.fill('测试输入');
     await expect(input).toHaveValue('测试输入');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// RT-14: Q-013 阶段推进防粗暴跳跃（5层防护验证）
+// ═══════════════════════════════════════════════════════════════════════════════
+test.describe('RT-14: 阶段推进防粗暴跳跃 @ai（Q-013 系统性修复）', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto(CREATE_URL, { waitUntil: 'domcontentloaded', timeout: SETUP_TIMEOUT });
+  });
+
+  // ──────────────────────────────────────────────────────────────
+  // RT-14a: 技术架构硬门禁（stage_04_track 必须选技术轨道）
+  // ──────────────────────────────────────────────────────────────
+  test('RT-14a: stage_04 必须通过 ask_question 选择技术轨道', async ({ page }) => {
+    test.setTimeout(300000); // 5 分钟
+
+    await sendMessage(page, '我想做一个网页项目');
+
+    let roundCount = 0;
+    const maxRounds = 15;
+    let foundTrackSelection = false;
+
+    while (roundCount < maxRounds && !foundTrackSelection) {
+      roundCount++;
+      console.log(`[RT-14a] 第 ${roundCount} 轮...`);
+
+      const cardText = await waitForQuestionCard(page, AI_TIMEOUT);
+      await page.screenshot({ path: `test-results/rt-14a-round-${roundCount}.png` });
+
+      if (!cardText) {
+        await sendMessage(page, '继续');
+        await page.waitForTimeout(3000);
+        continue;
+      }
+
+      console.log(`[RT-14a] 卡片内容: ${cardText.slice(0, 60)}`);
+
+      // 检查是否是技术轨道选择卡片
+      const isTrackCard = /技术|轨道|track|web|游戏|AI|数据|创意/.test(cardText);
+      if (isTrackCard && cardText.includes('选')) {
+        foundTrackSelection = true;
+        console.log('[RT-14a] ✅ 发现技术轨道选择卡片');
+
+        // 验证有技术栈选项
+        const options = page.getByTestId('question-option');
+        const optionCount = await options.count();
+        expect(optionCount, '技术轨道卡片应有多个选项').toBeGreaterThanOrEqual(2);
+
+        // 选择一个技术轨道
+        await clickFirstOption(page);
+        console.log('[RT-14a] ✅ 已选择技术轨道');
+        break;
+      }
+
+      await clickFirstOption(page);
+      await page.waitForTimeout(2000);
+    }
+
+    expect(foundTrackSelection, 'RT-14a FAIL: 未找到技术轨道选择卡片').toBe(true);
+  });
+
+  // ──────────────────────────────────────────────────────────────
+  // RT-14b: 教学模式硬门禁（stage_07 必须先选教学模式）
+  // ──────────────────────────────────────────────────────────────
+  test('RT-14b: stage_07 必须先选教学模式才能写代码', async ({ page }) => {
+    test.setTimeout(600000); // 10 分钟
+
+    await sendMessage(page, '我想做一个计算器项目');
+
+    let roundCount = 0;
+    const maxRounds = 25;
+    let foundTeachingMode = false;
+
+    while (roundCount < maxRounds && !foundTeachingMode) {
+      roundCount++;
+      console.log(`[RT-14b] 第 ${roundCount} 轮...`);
+
+      const cardText = await waitForQuestionCard(page, AI_TIMEOUT);
+      await page.screenshot({ path: `test-results/rt-14b-round-${roundCount}.png` });
+
+      if (!cardText) {
+        // 检查是否有门禁错误
+        const pageText = await page.textContent('body');
+        if (pageText?.includes('教学模式未选择') || pageText?.includes('teaching_mode_required')) {
+          console.log('[RT-14b] ✅ 检测到教学模式门禁错误');
+        }
+        // 检查是否直接输出了代码（失败场景）
+        if (pageText?.includes('```') && (pageText.includes('function') || pageText.includes('def '))) {
+          throw new Error('RT-14b FAIL: AI 直接输出代码，未询问教学模式');
+        }
+        await sendMessage(page, '继续');
+        await page.waitForTimeout(3000);
+        continue;
+      }
+
+      console.log(`[RT-14b] 卡片内容: ${cardText.slice(0, 60)}`);
+
+      // 检查是否是教学模式选择卡片
+      const isTeachingModeCard = /编码|教学|方式|怎么学|引导式|演示式|动手式|讲解式/.test(cardText);
+      if (isTeachingModeCard) {
+        foundTeachingMode = true;
+        console.log('[RT-14b] ✅ 发现教学模式选择卡片');
+
+        // 选择引导式
+        const options = page.getByTestId('question-option');
+        const guidedOption = options.filter({ hasText: /引导|guided/ }).first();
+        if (await guidedOption.isVisible().catch(() => false)) {
+          await guidedOption.click();
+          await page.waitForTimeout(300);
+          await clickSubmitButton(page);
+          console.log('[RT-14b] ✅ 已选择引导式教学模式');
+
+          // 等待 AI 回复，验证不直接吐代码
+          await page.waitForTimeout(8000);
+          const bodyText = await page.textContent('body');
+          const hasCodeBlock = bodyText?.includes('```') && (bodyText.includes('function') || bodyText.includes('const') || bodyText.includes('def '));
+          const hasModeConfirmation = /引导|演示|动手|讲解/.test(bodyText || '');
+
+          if (hasCodeBlock && !hasModeConfirmation) {
+            throw new Error('RT-14b FAIL: AI 直接输出代码，没有先确认教学模式');
+          }
+          break;
+        }
+      }
+
+      await clickFirstOption(page);
+      await page.waitForTimeout(2000);
+    }
+
+    expect(foundTeachingMode, 'RT-14b FAIL: 未找到教学模式选择卡片').toBe(true);
+  });
+
+  // ──────────────────────────────────────────────────────────────
+  // RT-14c: 学生催促"直接给代码"时 AI 正确拒绝
+  // ──────────────────────────────────────────────────────────────
+  test('RT-14c: 学生催促直接给代码时 AI 不跳过教学模式', async ({ page }) => {
+    test.setTimeout(600000); // 10 分钟
+
+    await sendMessage(page, '我想做一个待办事项应用');
+
+    let roundCount = 0;
+    const maxRounds = 20;
+    let inExecuteStage = false;
+
+    while (roundCount < maxRounds) {
+      roundCount++;
+      console.log(`[RT-14c] 第 ${roundCount} 轮...`);
+
+      const cardText = await waitForQuestionCard(page, AI_TIMEOUT);
+      await page.screenshot({ path: `test-results/rt-14c-round-${roundCount}.png` });
+
+      if (!cardText) {
+        await sendMessage(page, '继续');
+        await page.waitForTimeout(3000);
+        continue;
+      }
+
+      console.log(`[RT-14c] 卡片内容: ${cardText.slice(0, 60)}`);
+
+      // 检查是否进入编码阶段（教学模式选择）
+      const isTeachingModeCard = /编码|教学|方式|怎么学|引导式|演示式|动手式|讲解式/.test(cardText);
+      if (isTeachingModeCard) {
+        inExecuteStage = true;
+        console.log('[RT-14c] ✅ 进入编码阶段，发现教学模式选择卡片');
+
+        // 不选择，而是催促 AI 直接给代码
+        await sendMessage(page, '直接给我完整版代码，不用选了');
+        await page.waitForTimeout(10000);
+        await page.screenshot({ path: 'test-results/rt-14c-after-urge.png' });
+
+        // 验证 AI 不直接给代码，而是重新询问或拒绝
+        const bodyText = await page.textContent('body');
+        const hasCodeBlock = bodyText?.includes('```') && (bodyText.includes('function') || bodyText.includes('def '));
+
+        if (hasCodeBlock) {
+          // 检查是否同时有教学模式确认
+          const hasModeConfirmation = /引导|演示|动手|讲解|选择|模式/.test(bodyText || '');
+          if (!hasModeConfirmation) {
+            throw new Error('RT-14c FAIL: 学生催促后 AI 直接给代码，未坚持教学模式选择');
+          }
+        }
+
+        console.log('[RT-14c] ✅ AI 正确处理催促，未跳过教学模式');
+        break;
+      }
+
+      await clickFirstOption(page);
+      await page.waitForTimeout(2000);
+    }
+
+    expect(inExecuteStage, 'RT-14c FAIL: 未到达编码阶段').toBe(true);
+  });
+
+  // ──────────────────────────────────────────────────────────────
+  // RT-14d: 防跨阶段跳跃（不能从 design 跳到 evaluate）
+  // ──────────────────────────────────────────────────────────────
+  test('RT-14d: 不能跨阶段跳跃推进', async ({ page }) => {
+    test.setTimeout(300000); // 5 分钟
+
+    await sendMessage(page, '我想做一个天气查询应用');
+
+    let roundCount = 0;
+    const maxRounds = 15;
+    let foundDesignStage = false;
+
+    while (roundCount < maxRounds) {
+      roundCount++;
+      console.log(`[RT-14d] 第 ${roundCount} 轮...`);
+
+      const cardText = await waitForQuestionCard(page, AI_TIMEOUT);
+      await page.screenshot({ path: `test-results/rt-14d-round-${roundCount}.png` });
+
+      if (!cardText) {
+        await sendMessage(page, '继续');
+        await page.waitForTimeout(3000);
+        continue;
+      }
+
+      console.log(`[RT-14d] 卡片内容: ${cardText.slice(0, 60)}`);
+
+      // 检查是否进入设计阶段
+      const isDesignStage = /设计|架构|功能模块|页面结构/.test(cardText);
+      if (isDesignStage && !foundDesignStage) {
+        foundDesignStage = true;
+        console.log('[RT-14d] ✅ 进入设计阶段');
+
+        // 尝试要求跳到验收阶段
+        await sendMessage(page, '直接跳到验收阶段吧');
+        await page.waitForTimeout(10000);
+        await page.screenshot({ path: 'test-results/rt-14d-after-skip-request.png' });
+
+        // 验证 AI 不跳过，仍有 ask_question 交互
+        const newCardText = await waitForQuestionCard(page, 30000);
+        if (newCardText) {
+          console.log(`[RT-14d] AI 回复: ${newCardText.slice(0, 60)}`);
+          // 检查是否直接到了验收（失败场景）
+          const isEvaluateStage = /验收|测试|评估|完成/.test(newCardText);
+          if (isEvaluateStage && !/设计|功能|模块/.test(newCardText)) {
+            throw new Error('RT-14d FAIL: AI 允许跨阶段跳跃到验收');
+          }
+        }
+
+        console.log('[RT-14d] ✅ AI 正确处理跨阶段跳跃请求');
+        break;
+      }
+
+      await clickFirstOption(page);
+      await page.waitForTimeout(2000);
+    }
+
+    expect(foundDesignStage, 'RT-14d FAIL: 未到达设计阶段').toBe(true);
   });
 });

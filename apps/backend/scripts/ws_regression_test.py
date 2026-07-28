@@ -137,8 +137,14 @@ async def run_regression():
             if len(asks) == 0 and desc.startswith("stage_"):
                 # 需要提问的阶段但没有 ask_question
                 if re.search(r"选|点.*卡|哪个|方向|年级", text):
-                    results["issues"].append(f"轮次{i+1}: AI 有选择意图但没调 ask_question (Q-002)")
-                    print(f"  ⚠️ Q-002: 选择意图但无 ask_question")
+                    # Q-011: 检查文本里是否有文字选项列表（前端 extractChoiceListStrict 会兜底）
+                    has_text_options = bool(re.search(r'\n[-*•]\s+.+', text))
+                    if has_text_options:
+                        results["issues"].append(f"轮次{i+1}: AI 用文字列表选项无 ask_question，前端应兜底 (Q-011)")
+                        print(f"  ℹ️ Q-011: 文字选项列表（前端 extractChoiceListStrict 会兜底渲染）")
+                    else:
+                        results["issues"].append(f"轮次{i+1}: AI 有选择意图但没调 ask_question 也无列表 (Q-002)")
+                        print(f"  ⚠️ Q-002: 选择意图但无 ask_question 也无文字列表")
 
             if i == 4:  # "总结一下当前进度" 轮
                 # 这轮不应该产生 ask_question（总结请求不该被误识别为提问）

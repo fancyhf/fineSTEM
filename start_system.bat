@@ -21,18 +21,25 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
-echo [0/3] Checking ports...
+echo [0/4] Cleaning up old processes...
+REM Kill leftover node/esbuild processes that cause "service is no longer running" errors
+taskkill /F /IM esbuild.exe >nul 2>&1
+taskkill /F /IM node.exe >nul 2>&1
+echo       Old processes cleaned.
+echo.
+
+echo [1/4] Checking ports...
 netstat -ano | findstr ":3200 " | findstr "LISTENING" >nul 2>&1
 if %errorlevel% equ 0 (
-    echo [WARN] Port 3200 is in use, backend may fail to start
+    echo [WARN] Port 3200 is still in use after cleanup
 )
 netstat -ano | findstr ":5184 " | findstr "LISTENING" >nul 2>&1
 if %errorlevel% equ 0 (
-    echo [WARN] Port 5184 is in use, frontend may fail to start
+    echo [WARN] Port 5184 is still in use after cleanup
 )
 echo.
 
-echo [1/3] Starting backend (port 3200)...
+echo [2/4] Starting backend (port 3200)...
 start "fineSTEM Backend" cmd /k "cd /d %~dp0apps\backend && python -m uvicorn main:app --host 0.0.0.0 --port 3200 --reload"
 
 echo       Probing backend /health (timeout 30s)...
@@ -58,13 +65,13 @@ if !BACKEND_READY! equ 0 (
 )
 endlocal
 
-echo [2/3] Starting frontend (port 5184)...
+echo [3/4] Starting frontend (port 5184)...
 start "fineSTEM Frontend" cmd /k "cd /d %~dp0apps\frontend && npm run dev"
 
 echo       Waiting for frontend (5s)...
 timeout /t 5 >nul
 
-echo [3/3] Opening browser...
+echo [4/4] Opening browser...
 start http://localhost:5184
 
 echo.

@@ -1,7 +1,8 @@
 import { useCallback } from 'react';
 import { authStorage } from '../services/api';
 import { QuestionData } from '../components/QuestionCard';
-import { parseQuestionBlock, parseQuestionBlocks } from '../lib/questionParser';
+import { parseQuestionBlock, parseQuestionBlocks, extractChoiceListStrict } from '../lib/questionParser';
+import { confirmQuestions } from '../lib/questionConfirm';
 import { streamLogger } from '../lib/streamLogger';
 
 // ──────────────────────────────────────────────────────────────
@@ -825,25 +826,52 @@ async function _doStreamWithAutoContinue(
             content = content + '\n\n[输出可能不完整，如需继续请说"继续"]'
           }
           
-          // 解析问题卡片——只信任两条路径：
+          // 解析问题卡片——三条路径：
           // 1. ask_question tool_call 帧（主路径，在 tool_call 分支已处理，questionFired=true）
           // 2. <question> XML（旧格式兼容，parseQuestionBlocks）
-          //
-          // ⚠️ 不再使用 markdown fallback（parseQuestionsFromText）！
-          // 原因（Q-003）：markdown fallback 会把 AI 的总结/状态汇报（如"1.选题完成 2.开题中"）
-          // 误解析成选项卡，导致用户看到错误的卡片。误识别比偶尔丢卡更严重。
-          // AI 应该通过 ask_question 工具表达选项，而非文字列表/表格。
+          // 3. 精确选项列表兜底（extractChoiceListStrict）——仅在 1 和 2 都没命中时启用
+          //    处理 Q-011：DeepSeek ~10-15% 轮次在文字里列选项但不调 ask_question。
+          //    只提取"上方有选择意图标题+下方是短词选项"的列表，不误识别总结/状态汇报。
+          // ⚠️ 防重复卡（Q-004）：done 帧到达时 tool_call 帧可能还没到（异步乱序）。
+          //    如果 questionFired=false，延迟 500ms 再检查一次——给迟到的 tool_call 帧留窗口。
+          //    500ms 后仍为 false 才走兜底。
           let hasRenderedQuestion = questionFired;
           if (!questionFired) {
+            // 等 500ms 让可能迟到的 tool_call 帧到达
+            await new Promise(resolve => setTimeout(resolve, 500));
+            if (questionFired) {
+              console.info('[useStreamingChat][done] 延迟 500ms 后检测到 questionFired=true（tool_call 迟到），跳过兜底');
+              hasRenderedQuestion = true;
+            }
+          }
+          if (!hasRenderedQuestion) {
             try {
-              const questions = parseQuestionBlocks(content);
+              let questions = parseQuestionBlocks(content);
+              let fromTextFallback = false;
               console.info('[useStreamingChat][done] parseQuestionBlocks(XML) 解析出', questions.length, '张卡片');
+              // XML 没命中时，尝试精确选项列表兜底（Q-011）
+              if (questions.length === 0) {
+                questions = extractChoiceListStrict(content);
+                if (questions.length > 0) {
+                  fromTextFallback = true;
+                  console.info('[useStreamingChat][done] extractChoiceListStrict(精确兜底) 解析出', questions.length, '张卡片');
+                }
+              }
               if (questions.length > 0) {
-                hasRenderedQuestion = true;
-                if (events?.onQuestions) {
-                  events.onQuestions(questions);
-                } else if (events?.onQuestion) {
-                  events.onQuestion(questions[0]);
+                // Q-003 修复：文本兜底路径需后端二次确认，拦截功能介绍等误识别。
+                // XML 路径结构化可信，不确认；ask_question 工具路径已在上方 questionFired 处理。
+                let finalQuestions = questions;
+                if (fromTextFallback) {
+                  finalQuestions = await confirmQuestions(questions);
+                  console.info('[useStreamingChat][done] 后端二次确认后保留', finalQuestions.length, '/', questions.length, '张卡片');
+                }
+                if (finalQuestions.length > 0) {
+                  hasRenderedQuestion = true;
+                  if (events?.onQuestions) {
+                    events.onQuestions(finalQuestions);
+                  } else if (events?.onQuestion) {
+                    events.onQuestion(finalQuestions[0]);
+                  }
                 }
               }
             } catch (e) {

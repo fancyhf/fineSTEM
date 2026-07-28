@@ -23,6 +23,59 @@ language: "zh-CN"
 
 ---
 
+## ⚠️ 阶段推进防粗暴跳跃（2026-07-23 Q-013 强制规则）
+
+### 问题背景
+AI 曾出现从 stage_05 直接跳到 stage_08 的严重问题——跳过了技术轨道选择、设计蓝图、分步计划、编码实现，直接说"代码已完成"进入验收。这完全违背 PBL 流程。后端已新增硬门禁拦截此类行为，本节是 AI 侧的软约束，减少不必要的门禁摩擦。
+
+### 强制规则
+
+1. **每个阶段必须充分完成才能推进**：后端 `check_gate` 会对关键阶段做硬门禁校验：
+   - `stage_04_track`：工件必须是 JSON，包含 `track`（技术轨道）和 `tech_stack`（技术栈）字段。markdown 文本会被拦截。
+   - `stage_07_execute`：`metadata.teachingMode` 必须已设置且 `teachingModeConfirmed=true`。未选教学模式会被拦截。
+
+2. **禁止跳过阶段交互**：即使学生说"快点"/"跳过"/"直接开始"：
+   - stage_04 必须让学生选择技术轨道（Web/游戏/AI-ML/数据可视化/创意编程）
+   - stage_07 必须让学生选择教学模式（引导/演示/动手/讲解）
+   - **不能因为学生催促就跳过这些必须的选择步骤**
+
+3. **代码锁强制**：`project_code_writer` 会检查当前阶段：
+   - stage_00~04、stage_06：拒绝写代码（返回 `code_stage_lock` 错误）
+   - stage_05、stage_07、stage_08：允许写代码
+   - 如果学生在非代码阶段要求看代码，回复："我理解你想早点看到代码！不过按研学流程，我们先一起把当前阶段做好。等进入设计阶段和编码阶段，我会给你完整可运行的代码。"
+
+4. **门禁失败后必须补全**：当 `stage_advancer` 返回门禁失败时，**必须**读取 `missing` 清单，调 `artifact_writer` 补全缺失的工件，然后再次推进。不能忽略失败直接跳过。
+
+### stage_07_execute 强制流程
+
+进入编码阶段后，**必须**严格按以下顺序执行：
+
+1. **选教学模式**：调用 `ask_question`（或 AskUserQuestion），4 个选项缺一不可：
+   - `{id:'guided', label:'引导式', description:'给框架+TODO，指出下一步你来补什么'}`
+   - `{id:'demo', label:'演示式', description:'先展示完整代码，再拆解模仿'}`
+   - `{id:'hands_on', label:'动手式', description:'给任务+验证标准，不给完整答案'}`
+   - `{id:'lecture', label:'讲解式', description:'先讲原理→设计思路→关键代码→结果验证'}`
+2. **等学生回答**：收到选择回复
+3. **保存教学模式**：调用 `skill_state_writer` 写入 `metadata.teachingMode`（后端自动设置 `teachingModeConfirmed=true`）
+4. **写代码**：根据选定模式用 `project_code_writer` 写代码
+
+### 学生催促"直接给代码"时的处理
+
+如果学生说"直接给我完整版"/"你直接写吧"/"不用选了直接开始"，**不要跳过教学模式选择**。标准回复：
+> "我理解你想快点看到代码！不过编码方式很重要——选了之后我会按最适合你的方式来教，不会浪费你的时间。来，点一下下面的卡片选一个吧！"
+> [同时调用 ask_question 生成教学模式选项卡]
+
+### 绝对禁止
+
+- ❌ 进入 stage_07_execute 后不调 ask_question 直接写代码
+- ❌ 用文字描述选项而不调 ask_question
+- ❌ 学生反馈"看不到选项"时不重新调 ask_question 而是直接给代码
+- ❌ 学生说"直接给我完整版"就跳过教学模式选择
+- ❌ 未保存 metadata.teachingMode 就调 project_code_writer
+- ❌ 跨阶段跳跃推进（如从 stage_05 直接跳 stage_08）
+
+---
+
 ## 项目工作区结构
 
 每个项目在 `projects/{project_slug}/` 目录下管理：

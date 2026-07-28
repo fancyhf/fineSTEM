@@ -718,7 +718,7 @@ _PBL_STAGE_ARTIFACTS = [
     ("stage_01_brainstorm", "brainstorm", "# 脑爆选题\nAI 辅助古诗词创作"),
     ("stage_02_brief", "project_brief", "# 项目简介\n做一个 AI 诗词工具"),
     ("stage_03_constraints", "constraints", "# 约束条件\nPython + React，2 周"),
-    ("stage_04_track", "track_plan", "# 轨道选择\nWeb 应用轨道"),
+    ("stage_04_track", "track_plan", '{"track": "web", "tech_stack": ["HTML", "CSS", "JavaScript"]}'),
     ("stage_05_design", "design", "# 设计蓝图\n前端 React + 后端 FastAPI"),
     ("stage_06_step_plan", "step_plan", "# 分步计划\nStep1 脚手架 Step2 API"),
     ("stage_07_execute", "dev_log", "# 开发日志\nDay1 初始化 Day2 API"),

@@ -71,7 +71,11 @@ class TestPBLGates:
     )
     def test_gate_passes_with_content(self, stage: str, blob_key: str, artifact_name: str):
         """工件存在且非空时门禁通过。"""
-        data = {blob_key: f"这是 {artifact_name} 的示例内容。"}
+        # Q-013: stage_04_track 需要结构化 JSON 工件（含 track + tech_stack）
+        if stage == "stage_04_track":
+            data = {blob_key: '{"track": "web", "tech_stack": ["HTML", "CSS", "JS"]}'}
+        else:
+            data = {blob_key: f"这是 {artifact_name} 的示例内容。"}
         passed, missing = check_gate(stage, data)
         assert passed is True
         assert missing == []
@@ -126,6 +130,73 @@ class TestPBLGates:
         passed, missing = check_gate("stage_99_unknown", {"some_key": "val"})
         assert passed is True
         assert missing == []
+
+    # ===== Q-013 硬门禁测试（2026-07-23）=====
+
+    def test_stage_04_rejects_markdown_content(self):
+        """Q-013: stage_04_track 用 markdown 文本（非 JSON）应被硬门禁拦截。"""
+        passed, missing = check_gate("stage_04_track", {"track_plan_content": "# 轨道选择\n选择：Web"})
+        assert passed is False
+        assert any("JSON" in m for m in missing)
+
+    def test_stage_04_rejects_json_missing_track(self):
+        """Q-013: stage_04_track JSON 缺 track 字段应被拦截。"""
+        passed, missing = check_gate("stage_04_track", {"track_plan_content": '{"tech_stack": ["Python"]}'})
+        assert passed is False
+        assert any("track" in m for m in missing)
+
+    def test_stage_04_rejects_json_missing_tech_stack(self):
+        """Q-013: stage_04_track JSON 缺 tech_stack 字段应被拦截。"""
+        passed, missing = check_gate("stage_04_track", {"track_plan_content": '{"track": "web"}'})
+        assert passed is False
+        assert any("tech_stack" in m for m in missing)
+
+    def test_stage_04_passes_with_valid_json(self):
+        """Q-013: stage_04_track 完整 JSON（track + tech_stack）应通过。"""
+        data = {"track_plan_content": '{"track": "web", "tech_stack": ["HTML", "CSS", "JS"]}'}
+        passed, missing = check_gate("stage_04_track", data)
+        assert passed is True
+
+    def test_stage_07_rejects_without_teaching_mode(self):
+        """Q-013: stage_07_execute 无 teachingMode 应被硬门禁拦截。"""
+
+        class FakeStateNoMode:
+            current_stage = "stage_07_execute"
+            metadata = "{}"
+            standard_step_data = {"dev_log_content": "开发日志"}
+
+        passed, missing = check_gate(
+            "stage_07_execute", {"dev_log_content": "开发日志"}, skill_state=FakeStateNoMode()
+        )
+        assert passed is False
+        assert any("teachingMode" in m for m in missing)
+
+    def test_stage_07_rejects_without_confirmed(self):
+        """Q-013: stage_07_execute 有 teachingMode 但无 confirmed 应被拦截。"""
+
+        class FakeStateNoConfirmed:
+            current_stage = "stage_07_execute"
+            metadata = '{"teachingMode": "guided"}'
+            standard_step_data = {"dev_log_content": "开发日志"}
+
+        passed, missing = check_gate(
+            "stage_07_execute", {"dev_log_content": "开发日志"}, skill_state=FakeStateNoConfirmed()
+        )
+        assert passed is False
+        assert any("teachingMode" in m for m in missing)
+
+    def test_stage_07_passes_with_confirmed_mode(self):
+        """Q-013: stage_07_execute 有 teachingMode + confirmed 应通过。"""
+
+        class FakeStateComplete:
+            current_stage = "stage_07_execute"
+            metadata = '{"teachingMode": "guided", "teachingModeConfirmed": true}'
+            standard_step_data = {"dev_log_content": "开发日志"}
+
+        passed, missing = check_gate(
+            "stage_07_execute", {"dev_log_content": "开发日志"}, skill_state=FakeStateComplete()
+        )
+        assert passed is True
 
 
 # =============================================================================
@@ -209,14 +280,15 @@ class TestAdvanceWithGate:
         assert progress.json()["data"]["current_stage"] == "stage_01_brainstorm"
 
         # 2. 逐阶段推进：stage_01 → stage_08
+        # Q-013 修复：stage_07_execute 需要 teachingMode 和 teachingModeConfirmed
         stage_artifacts = [
             ("stage_01_brainstorm", {"brainstorm": "# 脑爆\n主题：AI 诗词生成器\n关键词：NLP、韵律"}),
             ("stage_02_brief", {"project_brief": "# 项目简介\n做一个 AI 辅助古诗词创作工具。"}),
             ("stage_03_constraints", {"constraints": "# 约束\n技术栈：Python + React\n时长：2 周"}),
-            ("stage_04_track", {"track_plan": "# 轨道选择\n选择：Web 应用轨道"}),
+            ("stage_04_track", {"track_plan": '{"track": "web", "tech_stack": ["HTML", "CSS", "JavaScript"]}'}),
             ("stage_05_design", {"design": "# 设计蓝图\n前端：React 组件树\n后端：FastAPI"}),
             ("stage_06_step_plan", {"step_plan": "# 分步计划\nStep1: 搭建脚手架\nStep2: 实现 API"}),
-            ("stage_07_execute", {"dev_log": "# 开发日志\nDay1: 完成项目初始化\nDay2: 实现 API 端点"}),
+            ("stage_07_execute", {"dev_log": "# 开发日志\nDay1: 完成项目初始化\nDay2: 实现 API 端点", "teachingMode": "guided", "teachingModeConfirmed": "true"}),
             ("stage_08_evaluate", {"evaluate": "# 验收总结\n成果：实现了核心功能\n反思：时间管理需改进"}),
         ]
 
@@ -301,10 +373,11 @@ class TestAdvanceWithGate:
             ("stage_01_brainstorm", {"brainstorm": "脑爆"}),
             ("stage_02_brief", {"project_brief": "简介"}),
             ("stage_03_constraints", {"constraints": "约束"}),
-            ("stage_04_track", {"track_plan": "轨道"}),
+            ("stage_04_track", {"track_plan": '{"track": "web", "tech_stack": ["Python"]}'}),
             ("stage_05_design", {"design": "设计"}),
             ("stage_06_step_plan", {"step_plan": "计划"}),
-            ("stage_07_execute", {"dev_log": "日志"}),
+            # Q-013 修复：stage_07_execute 需要 teachingMode 和 teachingModeConfirmed
+            ("stage_07_execute", {"dev_log": "日志", "teachingMode": "guided", "teachingModeConfirmed": "true"}),
             ("stage_08_evaluate", {"evaluate": "总结"}),
         ]:
             client.post(

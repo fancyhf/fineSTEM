@@ -642,6 +642,9 @@ async def update_project_teaching_mode(
         except Exception:
             metadata = {}
     metadata["teachingMode"] = payload.teaching_mode
+    # 2026-07-23 Q-013：标记教学模式已由学生通过 UI 确认
+    # 防止 AI 通过 skill_state_writer 自行设置 teachingMode 绕过学生交互
+    metadata["teachingModeConfirmed"] = True
     db.update_skill_state(project_id, {"metadata": metadata})
 
     progress, _ = _build_workspace_payload(project_id)
@@ -1675,8 +1678,28 @@ async def complete_pbl_stage(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权操作此项目")
 
     # 1. 逐 artifact 写入（blob + 落盘）
+    # Q-013 修复：处理 teachingMode 和 teachingModeConfirmed 特殊字段
+    metadata_updates = {}
     for artifact_name, content in body.artifacts.items():
-        save_artifact(project_id, artifact_name, content, db)
+        # 检查是否是 metadata 字段（teachingMode, teachingModeConfirmed）
+        if artifact_name == "teachingMode":
+            metadata_updates["teachingMode"] = content
+        elif artifact_name == "teachingModeConfirmed":
+            metadata_updates["teachingModeConfirmed"] = content
+        else:
+            save_artifact(project_id, artifact_name, content, db)
+
+    # 如果有 metadata 更新，写入 skill_state
+    if metadata_updates:
+        skill_state = db.get_skill_state(project_id)
+        if skill_state:
+            try:
+                current_metadata = json.loads(skill_state.metadata) if skill_state.metadata else {}
+            except (json.JSONDecodeError, TypeError):
+                current_metadata = {}
+            current_metadata.update(metadata_updates)
+            # Q-013 修复：使用正确的 update_skill_state API（传递字典，不要预先 JSON 序列化）
+            db.update_skill_state(project_id, {"metadata": current_metadata})
 
     # 2. 尝试带门禁推进
     result = advance_with_gate(project_id, db)
