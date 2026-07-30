@@ -89,6 +89,8 @@ interface StreamPayload {
 interface StreamResult {
   content: string;
   sessionId?: string;
+  /** Q-023：流式因空闲超时被判定卡死（30s 无新 chunk）。调用方据此显示"继续生成"按钮。 */
+  stalled?: boolean;
 }
 
 export interface CodeGeneratedEvent {
@@ -243,11 +245,15 @@ function buildOutgoingMessage(
 
     parts.push(`<context>\n${ctxLines.join('\n')}\n</context>`);
 
-    // memory hint：当项目已有进度时，提示 AI 召回历史记忆
+    // memory hint：当项目已有进度时，强制 AI 读取历史记忆，避免失忆重复问（Q-017）。
+    // 升级为强制指令：新会话第一件事必须调 skill_state_reader 读画像和工件。
     if (currentStage && currentStage !== 'stage_00_bootstrap') {
       parts.push(
         `<memory_hint>该项目已有历史进度（${currentStage}）。` +
-          `如果是新会话，请先调用 project_memory_recall 查询项目历史记忆。</memory_hint>`,
+          `【强制】如果是新会话或你不确定学生之前选过什么，第一件事必须调用 ` +
+          `skill_state_reader（include 含 standard_step_data 和 metadata）读取已收集的学生画像` +
+          `（metadata.student_profile）和各阶段工件，严禁重复问已答过的问题` +
+          `（如年级、兴趣、方向、选题等）。</memory_hint>`,
       );
     }
   }
@@ -442,7 +448,9 @@ function guessFilename(lang: string): string {
 
 // 自动续接配置
 const AUTO_CONTINUE_CONFIG = {
-  maxAttempts: 2,           // 最多尝试续接次数
+  // 2026-07-29 Q-023-A：从 2 提到 3。大段代码（HTML+CSS+JS 教学项目）单次 max_tokens
+  // 可能仍不够（即使配了 16384），需多次自动续接才能完整输出。
+  maxAttempts: 3,           // 最多尝试续接次数
   enableAutoContinue: true, // 是否启用自动续接
 };
 
@@ -534,6 +542,52 @@ async function _doStreamWithAutoContinue(
       reject(new Error('AI 响应超时，请稍后重试'));
     }, 120000);
 
+    // 2026-07-29 Q-023 修复A：chunk 间空闲超时（idleTimer）。
+    // 背景：totalTimeout（120s）从握手后一次性计时，不随 chunk 重置。
+    // AI 吐字到一半（如"词库 ="）卡住后，要干等满 120s 才报超时——用户看到的是
+    // 三个点无止境转圈。idleTimer 在收到首个 chunk 后启动，每来一个新 chunk 重置；
+    // 30s 无新 chunk → 判定卡死 → 保留已收到内容（不丢"词库 ="那段）+ resolve
+    // （非 reject），让上层走"显示继续生成按钮"路径。
+    // 2026-07-30 截断死循环根因修复（项目 8a7c155e 实证）：30s → 90s。
+    // 原 30s 阈值会在 AI 调用工具（project_code_writer 写大段代码 / skill_state_reader 读 DB）
+    // 期间误判卡死——工具执行期间 daemon 不发 chunk，30s 一到就判定 stalled → 追加中断标记 +
+    // 触发续接 → 死循环。实证：该项目多条带"中断"标记的消息正文含"代码已写入编辑器""现在写入
+    // 完整代码"，正是工具执行期间的误判。90s 给足工具执行窗口（写 30k 字符代码 + 存 DB）。
+    const IDLE_TIMEOUT_MS = 90000;
+    let idleTimer: ReturnType<typeof setTimeout> | null = null;
+    let idleFired = false;
+    // 2026-07-30 Q-023 深度修复：idleTimer 误判根因。
+    // 原实现 resetIdleTimer 写在 onmessage 回调内部，依赖"回调被执行"来重置计时器。
+    // 但前端渲染积压时，WS 帧虽已到达并进事件队列，React 渲染占满主线程导致 onmessage
+    // 迟迟不跑 → 计时器到点 → 误判卡死 → 触发自动续接 → 续接塞更多字 → 更卡，恶性循环。
+    // 修复：lastWsDataTs 在 onmessage 最开头（JSON.parse 前）记录帧到达时间。
+    // 计时器到点时检查：若距上一帧到达不足阈值，说明帧还在来只是没处理完，重置计时器继续等，
+    // 不误判卡死。只有真的超过阈值无新帧才判定 stalled。
+    let lastWsDataTs = 0;
+    function resetIdleTimer() {
+      if (idleTimer) clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => {
+        if (idleFired) return;
+        // 帧仍在到达（只是渲染积压没处理完），不判定卡死，继续等待
+        if (lastWsDataTs > 0 && Date.now() - lastWsDataTs < IDLE_TIMEOUT_MS) {
+          resetIdleTimer();
+          return;
+        }
+        idleFired = true;
+        console.warn('[useStreamingChat] chunk 空闲超时（90s 无新内容），判定流式疑似卡死，保留已收到的内容', {
+          contentLength: fullContent.length,
+          continueAttempt,
+        });
+        streamLogger.log('idle_timeout', { contentLength: fullContent.length, idleMs: IDLE_TIMEOUT_MS });
+        try { ws.close(); } catch (e) { /* ignore */ }
+        // 保留已收到的内容并 resolve（不 reject 抛错，避免清空已生成内容）
+        resolve({ content: fullContent, sessionId, stalled: true });
+      }, IDLE_TIMEOUT_MS);
+    }
+    function clearIdleTimer() {
+      if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
+    }
+
     const handshakeTimeout = setTimeout(() => {
       if (!connectedOk) {
         ws.close();
@@ -542,6 +596,10 @@ async function _doStreamWithAutoContinue(
     }, 8000);
 
       ws.onmessage = async (event) => {
+        // 2026-07-30 Q-023 深度修复：帧一到达立即记录时间戳（在所有解析/业务逻辑之前）。
+        // 这样即使后续同步 JS 执行被渲染积压阻塞，idleTimer 也能基于"真实收帧时间"判定，
+        // 而非"回调执行时间"。是避免渲染积压误判卡死的关键。
+        lastWsDataTs = Date.now();
         let data: Record<string, any>;
         try {
           data = JSON.parse(event.data as string);
@@ -550,6 +608,16 @@ async function _doStreamWithAutoContinue(
         }
 
         const type = data.type as string | undefined;
+
+        // 2026-07-29 Q-023 修复A（回归修正）：idleTimer 必须在收到任何"活动帧"时重置，
+        // 而非仅在 chunk 帧时。AI 生成代码时会穿插 thinking（推理）/ tool_call
+        // （skill_state_reader/project_code_writer）/ tool_result / code_generated 等帧，
+        // 这些期间没有 chunk 但流是活的（daemon 在正常工作）。若只靠 chunk 重置，
+        // 一次工具调用或长推理超过 30s 就会被误判卡死、截断正常输出。
+        // 终态帧（done/aborted/error）在各自分支里 clearIdleTimer，不在这里重置。
+        if (idleTimer && type && type !== 'done' && type !== 'aborted' && type !== 'error') {
+          resetIdleTimer();
+        }
 
         // 握手阶段
         if (type === 'session_start') {
@@ -592,6 +660,8 @@ async function _doStreamWithAutoContinue(
             continueAttempt,
           });
           onToken(data.content);
+          // Q-023 修复A：收到 chunk 重置空闲计时器（吐字正常时每 30s 内必有新内容）
+          resetIdleTimer();
           return;
         }
 
@@ -740,8 +810,38 @@ async function _doStreamWithAutoContinue(
           return;
         }
 
+        // 2026-07-28 Q-019 修复：后端 orchestrator 在 project_code_writer 工具成功后，
+        // 会从 DB workspace 读取完整 code/files 并专门 yield 一个 code_generated 事件
+        // （orchestrator.py:1015-1023）。这是数据最全、最权威的代码来源。
+        // 但此前前端没有任何 type === 'code_generated' 的处理分支，导致该事件被整体忽略。
+        // 唯一读代码的 tool_result 路径（line 684-697）读的 out.code/out.files，
+        // 后端 ToolResult.data 又恰好不返回这两个字段 → 编辑器永远空白。
+        // 这里补上独立分支，读后端权威数据，并复用 codeEventFired 防止与文本兜底重复触发。
+        if (type === 'code_generated' && data) {
+          const d = data as Record<string, any>;
+          const codeStr = typeof d.code === 'string' ? d.code : '';
+          if (codeStr && codeStr.trim().length > 10) {
+            codeEventFired = true;
+            try {
+              events?.onCodeGenerated?.({
+                project_id: d.project_id || payload.projectId,
+                code: codeStr,
+                language: d.language || 'html',
+                filename: d.filename,
+                files: Array.isArray(d.files) ? d.files : undefined,
+                saved_at: d.saved_at,
+                source: d.source || 'tool',
+              });
+            } catch (e) {
+              console.error('[useStreamingChat] code_generated event failed', e);
+            }
+          }
+          return;
+        }
+
         if (type === 'done') {
           clearTimeout(totalTimeout);
+          clearIdleTimer();  // Q-023 修复A：正常结束，清空闲计时器
           let content = typeof data.full_response === 'string' ? data.full_response : fullContent;
           sessionContent = content.substring(accumulatedContent.length); // 本次新内容
 
@@ -749,18 +849,35 @@ async function _doStreamWithAutoContinue(
           const finishReason = data.finish_reason || data.finishReason;
           const isLengthTruncated = finishReason === 'length';
           const isContentIncomplete = _detectIncompleteContent(content);
-          const shouldSuggestContinue = isLengthTruncated || isContentIncomplete;
+          // 2026-07-29 Q-023-A 截断深度修复：daemon done 帧不带 finish_reason（WS 诊断实证），
+          // 但带 output_tokens。当 output_tokens 接近 max_tokens（>90%）时，几乎一定是
+          // token 上限截断（代码作为工具参数被切）。这是不依赖 finish_reason 的可靠检测。
+          const outputTokens = typeof data.output_tokens === 'number' ? data.output_tokens : 0;
+          const MAX_TOKENS_ESTIMATE = 65536;  // 与 config.toml max_tokens 对齐
+          const isTokenLimitHit = outputTokens > 0 && outputTokens >= MAX_TOKENS_ESTIMATE * 0.9;
+          // 2026-07-30 截断死循环根因修复（项目 8a7c155e 实证）：
+          // 启发式 _detectIncompleteContent（看结尾字符：奇数 fence/冒号/破折号/引导词）会把 AI
+          // 正常停顿（如讲解代码时写"词库 ="+开了 ```）误判为截断 → 追加"[输出可能不完整]"
+          // + 触发自动续接 → 续接失灵 AI 从头讲 → 又被误判 → 死循环。实证：该项目 72 条对话
+          // 最长才 1996 字符（~1500 token），全部远低于 max_tokens=65536，根本不是 token 截断。
+          // daemon done 帧不带 finish_reason，唯一可靠的截断信号是 output_tokens >= 上限*0.9。
+          // 故 shouldSuggestContinue 只信 isTokenLimitHit（+ daemon 偶尔带的 finish_reason=length）。
+          // _detectIncompleteContent/isContentIncomplete 保留计算仅用于诊断日志，不再驱动截断判定。
+          const shouldSuggestContinue = isLengthTruncated || isTokenLimitHit;
 
           // === 诊断日志（2026-07-19）：帮助定位"AI 没输出 XML 时为什么没卡片"===
           console.info('[useStreamingChat][done] AI 原始回复长度:', content?.length || 0);
           console.info('[useStreamingChat][done] finish_reason:', finishReason);
-          console.info('[useStreamingChat][done] 是否截断:', shouldSuggestContinue);
+          console.info('[useStreamingChat][done] output_tokens:', outputTokens, isTokenLimitHit ? '(⚠️接近上限=截断)' : '');
+          console.info('[useStreamingChat][done] 是否截断:', shouldSuggestContinue, '(启发式incomplete=', isContentIncomplete, '仅日志，不驱动续接)');
           console.info('[useStreamingChat][done] 是否含 <question> 标签:', /<question/i.test(content || ''));
 
           // 记录到详细日志
           streamLogger.log('done', {
             fullContentLength: fullContent.length,
             finishReason,
+            outputTokens,
+            isTokenLimitHit,
             isLengthTruncated,
             isContentIncomplete,
             shouldSuggestContinue,
@@ -785,13 +902,20 @@ async function _doStreamWithAutoContinue(
             
             ws.close();
 
-            // 构建续接消息：只发简短接续指令。
-            // ZeroClaw 复用同一 session，它内部保留了上一轮 AI 的完整输出，
-            // 所以这里不需要把上一轮内容塞进 messages（那样反而会重复）。
-            // accumulatedContent 通过参数继续传递给下一轮，用于累计字符和截断检测。
+            // 构建续接消息：发接续指令 + 显式带上上一轮已输出内容。
+            // 2026-07-29 Q-023 修复B：原假设"ZeroClaw 复用 session 会保留上一轮输出"被证伪——
+            // daemon 续接时未必回放上文，导致 AI 看不到被截断的内容、从 Step1 重讲。
+            // 现在把 accumulatedContent（已输出全文）显式拼进续接消息，AI 能看到断点
+            // 从"词库 ="接着写。保留 sessionId 复用作双保险（daemon 若有记忆则更准）。
+            // 2026-07-29 截断回归修正：slice(-2000) 只给末尾 2000 字，AI 看不到完整
+            // HTML/CSS 结构，续接输出会重复或答非所问。扩大到 8000 字覆盖整个代码块。
+            const prevOutput = content.trim();
+            const continueMessage = prevOutput
+              ? `请继续完成上一条回复，从被截断处接着输出，不要重复已输出的内容，保持格式一致，确保代码块和标签正确闭合。\n\n上一条已输出内容（请勿重复，从此内容结尾处接着写）：\n<previous_output>\n${prevOutput.slice(-8000)}\n</previous_output>`
+              : '请继续完成上一条回复，从被截断处接着输出，不要重复已输出的内容，保持格式一致，确保代码块和标签正确闭合。';
             const continuePayload: StreamPayload = {
               ...payload,
-              message: '请继续完成上一条回复，从被截断处接着输出，不要重复已输出的内容，保持格式一致，确保代码块和标签正确闭合。',
+              message: continueMessage,
               messages: undefined,
               sessionId, // 显式复用同一 session
             };
@@ -820,12 +944,13 @@ async function _doStreamWithAutoContinue(
               // 续接失败，返回当前内容（继续执行后续代码）
             }
           }
-          
-          // 如果检测到截断但无法自动续接（达到最大尝试次数或禁用），在 content 中标记
-          if (shouldSuggestContinue && content) {
-            content = content + '\n\n[输出可能不完整，如需继续请说"继续"]'
-          }
-          
+
+          // 2026-07-30 截断死循环根因修复：删除"检测到截断就在 content 追加[输出可能不完整]"逻辑。
+          // 此前启发式 _detectIncompleteContent 频繁误判正常回复为截断 → 追加这句吓人提示 →
+          // 用户看到"输出可能不完整"以为真截断了 → 点继续 → 死循环。现在 shouldSuggestContinue
+          // 只在真正 token 上限截断（isTokenLimitHit）时为 true，且真正截断时由自动续接逻辑
+          // 处理，不需要在正文里追加污染性文本。
+
           // 解析问题卡片——三条路径：
           // 1. ask_question tool_call 帧（主路径，在 tool_call 分支已处理，questionFired=true）
           // 2. <question> XML（旧格式兼容，parseQuestionBlocks）
@@ -919,6 +1044,7 @@ async function _doStreamWithAutoContinue(
 
         if (type === 'aborted') {
           clearTimeout(totalTimeout);
+          clearIdleTimer();  // Q-023 修复A
           ws.close();
           reject(new Error('AI 响应被中断'));
           return;
@@ -926,6 +1052,7 @@ async function _doStreamWithAutoContinue(
 
         if (type === 'error') {
           clearTimeout(totalTimeout);
+          clearIdleTimer();  // Q-023 修复A
           streamLogger.logError(data.message || 'ZeroClaw 错误', 'websocket_error');
           ws.close();
           reject(new Error(typeof data.message === 'string' ? data.message : 'ZeroClaw 错误'));
@@ -951,11 +1078,13 @@ async function _doStreamWithAutoContinue(
       ws.onclose = () => {
         clearTimeout(totalTimeout);
         clearTimeout(handshakeTimeout);
+        clearIdleTimer();  // Q-023 修复A
       };
 
       ws.onerror = () => {
         clearTimeout(totalTimeout);
         clearTimeout(handshakeTimeout);
+        clearIdleTimer();  // Q-023 修复A
         reject(new Error('ZeroClaw WebSocket 错误'));
       };
     });

@@ -72,6 +72,11 @@ test-results/
 apps/frontend/eslint-report-*.json
 apps/frontend/eslint-summary-*.txt
 
+# Root-level temporary diagnostic/test outputs (do not track)
+.diag_output*.txt
+.e2e_output*.txt
+.dbg_output*.txt
+
 # Test artifacts - documentation (SHOULD be tracked)
 # .trae/documents/testing/pbl-conversation-flow/ - keep test plans and reports
 # .trae/documents/testing/qa-handoff/ - keep QA handoff docs

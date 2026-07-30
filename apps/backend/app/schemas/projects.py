@@ -314,6 +314,12 @@ class ProjectProgress(BaseModel):
         default='guided',
         description="代码讲解教学模式",
     )
+    # 2026-07-28 Q-017 修复：学生画像（年级/兴趣/方向/选题等），从 metadata 回灌，
+    # 解决刷新后 AI 失忆重复问。格式：{"问题标题": ["选项label1", ...]}
+    student_profile: Optional[Dict[str, List[str]]] = Field(
+        default=None,
+        description="已收集的学生画像（选项标题→选中标签），用于 AI 记忆恢复",
+    )
 
 
 class ProjectWorkspaceData(BaseModel):

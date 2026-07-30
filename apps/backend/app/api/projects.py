@@ -6,7 +6,7 @@
 links: .trae/documents/api-specs/v1/spec.json
 """
 
-from typing import Optional
+from typing import Any, Dict, List, Optional
 from urllib.parse import quote
 import io
 import json
@@ -17,7 +17,7 @@ import zipfile
 from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from fastapi.responses import PlainTextResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from app.schemas.projects import (
     Project,
     ProjectCreate,
@@ -403,6 +403,123 @@ def _get_teaching_mode_from_state(skill_state) -> str:
     return "guided"
 
 
+def _get_student_profile_from_state(skill_state) -> dict[str, list[str]] | None:
+    """从 skill_state.metadata.student_profile 读取学生画像（Q-017 记忆持久化）。
+
+    格式：{"问题标题": ["选中标签1", ...]}。无画像时返回 None（前端降级为空）。
+    """
+    metadata = getattr(skill_state, "metadata", {}) or {}
+    if isinstance(metadata, str):
+        try:
+            import json
+            metadata = json.loads(metadata)
+        except Exception:
+            metadata = {}
+    profile = metadata.get("student_profile")
+    if isinstance(profile, dict) and profile:
+        # 仅保留 dict[str, list[str]] 结构，过滤非法值
+        cleaned: dict[str, list[str]] = {}
+        for key, value in profile.items():
+            if isinstance(key, str) and isinstance(value, list):
+                cleaned[key] = [str(v) for v in value if v is not None]
+        return cleaned or None
+    return None
+
+
+def _extract_confirmed_project_name(skill_state: Any) -> str | None:
+    """
+    从 skill_state 中提取 AI 与学生确认的项目名（Q-022 修复）。
+
+    AI 在脑爆/简报阶段确定的项目名存放在 PBL 数据里，而 projects.name 是创建时的
+    默认值（用户首条消息截断）。本函数从多处尝试提取确认后的名字：
+      1. standard_step_data.brief_content（JSON 字符串，stage_02 工件，含 project_name）
+      2. standard_step_data.project_name（顶层，部分流程直接写）
+      3. light_step_data.project_name（轻项目 step_1）
+
+    返回去除首尾空白后的名字；找不到返回 None。
+    """
+    if not skill_state:
+        return None
+
+    def _clean(v: Any) -> str | None:
+        if isinstance(v, str):
+            s = v.strip()
+            return s or None
+        return None
+
+    # 1. standard_step_data.brief_content（JSON 工件，最权威）
+    ssd = getattr(skill_state, "standard_step_data", None) or {}
+    if isinstance(ssd, dict):
+        brief = ssd.get("brief_content")
+        if isinstance(brief, str):
+            try:
+                parsed = json.loads(brief)
+                if isinstance(parsed, dict):
+                    name = _clean(parsed.get("project_name") or parsed.get("title"))
+                    if name:
+                        return name
+            except (json.JSONDecodeError, TypeError):
+                pass
+        elif isinstance(brief, dict):
+            name = _clean(brief.get("project_name") or brief.get("title"))
+            if name:
+                return name
+        # 2. 顶层 project_name
+        name = _clean(ssd.get("project_name"))
+        if name:
+            return name
+
+    # 3. light_step_data.project_name
+    lsd = getattr(skill_state, "light_step_data", None)
+    if isinstance(lsd, dict):
+        name = _clean(lsd.get("project_name"))
+        if name:
+            return name
+
+    return None
+
+
+def _sync_project_name_from_skill_state(project_id: str, project: Any, skill_state: Any) -> str:
+    """
+    若 AI 确认的项目名与 projects.name 不一致，自动同步（Q-022 数据自愈）。
+
+    项目创建时 name 用的是用户首条消息截断（如 "我想做一个英语单词学习..."），
+    AI 在脑爆/简报阶段确定的真实名字（如 "英语单词学习助手"）从未同步到 projects 表，
+    导致侧边栏项目列表永远显示默认长名字。本函数在构建 workspace 时检测并修正。
+
+    返回应显示的项目名（同步成功则用新名，否则用原 projects.name）。
+
+    ⚠️ 2026-07-29 Q-022 回归修正：用户手动改名后，自愈逻辑会把名字反向覆盖回
+    AI 早期确认的名字（用户改成"我的助手"，AI 早期确认"英语助手"→ 自愈改回去）。
+    修复：检查 initial_data.name_manually_overridden 标志，用户手动改过则跳过自愈。
+    该标志在 update_project（PATCH 接口）改名时设置。
+    """
+    confirmed_name = _extract_confirmed_project_name(skill_state)
+    if not confirmed_name or not project:
+        return getattr(project, "name", "") or ""
+    current_name = (getattr(project, "name", "") or "").strip()
+    # 用户已手动改名 → 绝不覆盖（Q-022 回归修正）
+    initial_data = getattr(project, "initial_data", None)
+    if isinstance(initial_data, dict) and initial_data.get("name_manually_overridden") is True:
+        return current_name
+    # 名字已一致（或新名是旧名前缀，避免无意义写入）则跳过
+    if current_name == confirmed_name or current_name.startswith(confirmed_name):
+        return current_name
+    try:
+        updated = db.update_project(project_id, {"name": confirmed_name})
+        if updated and getattr(updated, "name", "") == confirmed_name:
+            import logging
+            logging.getLogger(__name__).info(
+                "[Q-022] 项目名自动同步: %s '%s' -> '%s'",
+                project_id[:8], current_name, confirmed_name,
+            )
+            return confirmed_name
+    except Exception as exc:  # 同步失败不阻断 workspace 返回
+        import logging
+        logging.getLogger(__name__).warning("[Q-022] 项目名同步失败: %s", exc)
+    return current_name
+
+
 def _build_workspace_payload(project_id: str) -> tuple[ProjectProgress, ProjectWorkspaceData]:
     skill_state = db.get_skill_state(project_id)
     if not skill_state:
@@ -412,6 +529,16 @@ def _build_workspace_payload(project_id: str) -> tuple[ProjectProgress, ProjectW
         )
     workspace = db.get_project_workspace(project_id) or {}
     project = db.get_project(project_id)
+    # 2026-07-28 Q-022 修复：AI 确认的项目名同步到 projects.name（数据自愈）。
+    # 侧边栏项目列表读 projects.name，此前 AI 在对话中确定的名字只存在 PBL 数据里，
+    # 从未回写 projects 表，导致列表显示创建时的默认长名字。
+    effective_name = _sync_project_name_from_skill_state(project_id, project, skill_state)
+    if project and effective_name and effective_name != (getattr(project, "name", "") or ""):
+        # 同步成功后用新名构造返回（不重新查库，避免额外 IO）
+        try:
+            project = project.model_copy(update={"name": effective_name})
+        except Exception:
+            pass
     standard_step_data = skill_state.standard_step_data or {}
     if project:
         draft_data, _ = _build_achievement_draft(project_id, project)
@@ -435,6 +562,7 @@ def _build_workspace_payload(project_id: str) -> tuple[ProjectProgress, ProjectW
         light_step_data=skill_state.light_step_data,
         standard_step_data=standard_step_data,
         teaching_mode=_get_teaching_mode_from_state(skill_state),
+        student_profile=_get_student_profile_from_state(skill_state),
     )
     workspace_data = ProjectWorkspaceData(
         code=str(workspace.get("code") or ""),
@@ -651,6 +779,50 @@ async def update_project_teaching_mode(
     return ApiResponse(data=progress, message="教学模式更新成功")
 
 
+class StudentProfileUpdate(BaseModel):
+    """学生画像更新请求（Q-017 记忆持久化）。"""
+    profile: Dict[str, List[str]] = Field(
+        ..., description="学生画像：问题标题 → 选中标签列表，如 {\"年级\": [\"初三\"]}"
+    )
+
+
+@router.post("/{project_id}/student-profile", response_model=ApiResponse[ProjectProgress])
+async def update_student_profile(
+    project_id: str,
+    payload: StudentProfileUpdate,
+    current_user: UserResponse = Depends(get_current_user),
+):
+    """
+    保存学生画像到 skill_state.metadata（Q-017 记忆持久化）。
+
+    学生每次在选项卡选择后，前端调用此接口把画像持久化，
+    刷新/重开项目时从 metadata 恢复，避免 AI 失忆重复问。
+    """
+    project = db.get_project(project_id)
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
+    if project.author_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权修改此项目")
+
+    skill_state = db.get_skill_state(project_id)
+    if not skill_state:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目状态不存在")
+
+    metadata = getattr(skill_state, "metadata", {}) or {}
+    if isinstance(metadata, str):
+        try:
+            import json
+            metadata = json.loads(metadata)
+        except Exception:
+            metadata = {}
+    # 整体覆盖画像（前端始终传完整的当前画像）
+    metadata["student_profile"] = payload.profile
+    db.update_skill_state(project_id, {"metadata": metadata})
+
+    progress, _ = _build_workspace_payload(project_id)
+    return ApiResponse(data=progress, message="学生画像已保存")
+
+
 @router.patch("/{project_id}", response_model=ApiResponse[Project])
 async def update_project(
     project_id: str,
@@ -673,6 +845,19 @@ async def update_project(
         )
     
     update_data = project_update.model_dump(exclude_unset=True)
+
+    # 2026-07-29 Q-022 回归修正：用户手动改名时，在 initial_data 标记
+    # name_manually_overridden=true，防止后续 _sync_project_name_from_skill_state
+    # 自愈逻辑把名字反向覆盖回 AI 早期确认的名字。
+    if "name" in update_data and update_data["name"]:
+        existing_initial = getattr(project, "initial_data", None)
+        if not isinstance(existing_initial, dict):
+            existing_initial = {}
+        else:
+            existing_initial = dict(existing_initial)  # 浅拷贝避免改原对象
+        existing_initial["name_manually_overridden"] = True
+        update_data["initial_data"] = existing_initial
+
     updated_project = db.update_project(project_id, update_data)
     return ApiResponse(data=updated_project, message="更新成功")
 

@@ -1,0 +1,18 @@
+﻿
+FAILED tests/test_ask_question_tool.py::test_ask_question_tool_missing_title
+FAILED tests/test_ask_question_tool.py::test_ask_question_tool_too_many_options
+FAILED tests/test_auto_continue_api.py::TestAutoContinueAPI::test_short_code_no_truncation
+FAILED tests/test_auto_continue_api.py::TestAutoContinueAPI::test_long_code_auto_continue
+FAILED tests/test_auto_continue_api.py::TestAutoContinueAPI::test_ultra_long_code_multiple_continues
+FAILED tests/test_p0_p1_fix.py::test_p0_orchestrator_no_auto_extract - sqlite...
+FAILED tests/test_p0_p1_fix.py::test_p1_history_snapshot_and_suspicious_detection
+FAILED tests/test_projects.py::TestPBLFullLoop::test_complete_stage_endpoint_drives_full_loop
+FAILED tests/test_projects.py::TestPBLFullLoop::test_workspace_restores_pbl_artifacts
+ERROR tests/test_multifile_fix.py::test_chat
+ERROR tests/test_mvp_final.py::test_chat
+ERROR tests/test_mvp_ws.py::test_ws_chat
+ERROR tests/test_question_flow.py::test_single_round
+ERROR tests/test_question_flow.py::test_concurrent_streams
+9 failed, 374 passed, 36 skipped, 23 warnings, 5 errors in 298.64s (0:04:58)
+
+

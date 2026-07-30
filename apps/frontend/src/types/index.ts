@@ -205,6 +205,8 @@ export interface ProjectProgress {
   light_step_data?: LightProjectStep1Data & LightProjectStep2Data & LightProjectStep3Data;
   standard_step_data?: Record<string, StandardProjectStepData>;
   teaching_mode?: 'guided' | 'demo' | 'hands_on' | 'lecture';
+  // Q-017 记忆持久化：学生画像（问题标题→选中标签），刷新后从后端恢复避免 AI 失忆
+  student_profile?: Record<string, string[]>;
 }
 
 export interface FileEntry {

@@ -33,13 +33,33 @@ interface Message {
 }
 
 function buildStreamHistory(messages: Message[]): Array<{ role: 'user' | 'assistant'; content: string }> {
-  return messages
+  // Q-017 记忆修复：取最近 12 条，但始终保留所有 [选择:xxx] 学生回答消息。
+  // 原先纯 slice(-12) 会把早期脑爆阶段的选择（年级/兴趣/方向）滑出窗口，导致 AI 失忆。
+  const cleaned = messages
     .map((message) => ({
       role: message.role,
       content: cleanAssistantMessageContent(message.content || '').trim(),
+      // 标记是否是学生的结构化选择回答（[选择:xxx] 或 [选择] 开头）
+      isSelection: message.role === 'user' && /^\[选择[:\]]/.test(message.content || ''),
     }))
-    .filter((message) => Boolean(message.content))
-    .slice(-12);
+    .filter((message) => Boolean(message.content));
+
+  if (cleaned.length <= 12) return cleaned.map(({ role, content }) => ({ role, content }));
+
+  // 超过 12 条：最近 12 条 + 12 条之外的所有选择消息（去重保序）
+  const recent = cleaned.slice(-12);
+  const selectionOutside = cleaned.slice(0, -12).filter((m) => m.isSelection);
+  const merged = [...selectionOutside, ...recent];
+  // 去重（按 content，避免选择消息恰好在最近12条内重复）
+  const seen = new Set<string>();
+  return merged
+    .filter((m) => {
+      const key = `${m.role}:${m.content}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .map(({ role, content }) => ({ role, content }));
 }
 
 function collapseRepeatedFragments(content: string): string {
@@ -540,7 +560,10 @@ function normalizeQuestionProgress(
   };
 }
 
-function EnhancedMarkdownText({
+// 2026-07-30 性能修复：React.memo 隔离历史消息。流式渲染时只有"当前那条"消息的
+// content 每帧变化；历史消息 content/projectId 稳定，memo 拦截后不重新解析 markdown。
+// onWriteCode/onRunCode 由父级 useCallback 保证引用稳定，不破坏 memo。
+const EnhancedMarkdownText = React.memo(function EnhancedMarkdownText({
   content,
   isCurrentQuestion = true,
   projectId,
@@ -569,11 +592,78 @@ function EnhancedMarkdownText({
   }
   if (lastIndex < displayContent.length) parts.push(<MarkdownText key={key++} content={displayContent.slice(lastIndex)} projectId={projectId} />);
   return <>{parts}</>;
-}
+});
 
 function _escHtml(text: string): string {
   return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
+
+// 2026-07-30 性能根因修复：把单条消息渲染抽成 React.memo 组件。
+// 原实现 messages.map 内联渲染，流式时每来一个 chunk 全量重渲染，所有历史消息
+// 都重新解析 markdown/表格/代码高亮。抽成 memo 后，历史消息 props（msg 引用稳定、
+// isCurrentQuestion 布尔、projectId 字符串、onWriteCode/onRunCode 由 useCallback 稳定）
+// 不变即跳过，只有"正在流式的那条"每帧重渲染。
+const MessageItem = React.memo(function MessageItem({
+  msg,
+  isCurrentQuestion,
+  projectId,
+  onWriteCode,
+  onRunCode,
+}: {
+  msg: Message;
+  isCurrentQuestion: boolean;
+  projectId?: string | null;
+  onWriteCode: (code: string, lang: string) => void;
+  onRunCode: (code: string, lang: string) => void;
+}) {
+  return (
+    <div data-testid={`message-${msg.role}`} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+      <div className={`max-w-[85%] rounded-2xl px-4 py-2.5 ${
+        msg.role === 'user' ? 'bg-teal-600 text-white rounded-br-sm' : 'bg-gray-50 text-gray-800 rounded-bl-sm border border-gray-100'
+      }`}>
+        <div className={`flex items-center gap-1.5 mb-1 text-xs ${msg.role === 'user' ? 'text-teal-200' : 'text-gray-400'}`}>
+          {msg.role === 'user' ? <User className="w-3 h-3" /> : <Sparkles className="w-3 h-3" />}
+          <span>{msg.role === 'user' ? '你' : 'fineSTEM AI'}</span>
+        </div>
+        {msg.role === 'assistant' ? (
+          <>
+            {msg.thinking && msg.thinking.trim() && (
+              <details className="mb-2 group">
+                <summary className="cursor-pointer text-[11px] text-gray-400 hover:text-gray-600 select-none flex items-center gap-1">
+                  <Sparkles className="w-3 h-3" />
+                  <span>思考过程</span>
+                  <span className="text-gray-300 group-open:hidden">(点击展开)</span>
+                </summary>
+                <div className="mt-1.5 pl-4 border-l-2 border-gray-100 text-[11px] text-gray-500 whitespace-pre-wrap max-h-48 overflow-y-auto">
+                  {msg.thinking}
+                </div>
+              </details>
+            )}
+            <EnhancedMarkdownText
+              content={msg.content}
+              isCurrentQuestion={isCurrentQuestion}
+              projectId={projectId}
+              onWriteCode={onWriteCode}
+              onRunCode={onRunCode}
+            />
+            {msg.continueStatus === 'continuing' && (
+              <div className="mt-1.5 text-[11px] text-teal-600 flex items-center gap-1">
+                <div className="w-1 h-1 bg-teal-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                <div className="w-1 h-1 bg-teal-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                <span>正在自动续接…</span>
+              </div>
+            )}
+            {msg.continueStatus === 'failed' && (
+              <div className="mt-1.5 text-[11px] text-amber-600">自动续接未完成，可点击下方"继续生成"。</div>
+            )}
+          </>
+        ) : (
+          <div className="text-sm whitespace-pre-wrap">{msg.content}</div>
+        )}
+      </div>
+    </div>
+  );
+});
 
 function buildHtmlFromCode(code: string, language: string): string {
   if (!code || !code.trim()) return '';
@@ -656,8 +746,27 @@ function buildExecutionResultHtml(result: { success: boolean; output: string; er
       <div style="margin-bottom: 12px;">
         <div style="font-size: 12px; color: #dc2626; margin-bottom: 4px;">错误 / 警告：</div>
         <pre style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 12px; font-size: 12px; line-height: 1.5; white-space: pre-wrap; word-break: break-all; overflow-x: auto; color: #dc2626;">${escapedError}</pre>
-        <button id="__ask_ai_btn" style="display:inline-block;margin-top:8px;padding:8px 16px;background:#0ea5e9;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;" onclick="(function(){window.parent.postMessage({type:'code-error',msg:${JSON.stringify(result.error)}},'*');this.textContent='已发送给AI...';this.disabled=true;this.style.background='#94a3b8';})()">让 AI 修复此错误</button>
+        <button id="__ask_ai_btn" style="display:inline-block;margin-top:8px;padding:8px 16px;background:#0ea5e9;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;">让 AI 修复此错误</button>
       </div>` : ''}
+      ${hasError ? `
+      <script>
+      // 2026-07-28 Q-018 修复：原先把 JS 写进 onclick="..." 内联属性，
+      // JSON.stringify(error) 产生的双引号会提前闭合 HTML 属性，
+      // 导致后续 JS 被当成可见文本渲染（按钮失效 + 屏幕出现 onclick=... 字样）。
+      // 改用与 buildHtmlFromCode 一致的「按钮骨架 + script 内 btn.onclick 赋值」写法，
+      // 错误信息通过局部变量传入，彻底避开属性引号问题。
+      (function(){
+        var btn = document.getElementById('__ask_ai_btn');
+        if(!btn) return;
+        var errMsg = ${JSON.stringify(JSON.stringify(result.error || ''))};
+        btn.onclick = function(){
+          try{ window.parent && window.parent.postMessage({type:'code-error', msg: errMsg}, '*'); }catch(e){}
+          btn.textContent = '已发送给AI...';
+          btn.disabled = true;
+          btn.style.background = '#94a3b8';
+        };
+      })();
+      </script>` : ''}
       ${!result.output && !hasError ? `<div style="font-size:12px;color:#9ca3af;margin-bottom:12px;">(无标准输出)</div>
       <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px;">
         <div style="font-size:12px;font-weight:600;color:#475569;margin-bottom:8px;">📋 代码分析</div>
@@ -799,6 +908,16 @@ const [runResultBlobUrl, setRunResultBlobUrl] = useState<string | null>(null); /
   //       ② 连续多轮对话也复用同一 session，保持上下文完整。
   const lastSessionIdRef = useRef<string | undefined>(undefined);
     const [isContinuing, setIsContinuing] = useState(false);
+    // 2026-07-29 Q-023-A 截断修复：手动"继续生成"累计次数。
+    // 用于限制同一轮回复的手动续接次数上限（防止用户无限点继续导致死循环），
+    // 同时允许"续接后再截断仍显示继续按钮"（此前 isContinueMessage 守卫把按钮压制了）。
+    const manualContinueCountRef = useRef(0);
+    const MAX_MANUAL_CONTINUE = 4;
+    // 2026-07-29 Q-022 回归修正：记录用户手动改名的时间戳。
+    // 流末 workspace 刷新会用后端名字覆盖 context，若用户刚改过名（5 秒内）则跳过覆盖，
+    // 避免竞态把手动改的名字冲掉（后端 _sync 自愈虽已加 name_manually_overridden 标志，
+    // 但前端这里再加一层时间窗防护更稳妥）。
+    const manualRenameAtRef = useRef(0);
     const lastMessageRef = useRef<string>('');
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -932,6 +1051,9 @@ const [runResultBlobUrl, setRunResultBlobUrl] = useState<string | null>(null); /
       currentStage: progress.current_stage || project.current_stage || '',
       teachingMode: progress.teaching_mode || 'guided',
     }));
+    // Q-017 记忆持久化：从后端恢复学生画像，刷新后 AI 不再失忆重复问。
+    // progress.student_profile 是 {问题标题: [选中标签]} 结构，直接回填内存 ref。
+    studentProfileRef.current = new Map(Object.entries(progress.student_profile || {}));
     // 优化代码展示逻辑：有代码则展示，无代码则保留默认提示
     const rawCode = workspace.code || '';
     const trimmedCode = rawCode.trim();
@@ -1418,10 +1540,17 @@ const [runResultBlobUrl, setRunResultBlobUrl] = useState<string | null>(null); /
         setUserProjects(prev => prev.map(p => p.id === editingProjectId ? { ...p, name: newName } : p));
       }
       setProjectContext(prev => ({ ...prev, projectName: newName }));
+      // 2026-07-29 Q-022 回归修正：记录手动改名时间戳，供流末刷新竞态防护用
+      manualRenameAtRef.current = Date.now();
     } catch (error) {
       console.error('更新项目名称失败:', error);
+      // 2026-07-29 修复：非本地项目 API 失败时也要提示用户（此前静默失败，名字恢复原样无反馈）
       if (isLocalProject) {
         setProjectContext(prev => ({ ...prev, projectName: newName }));
+      } else {
+        // 提示用户改名失败（403 权限/网络错误等），不静默吞掉
+        const errMsg = error instanceof Error ? error.message : '未知错误';
+        console.warn('[saveEditProject] 改名失败，保留原名字:', errMsg);
       }
     }
     setEditingProjectId(null);
@@ -1467,6 +1596,26 @@ const [runResultBlobUrl, setRunResultBlobUrl] = useState<string | null>(null); /
   const collectedAnswersRef = useRef<Map<string, { title: string; labels: string[]; ids: string[]; customText?: string }>>(new Map());
   // 2026-07-23 Q-005 修复：持久记录学生已回答的所有信息（title → labels），注入 context 防止 AI 重复问
   const studentProfileRef = useRef<Map<string, string[]>>(new Map());
+  // Q-017：画像持久化防抖 timer，避免每次选择都打后端
+  const profileSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Q-017：把内存画像持久化到后端 skill_state.metadata（防抖 1s）
+  const persistStudentProfile = useCallback(() => {
+    const pid = projectContext.projectId;
+    if (!pid || pid.startsWith('local-')) return;
+    if (profileSaveTimerRef.current) clearTimeout(profileSaveTimerRef.current);
+    profileSaveTimerRef.current = setTimeout(() => {
+      // Map → 普通对象
+      const profileObj: Record<string, string[]> = {};
+      studentProfileRef.current.forEach((labels, title) => {
+        profileObj[title] = labels;
+      });
+      if (Object.keys(profileObj).length === 0) return;
+      projectsApi.saveStudentProfile(pid, profileObj).catch((error) => {
+        console.error('[student-profile] 持久化失败:', error);
+      });
+    }, 1000);
+  }, [projectContext.projectId]);
 
   const handleQuestionAnswer = useCallback((selectedIds: string[], customText?: string, answeredQuestionId?: string) => {
     const question = pendingQuestionsRef.current.find((q) => q.id === answeredQuestionId)
@@ -1479,6 +1628,27 @@ const [runResultBlobUrl, setRunResultBlobUrl] = useState<string | null>(null); /
 
     // Q-005：持久记录学生回答（title → labels），后续注入 context 防止 AI 重复问
     studentProfileRef.current.set(question.title, selectedLabels);
+    // Q-017：同步持久化到后端，刷新后能恢复，避免 AI 失忆
+    persistStudentProfile();
+
+    // 2026-07-28 TC-DLG-013 修复：教学模式兜底写入。
+    // 场景：AI 在 stage_07 用 ask_question 让学生选教学模式，学生点了选项卡，
+    // 但 AI 可能不稳定没调 skill_state_writer 保存，导致门禁反复失败、AI 反复追问。
+    // 前端兜底：如果学生选的选项 id 是教学模式枚举值，直接调 updateTeachingMode 写入，
+    // 不依赖 AI。这样门禁一定能过。
+    const TEACHING_MODE_IDS = ['guided', 'demo', 'hands_on', 'lecture'];
+    const teachingModePick = selectedIds.find((id) => TEACHING_MODE_IDS.includes(id));
+    if (teachingModePick && projectContext.projectId && !projectContext.projectId.startsWith('local-')) {
+      projectsApi.updateTeachingMode(projectContext.projectId, teachingModePick as 'guided' | 'demo' | 'hands_on' | 'lecture')
+        .then((res) => {
+          const tm = (res.data?.teaching_mode || teachingModePick) as 'guided' | 'demo' | 'hands_on' | 'lecture';
+          setProjectContext((prev) => ({ ...prev, teachingMode: tm }));
+          console.info('[handleQuestionAnswer] 教学模式兜底写入成功:', tm);
+        })
+        .catch((error) => {
+          console.error('[handleQuestionAnswer] 教学模式兜底写入失败:', error);
+        });
+    }
 
     // 计算移除当前卡后的剩余数量（用 ref 同步读取，不依赖 setState 回调）
     const remainingAfter = pendingQuestionsRef.current.filter(
@@ -1550,7 +1720,7 @@ const [runResultBlobUrl, setRunResultBlobUrl] = useState<string | null>(null); /
     isLoadingRef.current = false;
     setIsLoading(false);
     setTimeout(() => handleSendRef.current(sendText), 100);
-  }, []);
+  }, [persistStudentProfile, projectContext.projectId]);
 
   const dismissQuestion = useCallback(() => {
     clearQuestionFlow();
@@ -2094,10 +2264,22 @@ const handleSend = async (
       // 保存最后一条消息用于续接
       if (!requestOverrides?.isContinue) {
         lastMessageRef.current = message;
+        // 2026-07-29 Q-023-A：新对话（非续接）时重置手动续接计数
+        manualContinueCountRef.current = 0;
       }
       
       // 隐藏继续按钮
       setShowContinueButton(false);
+
+      // 2026-07-28 TC-DLG-007 修复：发消息时清理残留的上一轮选项卡。
+      // 场景：AI 发了卡片，学生没用卡片回答而是直接打字（如"总结一下进度"），
+      // 旧卡片会一直残留。判断：消息非 [选择] 格式（学生放弃了卡片）且有 pending 卡片 → 清理。
+      // 注意：不清理 collectedAnswersRef（多卡暂存由 handleQuestionAnswer 自己管理）。
+      const isSelectionReply = /^\[选择[:\]]/.test(message);
+      if (!isSelectionReply && pendingQuestionsRef.current.length > 0) {
+        console.info('[handleSend] 学生直接打字回复，清理残留的', pendingQuestionsRef.current.length, '张选项卡');
+        clearQuestionFlow();
+      }
     const directCodingIntent = hasDirectCodingIntent(message);
     const requestedOutputLanguage = inferRequestedOutputLanguage(message);
     const historyMessages = buildStreamHistory(messages);
@@ -2105,6 +2287,12 @@ const handleSend = async (
     const streamedProjectState: { current?: StreamedProjectInfo } = {};
     let streamedCodeGenerated: CodeGeneratedEvent | null = null;
     let effectiveProjectId = requestOverrides?.projectId ?? projectContext.projectId ?? undefined;
+    // 2026-07-30 Q-024 修复：标记 effectiveProjectId 是否来自"用户拥有的项目"
+    // （通过 API 创建 / 从已有项目打开 / projectContext 里恢复）。
+    // WS 的 project_creator 工具可能用错误的 author_id 创建项目（Q-024 根因），
+    // 我们绝不让 WS 的 project_id 覆盖一个用户拥有的有效 project_id，否则 autosave 全部 403。
+    // 仅当当前没有任何用户拥有的项目时，才接受 WS 创建的项目（并仍记录为非 API 拥有，便于诊断）。
+    let apiOwnedProjectId = Boolean(effectiveProjectId && !effectiveProjectId.startsWith('local-'));
     let effectiveContext: Record<string, unknown> = {
       page: 'create',
       scene: sceneOverride || activeScene,
@@ -2113,6 +2301,11 @@ const handleSend = async (
       project_name: projectContext.projectName,
       teaching_mode: projectContext.teachingMode,
       current_stage: projectContext.currentStage,
+      // 2026-07-30 Q-024 修复：注入 author_id/user_id，让 AI 调 project_creator 工具时
+      // 用当前登录用户的 ID 创建项目（而非 daemon 服务账号）。否则创建的项目归属错误，
+      // 后续 autosave（/chat /code /student-profile）全部 403"无权操作此项目"。
+      author_id: user?.id,
+      user_id: user?.id,
       ...(requestOverrides?.context || {}),
     };
 
@@ -2151,17 +2344,20 @@ const handleSend = async (
       if (used >= 5) { setShowRegisterPrompt(true); return; }
     }
 
-    if (directCodingIntent && !effectiveProjectId && user) {
+    // Q-024 修复扩展：对所有登录用户首次发消息时都通过 API 创建项目，
+    // 确保项目归属正确（用户拥有），防止 WS project_creator 用错误 author_id 创建。
+    // 原来只在 directCodingIntent 时创建，导致普通消息走 WS 创建 → 403。
+    if (!effectiveProjectId && user) {
       const bootstrapName = message.length > 20 ? `${message.slice(0, 20)}...` : message;
       const bootstrapProject = await createProjectViaAPI(bootstrapName, 'standard');
       if (bootstrapProject?.id) {
         effectiveProjectId = bootstrapProject.id;
+        apiOwnedProjectId = true;  // Q-024：API 创建的项目用户拥有
         effectiveContext = {
           ...effectiveContext,
           project_id: bootstrapProject.id,
           current_stage: bootstrapProject.current_stage || 'stage_01_brainstorm',
-          force_code_generation: true,
-          preferred_output_language: requestedOutputLanguage,
+          ...(directCodingIntent ? { force_code_generation: true, preferred_output_language: requestedOutputLanguage } : {}),
         };
         setProjectContext(prev => ({
           ...prev,
@@ -2172,7 +2368,7 @@ const handleSend = async (
         }));
       }
     }
-    if (directCodingIntent && effectiveProjectId) {
+    if (effectiveProjectId) {
       effectiveContext = {
         ...effectiveContext,
         project_id: effectiveProjectId,
@@ -2223,6 +2419,48 @@ let rawAssistantContent = '';
     let maxVisibleContent = '';
     // 追踪最近一次的未清理累积内容（用于 parseQuestionsFromText 解析 <question> 标签）
     let lastRawAccumulated = '';
+    // ── 流式渲染节流（2026-07-30 性能根因修复）──────────────────────────────
+    // 根因：原实现每个 WS chunk 都同步执行 cleanAssistantMessageContent（在累积全文
+    // 上重跑正则，O(n)）+ setMessages（全量重渲染），长输出上千个 chunk 会把主线程
+    // 占满 → onmessage 排队 → idleTimer 误判卡死 → 触发自动续接 → 越来越严重。
+    // 修复：clean + setMessages 合并到 raf 回调，每帧最多一次；token 照常同步累积，
+    // 不丢字。流结束（onEnd/done）和异常路径强制 flush，保证最终内容完整。
+    let rafScheduled = false;
+    let rafHandle: number | null = null;
+    const flushAssistantToMessages = () => {
+      // 读最新的 rawAssistantContent（闭包变量，随 onToken 持续增长）
+      assistantContent = cleanAssistantMessageContent(rawAssistantContent);
+      if (assistantContent.length > maxVisibleContent.length) {
+        maxVisibleContent = assistantContent;
+      }
+      const snapshot = assistantContent;
+      setMessages((prev) => {
+        const copy = [...prev];
+        const last = copy[copy.length - 1];
+        if (last && last.role === 'assistant') {
+          last.content = snapshot;
+        }
+        return copy;
+      });
+    };
+    const scheduleFlush = () => {
+      if (rafScheduled) return;
+      rafScheduled = true;
+      rafHandle = requestAnimationFrame(() => {
+        rafScheduled = false;
+        rafHandle = null;
+        flushAssistantToMessages();
+      });
+    };
+    // 强制立即刷新（流结束/异常时调用，确保最终内容落 UI）
+    const forceFlush = () => {
+      if (rafHandle !== null) {
+        cancelAnimationFrame(rafHandle);
+        rafHandle = null;
+        rafScheduled = false;
+      }
+      flushAssistantToMessages();
+    };
     // 续接模式：复用最后一条 assistant 消息继续追加，而不是新建一条空消息。
     // 同时把上一轮的原始内容作为累积起点，保证 onToken 拼接时包含完整上文。
     if (isContinueRequest) {
@@ -2262,20 +2500,11 @@ let rawAssistantContent = '';
           sessionId: lastSessionIdRef.current || undefined,
         },
         (token) => {
+          // 同步累积原始 token（不丢字），重渲染交给 raf 节流
           rawAssistantContent += token;
-          assistantContent = cleanAssistantMessageContent(rawAssistantContent);
-          // 持续追踪最大的可见内容（防止后续 content_update 清空）
-          if (assistantContent.length > maxVisibleContent.length) {
-            maxVisibleContent = assistantContent;
-          }
-          setMessages((prev) => {
-            const copy = [...prev];
-            const last = copy[copy.length - 1];
-            if (last && last.role === 'assistant') {
-              last.content = assistantContent;
-            }
-            return copy;
-          });
+          // 2026-07-30 性能修复：clean + setMessages 移到 raf 回调，每帧最多一次。
+          // 避免"每 chunk 全量重渲染 + 全文重跑正则"导致主线程积压、流式卡死。
+          scheduleFlush();
         },
         {
           onSkillActivated: (data) => {
@@ -2299,6 +2528,18 @@ let rawAssistantContent = '';
           },
           onProjectCreated: (data) => {
             streamedProjectState.current = data;
+            // 2026-07-30 Q-024 修复：WS 的 project_creator 可能用错误 author_id 创建项目
+            // （项目不属于当前登录用户 → autosave 403）。若前端已有用户拥有的项目
+            // （apiOwnedProjectId），绝不用 WS 的 project_id 覆盖；只在无项目时才采用，
+            // 并标记为非 API 拥有（便于后续诊断，但 autosave 仍会以它为准尝试）。
+            if (apiOwnedProjectId && effectiveProjectId) {
+              console.info('[handleSend] onProjectCreated: 已有用户拥有的项目，忽略 WS project_id（Q-024 防覆盖）', {
+                kept: effectiveProjectId, ignored: data.project_id,
+              });
+              // 仍记录 streamedProjectState 供 stage 等信息使用，但不覆盖 projectId
+              return;
+            }
+            effectiveProjectId = data.project_id;
             setProjectContext(prev => ({
               ...prev,
               projectId: data.project_id,
@@ -2320,7 +2561,8 @@ let rawAssistantContent = '';
                 is_main: file.is_main === true,
               })));
             }
-            if (data.project_id) {
+            // 2026-07-30 Q-024 修复：同 onProjectCreated，不覆盖用户拥有的项目 ID。
+            if (data.project_id && !(apiOwnedProjectId && effectiveProjectId)) {
               effectiveProjectId = data.project_id;
               setProjectContext(prev => ({
                 ...prev,
@@ -2367,6 +2609,9 @@ let rawAssistantContent = '';
             }
           },
           onContentUpdate: (dedupedContent) => {
+            // 2026-07-30 节流修复：done 帧到达，先消费掉 raf 中 pending 的 token flush，
+            // 避免后续 setMessages 用服务端最终内容覆盖后、又被迟到的 raf flush 冲掉。
+            forceFlush();
             receivedContentUpdate = true;
             lastRawAccumulated = dedupedContent;
             const cleanedDeduped = cleanAssistantMessageContent(dedupedContent);
@@ -2479,6 +2724,8 @@ let rawAssistantContent = '';
             });
           },
           onEnd: (finalContent) => {
+            // 2026-07-30 节流修复：流结束，强制把剩余 pending 的 token 刷到 UI，保证最终内容完整
+            forceFlush();
             // 记录结束事件
             streamLogger.logEnd(finalContent, {
               rawAssistantContentLength: rawAssistantContent.length,
@@ -2522,6 +2769,11 @@ let rawAssistantContent = '';
         },
       );
 
+      // 2026-07-30 节流修复：stream 结束（含 stalled 超时路径，onEnd 可能未触发），
+      // 先消费掉 raf 中 pending 的 flush，防止它用旧的 rawAssistantContent 迟到触发、
+      // 覆盖下方 setMessages 写入的最终内容。
+      forceFlush();
+
       // 最终内容以服务端 final/content_update 的清理结果为准，避免把流式中途的 UUID/Skill 等脏片段
       // 因为“最长可见内容”策略重新带回聊天气泡。
       const rawFinal = streamResult.content || lastRawAccumulated || rawAssistantContent || assistantContent;
@@ -2552,18 +2804,26 @@ let rawAssistantContent = '';
       // 跳过条件：用户主动发的"继续"消息（避免循环）、或本轮根本没产出内容。
       const isContinueMessage = requestOverrides?.isContinue === true;
       const hasContent = assistantContent.trim().length > 0;
-      // 复用 hook 内的截断判定逻辑（与 useStreamingChat 保持一致）
-      const stillIncomplete = hasContent && (
-        /\bpython|javascript|typescript|html|css|java\b\s*$/i.test(assistantContent.trim())
-        || ((assistantContent.match(/```/g) || []).length % 2 === 1)
-        || /(接下来|首先|第一步|然后|接着|最后|总之|综上所述)\s*$/i.test(assistantContent.trim())
-        || /[：:—–-]\s*$/.test(assistantContent.trim())
-      );
-      if (!isContinueMessage && hasContent && stillIncomplete) {
-        console.info('[handleSend] 流末检测到内容仍不完整，显示继续按钮');
+
+      // 2026-07-29 Q-023 修复A：流式空闲超时（无新 chunk）被判定卡死。
+      // 2026-07-30 截断死循环根因修复（项目 8a7c155e 实证）：
+      // 原来 stalled 时往正文追加"_[输出似乎被中断了]_"——这句吓人提示正是用户反复看到、
+      // 误以为真截断而狂点"继续"的死循环源头。现在 stalled 仍保留已收到内容（不丢），
+      // 但绝不污染正文，只在 UI 显示一个低调的"继续"按钮，让用户自己决定是否续接。
+      const wasStalled = streamResult.stalled === true;
+      if (wasStalled && hasContent) {
+        console.info('[handleSend] 流式空闲超时（疑似卡死），保留已收到内容，显示继续按钮（不污染正文）');
         setShowContinueButton(true);
-      } else if (hasContent) {
-        // 内容完整，确保继续按钮隐藏
+      }
+
+      // 2026-07-30 截断死循环根因修复：删除 stillIncomplete 启发式判定块。
+      // 原来用"结尾是语言名/奇数 fence/破折号/引导词"判断"内容不完整"——这把 AI 讲解代码时
+      // 的正常停顿（如写"词库 ="+开 ```、句尾破折号）全部误判为截断，反复显示继续按钮。
+      // 实证：项目 8a7c155e 的回复根本没被 token 截断（最长 1996 字符），全是这个启发式误判。
+      // 现在截断判定统一由 useStreamingChat 的 isTokenLimitHit（output_tokens>=上限*0.9）决定，
+      // 流末这里不再做任何启发式判定。manualContinueCountRef 上限仍保留（防手动续接死循环）。
+      if (wasStalled && manualContinueCountRef.current >= MAX_MANUAL_CONTINUE) {
+        console.warn('[handleSend] 已达手动续接上限，不再显示继续按钮');
         setShowContinueButton(false);
       }
 
@@ -2718,8 +2978,30 @@ let rawAssistantContent = '';
           mode: 'standard',
           currentStage: finalStage,
         }));
+        // 2026-07-28 Q-022 修复：AI 在脑爆/简报阶段确定的项目名只存在 PBL 数据里，
+        // 从未同步到 projects 表 name，导致侧边栏列表显示创建时的默认长名字。
+        // 流末异步拉一次 workspace：① 触发后端 _sync_project_name_from_skill_state 自愈
+        // projects.name；② 用 AI 确认的名字更新当前 context；③ 刷新侧边栏列表。
+        // 用 finalProjectId 而非 projectContext.projectId（后者可能尚未更新）。
+        // 2026-07-29 回归修正：若用户刚手动改名（5 秒内），跳过覆盖 context projectName，
+        // 避免竞态把手动改的名字冲掉（后端 name_manually_overridden 标志已防自愈覆盖，
+        // 这里是前端第二层时间窗防护）。
+        if (user) {
+          projectsApi.getWorkspace(finalProjectId).then((wsRes) => {
+            const wsProject = wsRes.data?.project;
+            const confirmedName = wsProject?.name?.trim();
+            const recentlyRenamed = Date.now() - manualRenameAtRef.current < 5000;
+            if (confirmedName && !recentlyRenamed && confirmedName !== projectContext.projectName) {
+              setProjectContext(prev => (prev.projectName === confirmedName ? prev : { ...prev, projectName: confirmedName }));
+            }
+            // 刷新侧边栏列表，让项目区显示同步后的新名字
+            loadUserProjects();
+          }).catch((e) => console.warn('[handleSend] Q-022 项目名同步刷新失败:', e));
+        }
       }
     } catch (error) {
+      // 2026-07-30 节流修复：异常退出也要把已收到的 token 刷到 UI，保留部分内容
+      forceFlush();
       if (!user) {
         const used = Number(localStorage.getItem('anonymous_chat_count') || '0');
         const next = used + 1;
@@ -2790,6 +3072,8 @@ let rawAssistantContent = '';
   const handleContinue = useCallback(async () => {
     if (isLoading) return;
 
+    // 2026-07-29 Q-023-A：递增手动续接计数（用于限制总次数防死循环）
+    manualContinueCountRef.current += 1;
     setIsContinuing(true);
     setShowContinueButton(false);
 
@@ -2803,9 +3087,14 @@ let rawAssistantContent = '';
       return '';
     })();
 
-    // 续接提示语：明确告诉 AI 从哪里接续、不要重复
-    const continuePrompt = lastAssistantContent
-      ? '请继续完成上一条回复。从被截断的地方接着输出，不要重复已输出的内容，保持格式一致，确保代码块和标签正确闭合，不要添加"好的我继续"之类的过渡语。'
+    // 续接提示语：明确告诉 AI 从哪里接续、不要重复。
+    // 2026-07-29 Q-023 修复B：显式带上上一轮已输出内容。
+    // 原假设"ZeroClaw session 会回放上文"被证伪——daemon 续接未必保留上一轮输出，
+    // AI 看不到被截断的代码就会回到 Step1 重讲。现在把上文拼进消息，AI 能从断点接着写。
+    // 2026-07-29 截断回归修正：slice(-2000)→slice(-8000)，覆盖整个被截断的代码块结构。
+    const prevText = lastAssistantContent.trim();
+    const continuePrompt = prevText
+      ? `请继续完成上一条回复。从被截断的地方接着输出，不要重复已输出的内容，保持格式一致，确保代码块和标签正确闭合，不要添加"好的我继续"之类的过渡语。\n\n上一条已输出内容（请勿重复，从此内容结尾处接着写）：\n<previous_output>\n${prevText.slice(-8000)}\n</previous_output>`
       : '继续';
 
     await handleSend(continuePrompt, undefined, {
@@ -3136,61 +3425,31 @@ let rawAssistantContent = '';
           {showChatHistory ? (
             <div className="flex-1 overflow-y-auto">
               <div className="p-4 space-y-3 bg-white">
-                {messages.map((msg, msgIdx) => {
-                  // 当前问题：仅最后一条 assistant 消息且其后无 user 回复
-                  const isLastAssistant = msg.role === 'assistant' &&
-                    msgIdx === messages.length - 1;
-                  const hasUserReply = msgIdx < messages.length - 1 &&
-                    messages.slice(msgIdx + 1).some(m => m.role === 'user');
-                  const isCurrentQuestion = isLastAssistant && !hasUserReply;
-                  return (
-                  <div key={msg.id} data-testid={`message-${msg.role}`} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[85%] rounded-2xl px-4 py-2.5 ${
-                      msg.role === 'user' ? 'bg-teal-600 text-white rounded-br-sm' : 'bg-gray-50 text-gray-800 rounded-bl-sm border border-gray-100'
-                    }`}>
-                      <div className={`flex items-center gap-1.5 mb-1 text-xs ${msg.role === 'user' ? 'text-teal-200' : 'text-gray-400'}`}>
-                        {msg.role === 'user' ? <User className="w-3 h-3" /> : <Sparkles className="w-3 h-3" />}
-                        <span>{msg.role === 'user' ? '你' : 'fineSTEM AI'}</span>
-                      </div>
-                      {msg.role === 'assistant' ? (
-                        <>
-                          {msg.thinking && msg.thinking.trim() && (
-                            <details className="mb-2 group">
-                              <summary className="cursor-pointer text-[11px] text-gray-400 hover:text-gray-600 select-none flex items-center gap-1">
-                                <Sparkles className="w-3 h-3" />
-                                <span>思考过程</span>
-                                <span className="text-gray-300 group-open:hidden">(点击展开)</span>
-                              </summary>
-                              <div className="mt-1.5 pl-4 border-l-2 border-gray-100 text-[11px] text-gray-500 whitespace-pre-wrap max-h-48 overflow-y-auto">
-                                {msg.thinking}
-                              </div>
-                            </details>
-                          )}
-                          <EnhancedMarkdownText
-                            content={msg.content}
-                            isCurrentQuestion={isCurrentQuestion}
-                            projectId={projectContext.projectId?.startsWith('local-') ? null : projectContext.projectId}
-                            onWriteCode={handleWriteCodeToEditor}
-                            onRunCode={handleRunCode}
-                          />
-                          {msg.continueStatus === 'continuing' && (
-                            <div className="mt-1.5 text-[11px] text-teal-600 flex items-center gap-1">
-                              <div className="w-1 h-1 bg-teal-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                              <div className="w-1 h-1 bg-teal-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                              <span>正在自动续接…</span>
-                            </div>
-                          )}
-                          {msg.continueStatus === 'failed' && (
-                            <div className="mt-1.5 text-[11px] text-amber-600">自动续接未完成，可点击下方"继续生成"。</div>
-                          )}
-                        </>
-                      ) : (
-                        <div className="text-sm whitespace-pre-wrap">{msg.content}</div>
-                      )}
-                    </div>
-                  </div>
-                  );
-                })}
+                {/* 2026-07-30 性能修复：projectId 在循环外预算一次；lastUserIdx 预计算
+                    消除原 messages.slice().some() 的 O(n²) 每条消息遍历。 */}
+                {(() => {
+                  const renderProjectId = projectContext.projectId?.startsWith('local-') ? null : projectContext.projectId;
+                  // 最后一条 user 消息的 index：消息 i 的 isCurrentQuestion 仅当 i 是最后一条 assistant 且 i > lastUserIdx
+                  let lastUserIdx = -1;
+                  for (let i = messages.length - 1; i >= 0; i -= 1) {
+                    if (messages[i].role === 'user') { lastUserIdx = i; break; }
+                  }
+                  return messages.map((msg, msgIdx) => {
+                    const isLastAssistant = msg.role === 'assistant' && msgIdx === messages.length - 1;
+                    const hasUserReply = msgIdx < lastUserIdx; // O(1) 取代原 slice().some()
+                    const isCurrentQuestion = isLastAssistant && !hasUserReply;
+                    return (
+                      <MessageItem
+                        key={msg.id}
+                        msg={msg}
+                        isCurrentQuestion={isCurrentQuestion}
+                        projectId={renderProjectId}
+                        onWriteCode={handleWriteCodeToEditor}
+                        onRunCode={handleRunCode}
+                      />
+                    );
+                  });
+                })()}
                 {isLoading && (
                   <div className="flex justify-start">
                     <div className="bg-gray-50 rounded-2xl rounded-bl-sm px-4 py-3 border border-gray-100 flex items-center gap-2">

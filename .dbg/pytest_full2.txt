@@ -1,0 +1,530 @@
+﻿...........................F.F................FFF....................... [ 16%]
+........................................................................ [ 33%]
+............E.EEFFssssssssssssssssssss.................................. [ 50%]
+........................................................................ [ 67%]
+............FF..EE...................................................... [ 84%]
+.........................ssssssssssssssss.......................         [100%]
+=================================== ERRORS ====================================
+_________________________ ERROR at setup of test_chat _________________________
+file G:\mediaProjects\fineSTEM\apps\backend\tests\test_multifile_fix.py, line 43
+  async def test_chat(token, msg, timeout=90):
+      """Send chat message via WebSocket and collect response"""
+      uri = f"{WS_URL}?token={token}"
+      print(f"\n{'='*60}")
+      print(f">>> Sending: {msg}")
+
+      full_content = ""
+      code_events = []
+      tool_calls = []
+
+      async with websockets.connect(uri) as ws:
+          await ws.send(json.dumps({
+              "type": "chat",
+              "message": msg,
+              "project_id": PROJECT_ID
+          }))
+
+          deadline = asyncio.get_event_loop().time() + timeout
+          done = False
+          while not done and asyncio.get_event_loop().time() < deadline:
+              try:
+                  raw = await asyncio.wait_for(ws.recv(), timeout=25)
+                  m = json.loads(raw)
+                  etype = m.get("event", "?")
+                  edata = m.get("data")
+
+                  if etype == "token":
+                      t = edata.get("token", "") if isinstance(edata, dict) else ""
+                      if isinstance(t, str):
+                          full_content += t
+
+                  elif etype == "code_generated":
+                      code_events.append(edata or {})
+                      ce = edata or {}
+                      code_str = ce.get("code", "")
+                      files_list = ce.get("files", [])
+                      mvp_in_code = any(x in code_str for x in MVP_CODE_MARKERS)
+                      print(f"  [CODE_GEN] len={len(code_str)} source={ce.get('source')} "
+                            f"files={len(files_list)} MVP={mvp_in_code}")
+                      for f in files_list:
+                          print(f"             file: {f.get('name')} ({f.get('language')}) "
+                                f"is_main={f.get('is_main')} len={len(f.get('content',''))}")
+
+                  elif etype == "tool_call":
+                      tool_calls.append(edata or {})
+                      tc = edata or {}
+                      print(f"  [TOOL_CALL] name={tc.get('tool_name')} "
+                            f"params_keys={list((tc.get('parameters') or {}).keys())}")
+
+                  elif etype == "tool_result":
+                      tr = edata or {}
+                      print(f"  [TOOL_RESULT] ok={tr.get('ok')} "
+                            f"msg={str(tr.get('message') or tr.get('error') or '')[:100]}")
+
+                  elif etype == "final":
+                      done = True
+
+                  elif etype == "error":
+                      err = (edata or {}).get("message", str(m))
+                      print(f"  [ERROR] {err[:300]}")
+
+              except asyncio.TimeoutError:
+                  print(f"  [TIMEOUT] after {timeout}s")
+                  break
+              except Exception as e:
+                  print(f"  [EXCEPTION] {e}")
+                  break
+
+      # Check MVP phrases in text reply
+      found_mvp = [p for p in MVP_PHRASES if p in full_content]
+
+      print(f"\n  Content length: {len(full_content)}")
+      if found_mvp:
+          print(f"  !! MVP PHRASES IN REPLY: {found_mvp}")
+      else:
+          print(f"  OK: No MVP phrases in text reply")
+      print(f"  Reply preview: {full_content[:400]}")
+
+      return {
+          "content": full_content,
+          "mvp_phrases": found_mvp,
+          "code_events": code_events,
+          "tool_calls": tool_calls,
+      }
+E       fixture 'token' not found
+>       available fixtures: _artifacts_recorder, _class_scoped_runner, _function_scoped_runner, _module_scoped_runner, _package_scoped_runner, _pw_artifacts_folder, _session_scoped_runner, _verify_url, anyio_backend, anyio_backend_name, anyio_backend_options, auth_headers, base_url, browser, browser_channel, browser_context_args, browser_name, browser_type, browser_type_launch_args, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, clean_tables, client, connect_options, context, cov, created_project, delete_output_dir, device, doctest_namespace, event_loop_policy, extra, extras, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, include_metadata_in_junit_xml, is_chromium, is_firefox, is_webkit, json_metadata, launch_browser, metadata, monkeypatch, new_context, no_cover, output_path, page, playwright, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, registered_user, respx_mock, second_auth_headers, second_user, seeded_demo_id, seeded_demo_with_breakdown_id, setup_test_db, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, unused_tcp_port, unused_tcp_port_factory, unused_udp_port, unused_udp_port_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+G:\mediaProjects\fineSTEM\apps\backend\tests\test_multifile_fix.py:43
+_________________________ ERROR at setup of test_chat _________________________
+file G:\mediaProjects\fineSTEM\apps\backend\tests\test_mvp_final.py, line 28
+  async def test_chat(token, msg):
+      uri = f"{WS_URL}?token={token}"
+      print(f"\n>>> Sending: {msg}")
+
+      full_content = ""
+      code_events = []
+
+      async with websockets.connect(uri) as ws:
+          await ws.send(json.dumps({"type": "chat", "message": msg, "project_id": PROJECT_ID}))
+
+          deadline = asyncio.get_event_loop().time() + 60
+          done = False
+          while not done and asyncio.get_event_loop().time() < deadline:
+              try:
+                  raw = await asyncio.wait_for(ws.recv(), timeout=20)
+                  m = json.loads(raw)
+                  etype = m.get("event", "?")
+                  edata = m.get("data")
+
+                  if etype == "token":
+                      t = edata.get("token", "")
+                      if isinstance(t, str):
+                          full_content += t
+
+                  elif etype == "code_generated":
+                      code_events.append(edata or {})
+                      code_str = (edata or {}).get("code", "")
+                      mvp_in_code = any(x in code_str for x in [
+                          "fineSTEM MVP", "actionButton", "�ҵ� STEM ��Ŀ MVP"
+                      ])
+                      print(f"  [CODE_GEN] len={len(code_str)} source={(edata or {}).get('source')} MVP={mvp_in_code}")
+
+                  elif etype == "final":
+                      done = True
+
+                  elif etype == "error":
+                      err = (edata or {}).get("message", str(m))
+                      print(f"  [ERROR] {err[:200]}")
+
+              except Exception as e:
+                  break
+
+      # Check for MVP phrases in text reply
+      mvp_phrases = ["��С����汾", "MVP", "��С������", "д��༭��",
+                     "������һ�������е���С"]
+      found = [p for p in mvp_phrases if p in full_content]
+
+      print(f"  Content length: {len(full_content)}")
+      if found:
+          print(f"  !! MVP PHRASES IN REPLY: {found}")
+      else:
+          print(f"  OK: No MVP phrases")
+      print(f"  Reply: {full_content[:300]}")
+
+      return {"content": full_content, "mvp_phrases": found, "code_events": code_events}
+E       fixture 'token' not found
+>       available fixtures: _artifacts_recorder, _class_scoped_runner, _function_scoped_runner, _module_scoped_runner, _package_scoped_runner, _pw_artifacts_folder, _session_scoped_runner, _verify_url, anyio_backend, anyio_backend_name, anyio_backend_options, auth_headers, base_url, browser, browser_channel, browser_context_args, browser_name, browser_type, browser_type_launch_args, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, clean_tables, client, connect_options, context, cov, created_project, delete_output_dir, device, doctest_namespace, event_loop_policy, extra, extras, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, include_metadata_in_junit_xml, is_chromium, is_firefox, is_webkit, json_metadata, launch_browser, metadata, monkeypatch, new_context, no_cover, output_path, page, playwright, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, registered_user, respx_mock, second_auth_headers, second_user, seeded_demo_id, seeded_demo_with_breakdown_id, setup_test_db, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, unused_tcp_port, unused_tcp_port_factory, unused_udp_port, unused_udp_port_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+G:\mediaProjects\fineSTEM\apps\backend\tests\test_mvp_final.py:28
+_______________________ ERROR at setup of test_ws_chat ________________________
+file G:\mediaProjects\fineSTEM\apps\backend\tests\test_mvp_ws.py, line 31
+  async def test_ws_chat(token: str, message: str):
+      """ͨ�� WebSocket ������Ϣ�����������¼�"""
+      uri = f"{WS_URL}?token={token}"
+      print(f"\n[WS] Connecting to {uri[:50]}...")
+
+      full_content = ""
+      events = []
+      code_events = []
+
+      async with websockets.connect(uri) as ws:
+          # ����������Ϣ
+          send_msg = {
+              "type": "chat",
+              "message": message,
+              "project_id": PROJECT_ID,
+          }
+          await ws.send(json.dumps(send_msg))
+          print(f"[WS] Sent: {message}")
+
+          # ������Ӧ������ʱ��
+          deadline = asyncio.get_event_loop().time() + 90
+          final_received = False
+
+          while not final_received and asyncio.get_event_loop().time() < deadline:
+              try:
+                  raw = await asyncio.wait_for(ws.recv(), timeout=30)
+                  msg = json.loads(raw)
+                  event_type = msg.get("event", "unknown")
+                  event_data = msg.get("data")
+
+                  events.append(event_type)
+
+                  if event_type == "token":
+                      tok = event_data.get("token", "")
+                      if isinstance(tok, str):
+                          full_content += tok
+
+                  elif event_type == "code_generated":
+                      code_events.append(event_data or {})
+                      code_len = len((event_data or {}).get("code", ""))
+                      lang = (event_data or {}).get("language", "")
+                      source = (event_data or {}).get("source", "")
+                      print(f"  [CODE_GEN] lang={lang} len={code_len} source={source}")
+                      # ����Ƿ��� MVP ����
+                      code_str = (event_data or {}).get("code", "")
+                      mvp_markers = ["fineSTEM MVP", "�ҵ� STEM ��Ŀ MVP", "actionButton",
+                                     "�ѳɹ�����", "����һ�������е���С�汾"]
+                      found = [m for m in mvp_markers if m in code_str]
+                      if found:
+                          print(f"  !! MVP CODE IN EVENT: {found}")
+
+                  elif event_type == "content_update":
+                      content = (event_data or {}).get("content", "")
+                      if content:
+                          full_content = content
+                          print(f"  [CONTENT] len={len(content)}")
+
+                  elif event_type == "final":
+                      final_received = True
+                      print(f"  [FINAL] status={(event_data or {}).get('status')}")
+
+                  elif event_type == "error":
+                      err_msg = (event_data or {}).get("message", str(msg))
+                      print(f"  [ERROR] {err_msg}")
+
+                  elif event_type not in ("stage_changed", "skill_activated"):
+                      print(f"  [{event_type}] {str(event_data)[:100]}")
+
+              except asyncio.TimeoutError:
+                  print("[WS] Timeout waiting for more messages")
+                  break
+              except Exception as e:
+                  print(f"[WS] Error: {e}")
+                  break
+
+      print(f"\n[WS] Events received ({len(events)}): {events}")
+      print(f"[WS] Content length: {len(full_content)}")
+
+      # ��� MVP ����
+      mvp_phrases = ["��С����汾", "MVP", "��С������", "д��༭��",
+                     "������һ�������е���С"]
+      found = [p for p in mvp_phrases if p in full_content]
+
+      if found:
+          print(f"\n[ANALYSIS] !! MVP PHRASES FOUND: {found}")
+          for p in found:
+              idx = full_content.find(p)
+              ctx = full_content[max(0,idx-80):idx+len(p)+80]
+              print(f'  Context of "{p}": ...{ctx}...')
+      else:
+          print(f"[ANALYSIS] OK No MVP phrases")
+
+      print(f"\n[REPLY]:\n{full_content}")
+
+      return {
+          "full_content": full_content,
+          "events": events,
+          "mvp_phrases_found": found,
+          "code_events": code_events,
+      }
+E       fixture 'token' not found
+>       available fixtures: _artifacts_recorder, _class_scoped_runner, _function_scoped_runner, _module_scoped_runner, _package_scoped_runner, _pw_artifacts_folder, _session_scoped_runner, _verify_url, anyio_backend, anyio_backend_name, anyio_backend_options, auth_headers, base_url, browser, browser_channel, browser_context_args, browser_name, browser_type, browser_type_launch_args, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, clean_tables, client, connect_options, context, cov, created_project, delete_output_dir, device, doctest_namespace, event_loop_policy, extra, extras, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, include_metadata_in_junit_xml, is_chromium, is_firefox, is_webkit, json_metadata, launch_browser, metadata, monkeypatch, new_context, no_cover, output_path, page, playwright, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, registered_user, respx_mock, second_auth_headers, second_user, seeded_demo_id, seeded_demo_with_breakdown_id, setup_test_db, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, unused_tcp_port, unused_tcp_port_factory, unused_udp_port, unused_udp_port_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+G:\mediaProjects\fineSTEM\apps\backend\tests\test_mvp_ws.py:31
+_____________________ ERROR at setup of test_single_round _____________________
+file G:\mediaProjects\fineSTEM\apps\backend\tests\test_question_flow.py, line 135
+  async def test_single_round(uri: str):
+      """���Ե���: �������� �� �ȴ�AI�ظ� �� ģ��ѡ��ѡ�� �� �ȴ������ظ�"""
+      results = {}
+
+      # ��1��: ������Ŀ����
+      events_1, time_1 = await connect_and_send(
+          uri,
+          '������һ��ѧ���ɼ�����ϵͳ�����Ǹ���������6Сʱʱ�䡣����ȷ�ϣ�������Python����JavaScript��',
+          '��1��: ��Ŀ����'
+      )
+      results['round1'] = analyze_events(events_1, '��1��')
+
+      has_question = results['round1']['question']
+
+      if has_question:
+          print('\n' + '=' * 60)
+          print('\u2705 AI \u8f93\u51fa\u4e86 QuestionCard\uff01\u7ee7\u7eed\u7b2c2\u8f6e...')
+          print('=' * 60)
+
+          # ��ȡ��һѡ��ID
+          first_opt_id = ''
+          for e in events_1:
+              if e.get('event') == 'question':
+                  opts = e.get('data', {}).get('options', [])
+                  if opts:
+                      first_opt_id = opts[0].get('id')
+                  break
+
+          if first_opt_id:
+              # ��2��: ģ��ѡ��ѡ���ķ���
+              select_msg = f'[ѡ��] ȷ�ϼ���ѡ��\n�ش�{first_opt_id}'
+              events_2, time_2 = await connect_and_send(uri, select_msg, '��2��: ѡ��ѡ���')
+              results['round2'] = analyze_events(events_2, '��2��')
+
+              has_final_2 = results['round2']['final']
+
+              if has_final_2:
+                  print('\n' + '=' * 60)
+                  print('\U0001f389 \u6d4b\u8bd5\u901a\u8fc7! QuestionCard\u9009\u62e9\u540e\u7cfb\u7edf\u80fd\u7ee7\u7eed\u5bf9\u8bdd')
+                  print('=' * 60)
+                  return True
+
+      else:
+          print('\n' + '=' * 60)
+          print('\u26a0\ufe0f AI \u672a\u8f93\u51fa QuestionCard\uff08\u8fd9\u4e0d\u5f71\u54cd\u6838\u5fc3\u529f\u80fd\uff09')
+          print('\U0001f4a1 \u524d\u7aef QuestionCard \u5361\u987f\u95ee\u9898\u5df2\u901a\u8fc7 handleSendRef \u4fee\u590d')
+          print('=' * 60)
+
+          # �ֶ����͵�2����֤�Ի��򲻿�ס
+          events_2, time_2 = await connect_and_send(uri, '�õģ����Ƽ���������', '��2��: �����Ի�')
+          results['round2'] = analyze_events(events_2, '��2��')
+
+          if results['round2']['tokens'] > 0:
+              print('\\n\U0001f389 \u8fde\u7eed\u591a\u8f6e\u5bf9\u8bdd\u6b63\u5e38\uff0c\u65e0\u5361\u987f')
+              return True
+
+      print('\\n\u274c \u6d4b\u8bd5\u672a\u5b8c\u5168\u901a\u8fc7')
+      return False
+E       fixture 'uri' not found
+>       available fixtures: _artifacts_recorder, _class_scoped_runner, _function_scoped_runner, _module_scoped_runner, _package_scoped_runner, _pw_artifacts_folder, _session_scoped_runner, _verify_url, anyio_backend, anyio_backend_name, anyio_backend_options, auth_headers, base_url, browser, browser_channel, browser_context_args, browser_name, browser_type, browser_type_launch_args, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, clean_tables, client, connect_options, context, cov, created_project, delete_output_dir, device, doctest_namespace, event_loop_policy, extra, extras, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, include_metadata_in_junit_xml, is_chromium, is_firefox, is_webkit, json_metadata, launch_browser, metadata, monkeypatch, new_context, no_cover, output_path, page, playwright, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, registered_user, respx_mock, second_auth_headers, second_user, seeded_demo_id, seeded_demo_with_breakdown_id, setup_test_db, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, unused_tcp_port, unused_tcp_port_factory, unused_udp_port, unused_udp_port_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+G:\mediaProjects\fineSTEM\apps\backend\tests\test_question_flow.py:135
+__________________ ERROR at setup of test_concurrent_streams __________________
+file G:\mediaProjects\fineSTEM\apps\backend\tests\test_question_flow.py, line 195
+  async def test_concurrent_streams(uri: str):
+      """��֤��ǰһ�� stream �������� stream �����������ģ��QuestionCard������"""
+      print('\n' + '=' * 60)
+      print('ѹ������: ����3�ֶԻ�')
+      print('=' * 60)
+
+      messages = [
+          '��ã�����һ������',
+          '�����Ի����ڶ���',
+          '�����Ի���������',
+      ]
+
+      for i, msg in enumerate(messages):
+          events, elapsed = await connect_and_send(uri, msg, f'ѹ����{i+1}��')
+          result = analyze_events(events, f'ѹ����{i+1}��')
+
+          if result['error'] or result['tokens'] == 0:
+              print(f'\u274c \u7b2c{i+1}\u8f6e\u5931\u8d25')
+              return False
+
+          await asyncio.sleep(1)  # ���1��
+
+      print('\\n\U0001f389 \u8fde\u7eed3\u8f6e\u5bf9\u8bdd\u6b63\u5e38!')
+      return True
+E       fixture 'uri' not found
+>       available fixtures: _artifacts_recorder, _class_scoped_runner, _function_scoped_runner, _module_scoped_runner, _package_scoped_runner, _pw_artifacts_folder, _session_scoped_runner, _verify_url, anyio_backend, anyio_backend_name, anyio_backend_options, auth_headers, base_url, browser, browser_channel, browser_context_args, browser_name, browser_type, browser_type_launch_args, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, clean_tables, client, connect_options, context, cov, created_project, delete_output_dir, device, doctest_namespace, event_loop_policy, extra, extras, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, include_metadata_in_junit_xml, is_chromium, is_firefox, is_webkit, json_metadata, launch_browser, metadata, monkeypatch, new_context, no_cover, output_path, page, playwright, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, registered_user, respx_mock, second_auth_headers, second_user, seeded_demo_id, seeded_demo_with_breakdown_id, setup_test_db, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, unused_tcp_port, unused_tcp_port_factory, unused_udp_port, unused_udp_port_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+G:\mediaProjects\fineSTEM\apps\backend\tests\test_question_flow.py:195
+================================== FAILURES ===================================
+____________________ test_ask_question_tool_missing_title _____________________
+tests\test_ask_question_tool.py:94: in test_ask_question_tool_missing_title
+    assert result.success is True
+E   assert False is True
+E    +  where False = <app.services.tools.ToolResult object at 0x000002A2FDBD2AE0>.success
+___________________ test_ask_question_tool_too_many_options ___________________
+tests\test_ask_question_tool.py:128: in test_ask_question_tool_too_many_options
+    assert len(result.data["options"]) <= 8
+E   AssertionError: assert 10 <= 8
+E    +  where 10 = len([{'id': 'opt0', 'label': 'ѡ��0'}, {'id': 'opt1', 'label': 'ѡ��1'}, {'id': 'opt2', 'label': 'ѡ��2'}, {'id': 'opt3', 'label': 'ѡ��3'}, {'id': 'opt4', 'label': 'ѡ��4'}, {'id': 'opt5', 'label': 'ѡ��5'}, ...])
+______________ TestAutoContinueAPI.test_short_code_no_truncation ______________
+tests\test_auto_continue_api.py:56: in test_short_code_no_truncation
+    async for event_type, event_data in orchestrator.stream_chat_with_events(owner_id, req):
+app\services\orchestrator.py:939: in stream_chat_with_events
+    content, tool_calls, model = await self._call_llm_with_tools(
+app\services\orchestrator.py:1788: in _call_llm_with_tools
+    raise RuntimeError("ZeroClaw ���ص���ʧ�ܣ����ѽ��� Mock ����")
+E   RuntimeError: ZeroClaw ���ص���ʧ�ܣ����ѽ��� Mock ����
+------------------------------ Captured log call ------------------------------
+ERROR    app.services.orchestrator:orchestrator.py:1350 agent_stream_events_failed trace_id=4580bf95-d2a8-46eb-8b02-b94297d7f780
+Traceback (most recent call last):
+  File "G:\mediaProjects\fineSTEM\apps\backend\app\services\orchestrator.py", line 939, in stream_chat_with_events
+    content, tool_calls, model = await self._call_llm_with_tools(
+                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "G:\mediaProjects\fineSTEM\apps\backend\app\services\orchestrator.py", line 1788, in _call_llm_with_tools
+    raise RuntimeError("ZeroClaw ���ص���ʧ�ܣ����ѽ��� Mock ����")
+RuntimeError: ZeroClaw ���ص���ʧ�ܣ����ѽ��� Mock ����
+______________ TestAutoContinueAPI.test_long_code_auto_continue _______________
+tests\test_auto_continue_api.py:92: in test_long_code_auto_continue
+    async for event_type, event_data in orchestrator.stream_chat_with_events(owner_id, req):
+app\services\orchestrator.py:939: in stream_chat_with_events
+    content, tool_calls, model = await self._call_llm_with_tools(
+app\services\orchestrator.py:1788: in _call_llm_with_tools
+    raise RuntimeError("ZeroClaw ���ص���ʧ�ܣ����ѽ��� Mock ����")
+E   RuntimeError: ZeroClaw ���ص���ʧ�ܣ����ѽ��� Mock ����
+------------------------------ Captured log call ------------------------------
+ERROR    app.services.orchestrator:orchestrator.py:1350 agent_stream_events_failed trace_id=7f8ae56d-c0c6-4da5-9320-4fe73219c5c8
+Traceback (most recent call last):
+  File "G:\mediaProjects\fineSTEM\apps\backend\app\services\orchestrator.py", line 939, in stream_chat_with_events
+    content, tool_calls, model = await self._call_llm_with_tools(
+                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "G:\mediaProjects\fineSTEM\apps\backend\app\services\orchestrator.py", line 1788, in _call_llm_with_tools
+    raise RuntimeError("ZeroClaw ���ص���ʧ�ܣ����ѽ��� Mock ����")
+RuntimeError: ZeroClaw ���ص���ʧ�ܣ����ѽ��� Mock ����
+_________ TestAutoContinueAPI.test_ultra_long_code_multiple_continues _________
+tests\test_auto_continue_api.py:146: in test_ultra_long_code_multiple_continues
+    async for event_type, event_data in orchestrator.stream_chat_with_events(owner_id, req):
+app\services\orchestrator.py:939: in stream_chat_with_events
+    content, tool_calls, model = await self._call_llm_with_tools(
+app\services\orchestrator.py:1788: in _call_llm_with_tools
+    raise RuntimeError("ZeroClaw ���ص���ʧ�ܣ����ѽ��� Mock ����")
+E   RuntimeError: ZeroClaw ���ص���ʧ�ܣ����ѽ��� Mock ����
+------------------------------ Captured log call ------------------------------
+ERROR    app.services.orchestrator:orchestrator.py:1350 agent_stream_events_failed trace_id=d51592cf-7b69-4f4e-8eca-19ba66d849d2
+Traceback (most recent call last):
+  File "G:\mediaProjects\fineSTEM\apps\backend\app\services\orchestrator.py", line 939, in stream_chat_with_events
+    content, tool_calls, model = await self._call_llm_with_tools(
+                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "G:\mediaProjects\fineSTEM\apps\backend\app\services\orchestrator.py", line 1788, in _call_llm_with_tools
+    raise RuntimeError("ZeroClaw ���ص���ʧ�ܣ����ѽ��� Mock ����")
+RuntimeError: ZeroClaw ���ص���ʧ�ܣ����ѽ��� Mock ����
+____________________ test_p0_orchestrator_no_auto_extract _____________________
+tests\test_p0_p1_fix.py:200: in test_p0_orchestrator_no_auto_extract
+    ws_before = get_workspace()
+                ^^^^^^^^^^^^^^^
+tests\test_p0_p1_fix.py:155: in get_workspace
+    row = conn.execute("SELECT initial_data FROM projects WHERE id=?", (PROJECT_ID,)).fetchone()
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   sqlite3.OperationalError: no such table: projects
+---------------------------- Captured stdout call -----------------------------
+
+======================================================================
+P0 ��֤��orchestrator �����Զ���ȡ����鸲�� workspace
+======================================================================
+[1] _extract_executable_code_block ��ȡ���: code_len=287
+[2] orchestrator.py �� db.save_project_workspace ��ע�͵�����: 0
+    �к�: (��)
+______________ test_p1_history_snapshot_and_suspicious_detection ______________
+tests\test_p0_p1_fix.py:248: in test_p1_history_snapshot_and_suspicious_detection
+    ws = get_workspace()
+         ^^^^^^^^^^^^^^^
+tests\test_p0_p1_fix.py:157: in get_workspace
+    return json.loads(row[0]).get("workspace", {})
+                      ^^^^^^
+E   TypeError: 'NoneType' object is not subscriptable
+---------------------------- Captured stdout call -----------------------------
+
+======================================================================
+P1 ��֤��save_project_workspace ��ʷ���� + ���ɸ��Ǽ��
+======================================================================
+
+[����] ģ���¹ʣ�workspace.code �� HTML(����) ������Ϊ python(��Ͻű�)
+________ TestPBLFullLoop.test_complete_stage_endpoint_drives_full_loop ________
+tests\test_projects.py:761: in test_complete_stage_endpoint_drives_full_loop
+    assert progress.json()["data"]["current_stage"] == "stage_08_evaluate"
+E   AssertionError: assert 'stage_07_execute' == 'stage_08_evaluate'
+E     
+E     - stage_08_evaluate
+E     + stage_07_execute
+____________ TestPBLFullLoop.test_workspace_restores_pbl_artifacts ____________
+tests\test_projects.py:801: in test_workspace_restores_pbl_artifacts
+    assert ws_data["progress"]["current_stage"] == "stage_08_evaluate"
+E   AssertionError: assert 'stage_07_execute' == 'stage_08_evaluate'
+E     
+E     - stage_08_evaluate
+E     + stage_07_execute
+============================== warnings summary ===============================
+tests/test_achievement_cards.py: 1 warning
+tests/test_agent.py: 1 warning
+tests/test_auth.py: 1 warning
+tests/test_auxiliary.py: 1 warning
+tests/test_data_integrity.py: 1 warning
+tests/test_demos.py: 1 warning
+tests/test_evidence.py: 1 warning
+tests/test_full_journey.py: 1 warning
+tests/test_pbl_engine.py: 1 warning
+tests/test_projects.py: 1 warning
+tests/test_skills_courses.py: 1 warning
+  C:\Users\hf001\AppData\Roaming\Python\Python312\site-packages\httpx\_client.py:690: DeprecationWarning: The 'app' shortcut is now deprecated. Use the explicit style 'transport=WSGITransport(app=...)' instead.
+    warnings.warn(message, DeprecationWarning)
+
+tests/test_api.py::test_chat
+  C:\Users\hf001\AppData\Roaming\Python\Python312\site-packages\_pytest\python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_api.py::test_chat returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_data_integrity.py::test_create_skill_state_normalizes_illegal_stages
+tests/test_data_integrity.py::test_create_skill_state_normalizes_illegal_stages
+tests/test_data_integrity.py::test_skill_state_writer_unpacks_string_json
+tests/test_data_integrity.py::test_skill_state_writer_unpacks_string_json
+tests/test_data_integrity.py::test_skill_state_writer_preserves_dict_input
+tests/test_data_integrity.py::test_skill_state_writer_preserves_dict_input
+  C:\Users\hf001\AppData\Roaming\Python\Python312\site-packages\pydantic\fields.py:703: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    return fac()
+
+tests/test_skills_courses.py::TestCourseLibrary::test_create_course
+tests/test_skills_courses.py::TestCourseLibrary::test_create_course
+tests/test_skills_courses.py::TestCourseLibrary::test_create_and_list_courses
+tests/test_skills_courses.py::TestCourseLibrary::test_create_and_list_courses
+  C:\Users\hf001\AppData\Roaming\Python\Python312\site-packages\pydantic\main.py:250: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
+
+tests/test_stream.py::test_stream
+  C:\Users\hf001\AppData\Roaming\Python\Python312\site-packages\_pytest\python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_stream.py::test_stream returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_ask_question_tool.py::test_ask_question_tool_missing_title
+FAILED tests/test_ask_question_tool.py::test_ask_question_tool_too_many_options
+FAILED tests/test_auto_continue_api.py::TestAutoContinueAPI::test_short_code_no_truncation
+FAILED tests/test_auto_continue_api.py::TestAutoContinueAPI::test_long_code_auto_continue
+FAILED tests/test_auto_continue_api.py::TestAutoContinueAPI::test_ultra_long_code_multiple_continues
+FAILED tests/test_p0_p1_fix.py::test_p0_orchestrator_no_auto_extract - sqlite...
+FAILED tests/test_p0_p1_fix.py::test_p1_history_snapshot_and_suspicious_detection
+FAILED tests/test_projects.py::TestPBLFullLoop::test_complete_stage_endpoint_drives_full_loop
+FAILED tests/test_projects.py::TestPBLFullLoop::test_workspace_restores_pbl_artifacts
+ERROR tests/test_multifile_fix.py::test_chat
+ERROR tests/test_mvp_final.py::test_chat
+ERROR tests/test_mvp_ws.py::test_ws_chat
+ERROR tests/test_question_flow.py::test_single_round
+ERROR tests/test_question_flow.py::test_concurrent_streams
+9 failed, 374 passed, 36 skipped, 23 warnings, 5 errors in 297.59s (0:04:57)

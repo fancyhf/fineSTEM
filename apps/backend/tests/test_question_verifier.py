@@ -214,3 +214,65 @@ def test_reject_pomodoro_still_blocked():
     ]
     ok, _ = is_real_question(title, options)
     assert ok is False
+
+
+# ── Q-020（2026-07-28）：风格/主题类文字选择不渲染卡片 ──
+# 根因：QUESTION_TITLE_PATTERN 不含"风格/主题/样式/色调/配色"等设计选择词，
+#   AI 用文字列风格选项（DeepSeek 不调 ask_question 时）后端二次确认会拒绝。
+# 修复：QUESTION_TITLE_PATTERN 新增设计类关键词。
+# links: .trae/documents/问题清单_长期维护.md (Q-020)
+
+
+@pytest.mark.parametrize(
+    "title",
+    [
+        "你想要什么风格？",
+        "你想用什么风格？",
+        "选择一个你喜欢的风格",
+        "想要什么设计风格",
+        "风格选哪个？",
+        "你想要什么主题？",
+        "选个主题色吧",
+        "你想要什么样式",
+        "想要什么配色",
+    ],
+)
+def test_accept_style_theme_questions(title):
+    """TC-DATA-011: 各种风格/主题提问句式都应放行为真问题。"""
+    options = [
+        {"label": "极简即用型"},
+        {"label": "分析洞察型"},
+        {"label": "趣味互动型"},
+    ]
+    ok, reason = is_real_question(title, options)
+    assert ok is True, f"应放行风格/主题真问题，但拒绝了：{reason}（title={title}）"
+
+
+def test_accept_style_question_full_case():
+    """TC-DATA-012: '你想要什么风格？' + 选项 → 真问题。"""
+    ok, reason = is_real_question(
+        "你想要什么风格？",
+        [
+            {"label": "极简即用型", "description": "一打开就用"},
+            {"label": "分析洞察型", "description": "侧重图表"},
+        ],
+    )
+    assert ok is True, f"应放行：{reason}"
+
+
+@pytest.mark.parametrize(
+    "title",
+    [
+        "支持多种风格，包含现代和复古",
+        "风格包含极简和华丽",
+        "这个主题包含三个模块",
+    ],
+)
+def test_reject_style_in_feature_intro(title):
+    """回归: 含"风格/主题"但带列举引导词（功能介绍）仍被拒绝（Q-003 不退化）。"""
+    options = [
+        {"label": "现代"},
+        {"label": "复古"},
+    ]
+    ok, _ = is_real_question(title, options)
+    assert ok is False, f"功能介绍句不应放行：{title}"

@@ -1,0 +1,202 @@
+﻿
+Running 1 test using 1 worker
+
+[EXPLORE:q023] ⚠️ network_4xx_unexpected: 403 http://localhost:5184/api/v1/projects/595a5529-d0d1-48cd-b1a6-18551122f554/chat
+[EXPLORE:q023] ⚠️ console_error: Failed to load resource: the server responded with a status of 403 (Forbidden)
+[EXPLORE:q023] ⚠️ console_error: [autosave:chat] 保存失败: Error: 无权操作此项目
+    at request (http://localhost:5184/src/services/api.ts:53:19)
+[EXPLORE:q023] ⚠️ network_4xx_unexpected: 403 http://localhost:5184/api/v1/projects/595a5529-d0d1-48cd-b1a6-18551122f554/code
+[EXPLORE:q023] ⚠️ console_error: Failed to load resource: the server responded with a status of 403 (Forbidden)
+[EXPLORE:q023] ⚠️ console_error: [autosave:code] 保存失败: Error: 无权操作此项目
+    at request (http://localhost:5184/src/services/api.ts:53:19)
+[EXPLORE:q023] ⚠️ network_4xx_unexpected: 403 http://localhost:5184/api/v1/projects/595a5529-d0d1-48cd-b1a6-18551122f554/chat
+[EXPLORE:q023] ⚠️ console_error: Failed to load resource: the server responded with a status of 403 (Forbidden)
+[EXPLORE:q023] ⚠️ console_error: [autosave:chat] 保存失败: Error: 无权操作此项目
+    at request (http://localhost:5184/src/services/api.ts:53:19)
+[EXPLORE:q023] ⚠️ network_4xx_unexpected: 403 alhost:5184/api/v1/projects/595a5529-d0d1-48cd-b1a6-18551122f554/student-profile
+[EXPLORE:q023] ⚠️ console_error: Failed to load resource: the server responded with a status of 403 (Forbidden)
+[EXPLORE:q023] ⚠️ console_error: [student-profile] 持久化失败: Error: 无权修改此项目
+    at request (http://localhost:5184/src/services/api.ts:53:19)
+[EXPLORE:q023] ⚠️ network_4xx_unexpected: 403 http://localhost:5184/api/v1/projects/595a5529-d0d1-48cd-b1a6-18551122f554/chat
+[EXPLORE:q023] ⚠️ console_error: Failed to load resource: the server responded with a status of 403 (Forbidden)
+[EXPLORE:q023] ⚠️ console_error: [autosave:chat] 保存失败: Error: 无权操作此项目
+    at request (http://localhost:5184/src/services/api.ts:53:19)
+[EXPLORE:q023] ⚠️ network_4xx_unexpected: 403 ://localhost:5184/api/v1/projects/595a5529-d0d1-48cd-b1a6-18551122f554/workspace
+[EXPLORE:q023] ⚠️ console_error: Failed to load resource: the server responded with a status of 403 (Forbidden)
+[EXPLORE:q023] ⚠️ network_4xx_unexpected: 403 http://localhost:5184/api/v1/projects/595a5529-d0d1-48cd-b1a6-18551122f554/chat
+[EXPLORE:q023] ⚠️ console_error: Failed to load resource: the server responded with a status of 403 (Forbidden)
+[EXPLORE:q023] ⚠️ console_error: [autosave:chat] 保存失败: Error: 无权操作此项目
+    at request (http://localhost:5184/src/services/api.ts:53:19)
+[EXPLORE:q023] ⚠️ network_4xx_unexpected: 403 ://localhost:5184/api/v1/projects/595a5529-d0d1-48cd-b1a6-18551122f554/workspace
+[EXPLORE:q023] ⚠️ console_error: Failed to load resource: the server responded with a status of 403 (Forbidden)
+[EXPLORE:q023] ⚠️ network_4xx_unexpected: 403 http://localhost:5184/api/v1/projects/595a5529-d0d1-48cd-b1a6-18551122f554/chat
+[EXPLORE:q023] ⚠️ console_error: Failed to load resource: the server responded with a status of 403 (Forbidden)
+[EXPLORE:q023] ⚠️ console_error: [autosave:chat] saveChatNow 保存失败: Error: 无权操作此项目
+    at request (http://localhost:5184/src/services/api.ts:53:19)
+[EXPLORE:q023] ⚠️ network_4xx_unexpected: 403 http://localhost:5184/api/v1/projects/595a5529-d0d1-48cd-b1a6-18551122f554/chat
+[EXPLORE:q023] ⚠️ console_error: Failed to load resource: the server responded with a status of 403 (Forbidden)
+[EXPLORE:q023] ⚠️ console_error: [autosave:chat] 保存失败: Error: 无权操作此项目
+    at request (http://localhost:5184/src/services/api.ts:53:19)
+[EXPLORE:q023] ⚠️ network_4xx_unexpected: 403 alhost:5184/api/v1/projects/595a5529-d0d1-48cd-b1a6-18551122f554/student-profile
+[EXPLORE:q023] ⚠️ console_error: Failed to load resource: the server responded with a status of 403 (Forbidden)
+[EXPLORE:q023] ⚠️ console_error: [student-profile] 持久化失败: Error: 无权修改此项目
+    at request (http://localhost:5184/src/services/api.ts:53:19)
+[EXPLORE:q023] ⚠️ network_4xx_unexpected: 403 http://localhost:5184/api/v1/projects/595a5529-d0d1-48cd-b1a6-18551122f554/chat
+[EXPLORE:q023] ⚠️ console_error: Failed to load resource: the server responded with a status of 403 (Forbidden)
+[EXPLORE:q023] ⚠️ console_error: [autosave:chat] 保存失败: Error: 无权操作此项目
+    at request (http://localhost:5184/src/services/api.ts:53:19)
+[EXPLORE:q023] ⚠️ network_4xx_unexpected: 403 http://localhost:5184/api/v1/projects/595a5529-d0d1-48cd-b1a6-18551122f554/chat
+[EXPLORE:q023] ⚠️ console_error: Failed to load resource: the server responded with a status of 403 (Forbidden)
+[EXPLORE:q023] ⚠️ console_error: [autosave:chat] 保存失败: Error: 无权操作此项目
+    at request (http://localhost:5184/src/services/api.ts:53:19)
+[EXPLORE:q023] ⚠️ network_4xx_unexpected: 403 ://localhost:5184/api/v1/projects/595a5529-d0d1-48cd-b1a6-18551122f554/workspace
+[EXPLORE:q023] ⚠️ console_error: Failed to load resource: the server responded with a status of 403 (Forbidden)
+[EXPLORE:q023] ⚠️ network_4xx_unexpected: 403 http://localhost:5184/api/v1/projects/595a5529-d0d1-48cd-b1a6-18551122f554/chat
+[EXPLORE:q023] ⚠️ console_error: Failed to load resource: the server responded with a status of 403 (Forbidden)
+[EXPLORE:q023] ⚠️ console_error: [autosave:chat] saveChatNow 保存失败: Error: 无权操作此项目
+    at request (http://localhost:5184/src/services/api.ts:53:19)
+[EXPLORE:q023] ⚠️ network_4xx_unexpected: 403 http://localhost:5184/api/v1/projects/595a5529-d0d1-48cd-b1a6-18551122f554/chat
+[EXPLORE:q023] ⚠️ console_error: Failed to load resource: the server responded with a status of 403 (Forbidden)
+[EXPLORE:q023] ⚠️ console_error: [autosave:chat] 保存失败: Error: 无权操作此项目
+    at request (http://localhost:5184/src/services/api.ts:53:19)
+[EXPLORE:q023] ⚠️ network_4xx_unexpected: 403 ://localhost:5184/api/v1/projects/595a5529-d0d1-48cd-b1a6-18551122f554/workspace
+[EXPLORE:q023] ⚠️ console_error: Failed to load resource: the server responded with a status of 403 (Forbidden)
+[EXPLORE:q023] ⚠️ network_4xx_unexpected: 403 http://localhost:5184/api/v1/projects/595a5529-d0d1-48cd-b1a6-18551122f554/chat
+[EXPLORE:q023] ⚠️ console_error: Failed to load resource: the server responded with a status of 403 (Forbidden)
+[EXPLORE:q023] ⚠️ console_error: [autosave:chat] saveChatNow 保存失败: Error: 无权操作此项目
+    at request (http://localhost:5184/src/services/api.ts:53:19)
+[EXPLORE:q023] ⚠️ network_4xx_unexpected: 403 http://localhost:5184/api/v1/projects/595a5529-d0d1-48cd-b1a6-18551122f554/chat
+[EXPLORE:q023] ⚠️ console_error: Failed to load resource: the server responded with a status of 403 (Forbidden)
+[EXPLORE:q023] ⚠️ console_error: [autosave:chat] 保存失败: Error: 无权操作此项目
+    at request (http://localhost:5184/src/services/api.ts:53:19)
+[EXPLORE:q023] ⚠️ network_4xx_unexpected: 403 ://localhost:5184/api/v1/projects/595a5529-d0d1-48cd-b1a6-18551122f554/workspace
+[EXPLORE:q023] ⚠️ console_error: Failed to load resource: the server responded with a status of 403 (Forbidden)
+[EXPLORE:q023] ⚠️ network_4xx_unexpected: 403 http://localhost:5184/api/v1/projects/595a5529-d0d1-48cd-b1a6-18551122f554/chat
+[EXPLORE:q023] ⚠️ console_error: Failed to load resource: the server responded with a status of 403 (Forbidden)
+[EXPLORE:q023] ⚠️ console_error: [autosave:chat] saveChatNow 保存失败: Error: 无权操作此项目
+    at request (http://localhost:5184/src/services/api.ts:53:19)
+[EXPLORE:q023] ⚠️ network_4xx_unexpected: 403 http://localhost:5184/api/v1/projects/595a5529-d0d1-48cd-b1a6-18551122f554/chat
+[EXPLORE:q023] ⚠️ console_error: Failed to load resource: the server responded with a status of 403 (Forbidden)
+[EXPLORE:q023] ⚠️ console_error: [autosave:chat] 保存失败: Error: 无权操作此项目
+    at request (http://localhost:5184/src/services/api.ts:53:19)
+[EXPLORE:q023] ⚠️ network_4xx_unexpected: 403 http://localhost:5184/api/v1/projects/595a5529-d0d1-48cd-b1a6-18551122f554/chat
+[EXPLORE:q023] ⚠️ console_error: Failed to load resource: the server responded with a status of 403 (Forbidden)
+[EXPLORE:q023] ⚠️ console_error: [autosave:chat] 保存失败: Error: 无权操作此项目
+    at request (http://localhost:5184/src/services/api.ts:53:19)
+[EXPLORE:q023] ⚠️ network_4xx_unexpected: 403 ://localhost:5184/api/v1/projects/595a5529-d0d1-48cd-b1a6-18551122f554/workspace
+[EXPLORE:q023] ⚠️ console_error: Failed to load resource: the server responded with a status of 403 (Forbidden)
+[EXPLORE:q023] ⚠️ network_4xx_unexpected: 403 http://localhost:5184/api/v1/projects/595a5529-d0d1-48cd-b1a6-18551122f554/chat
+[EXPLORE:q023] ⚠️ console_error: Failed to load resource: the server responded with a status of 403 (Forbidden)
+[EXPLORE:q023] ⚠️ console_error: [autosave:chat] saveChatNow 保存失败: Error: 无权操作此项目
+    at request (http://localhost:5184/src/services/api.ts:53:19)
+[EXPLORE:q023] ⚠️ network_4xx_unexpected: 403 http://localhost:5184/api/v1/projects/595a5529-d0d1-48cd-b1a6-18551122f554/chat
+[EXPLORE:q023] ⚠️ console_error: Failed to load resource: the server responded with a status of 403 (Forbidden)
+[EXPLORE:q023] ⚠️ console_error: [autosave:chat] 保存失败: Error: 无权操作此项目
+    at request (http://localhost:5184/src/services/api.ts:53:19)
+[EXPLORE:q023] ⚠️ network_4xx_unexpected: 403 http://localhost:5184/api/v1/projects/595a5529-d0d1-48cd-b1a6-18551122f554/chat
+[EXPLORE:q023] ⚠️ console_error: Failed to load resource: the server responded with a status of 403 (Forbidden)
+[EXPLORE:q023] ⚠️ console_error: [autosave:chat] 保存失败: Error: 无权操作此项目
+    at request (http://localhost:5184/src/services/api.ts:53:19)
+[EXPLORE:q023] ⚠️ network_4xx_unexpected: 403 http://localhost:5184/api/v1/projects/595a5529-d0d1-48cd-b1a6-18551122f554/chat
+[EXPLORE:q023] ⚠️ console_error: Failed to load resource: the server responded with a status of 403 (Forbidden)
+[EXPLORE:q023] ⚠️ console_error: [autosave:chat] 保存失败: Error: 无权操作此项目
+    at request (http://localhost:5184/src/services/api.ts:53:19)
+[EXPLORE:q023] ⚠️ network_4xx_unexpected: 403 http://localhost:5184/api/v1/projects/595a5529-d0d1-48cd-b1a6-18551122f554/chat
+[EXPLORE:q023] ⚠️ console_error: Failed to load resource: the server responded with a status of 403 (Forbidden)
+[EXPLORE:q023] ⚠️ console_error: [autosave:chat] 保存失败: Error: 无权操作此项目
+    at request (http://localhost:5184/src/services/api.ts:53:19)
+[EXPLORE:q023] ⚠️ network_4xx_unexpected: 403 http://localhost:5184/api/v1/projects/595a5529-d0d1-48cd-b1a6-18551122f554/code
+[EXPLORE:q023] ⚠️ console_error: Failed to load resource: the server responded with a status of 403 (Forbidden)
+[EXPLORE:q023] ⚠️ console_error: [autosave:code] 保存失败: Error: 无权操作此项目
+    at request (http://localhost:5184/src/services/api.ts:53:19)
+[EXPLORE:q023] ⚠️ network_4xx_unexpected: 403 http://localhost:5184/api/v1/projects/595a5529-d0d1-48cd-b1a6-18551122f554/chat
+[EXPLORE:q023] ⚠️ console_error: Failed to load resource: the server responded with a status of 403 (Forbidden)
+[EXPLORE:q023] ⚠️ console_error: [autosave:chat] 保存失败: Error: 无权操作此项目
+    at request (http://localhost:5184/src/services/api.ts:53:19)
+[EXPLORE:q023] ⚠️ network_4xx_unexpected: 403 http://localhost:5184/api/v1/projects/595a5529-d0d1-48cd-b1a6-18551122f554/chat
+[EXPLORE:q023] ⚠️ console_error: Failed to load resource: the server responded with a status of 403 (Forbidden)
+[EXPLORE:q023] ⚠️ console_error: [autosave:chat] 保存失败: Error: 无权操作此项目
+    at request (http://localhost:5184/src/services/api.ts:53:19)
+[EXPLORE:q023] ⚠️ network_4xx_unexpected: 403 http://localhost:5184/api/v1/projects/595a5529-d0d1-48cd-b1a6-18551122f554/chat
+[EXPLORE:q023] ⚠️ console_error: Failed to load resource: the server responded with a status of 403 (Forbidden)
+[EXPLORE:q023] ⚠️ console_error: [autosave:chat] saveChatNow 保存失败: Error: 无权操作此项目
+    at request (http://localhost:5184/src/services/api.ts:53:19)
+[EXPLORE:q023] ⚠️ network_4xx_unexpected: 403 http://localhost:5184/api/v1/projects/595a5529-d0d1-48cd-b1a6-18551122f554/code
+[EXPLORE:q023] ⚠️ console_error: Failed to load resource: the server responded with a status of 403 (Forbidden)
+[EXPLORE:q023] ⚠️ console_error: [autosave:code] 保存失败: Error: 无权操作此项目
+    at request (http://localhost:5184/src/services/api.ts:53:19)
+[EXPLORE:q023] ⚠️ network_4xx_unexpected: 403 ://localhost:5184/api/v1/projects/595a5529-d0d1-48cd-b1a6-18551122f554/workspace
+[EXPLORE:q023] ⚠️ console_error: Failed to load resource: the server responded with a status of 403 (Forbidden)
+[EXPLORE:q023] ⚠️ network_4xx_unexpected: 403 http://localhost:5184/api/v1/projects/595a5529-d0d1-48cd-b1a6-18551122f554/chat
+[EXPLORE:q023] ⚠️ console_error: Failed to load resource: the server responded with a status of 403 (Forbidden)
+[EXPLORE:q023] ⚠️ console_error: [autosave:chat] saveChatNow 保存失败: Error: 无权操作此项目
+    at request (http://localhost:5184/src/services/api.ts:53:19)
+[EXPLORE:q023] ⚠️ network_4xx_unexpected: 403 http://localhost:5184/api/v1/projects/595a5529-d0d1-48cd-b1a6-18551122f554/chat
+[EXPLORE:q023] ⚠️ console_error: Failed to load resource: the server responded with a status of 403 (Forbidden)
+[EXPLORE:q023] ⚠️ console_error: [autosave:chat] 保存失败: Error: 无权操作此项目
+    at request (http://localhost:5184/src/services/api.ts:53:19)
+[EXPLORE:q023] ⚠️ network_4xx_unexpected: 403 alhost:5184/api/v1/projects/595a5529-d0d1-48cd-b1a6-18551122f554/student-profile
+[EXPLORE:q023] ⚠️ console_error: Failed to load resource: the server responded with a status of 403 (Forbidden)
+[EXPLORE:q023] ⚠️ console_error: [student-profile] 持久化失败: Error: 无权修改此项目
+    at request (http://localhost:5184/src/services/api.ts:53:19)
+[EXPLORE:q023] ⚠️ network_4xx_unexpected: 403 http://localhost:5184/api/v1/projects/595a5529-d0d1-48cd-b1a6-18551122f554/chat
+[EXPLORE:q023] ⚠️ console_error: Failed to load resource: the server responded with a status of 403 (Forbidden)
+[EXPLORE:q023] ⚠️ console_error: [autosave:chat] 保存失败: Error: 无权操作此项目
+    at request (http://localhost:5184/src/services/api.ts:53:19)
+[EXPLORE:q023] ⚠️ network_4xx_unexpected: 403 ://localhost:5184/api/v1/projects/595a5529-d0d1-48cd-b1a6-18551122f554/workspace
+[EXPLORE:q023] ⚠️ console_error: Failed to load resource: the server responded with a status of 403 (Forbidden)
+[EXPLORE:q023] ⚠️ network_4xx_unexpected: 403 http://localhost:5184/api/v1/projects/595a5529-d0d1-48cd-b1a6-18551122f554/chat
+[EXPLORE:q023] ⚠️ console_error: Failed to load resource: the server responded with a status of 403 (Forbidden)
+[EXPLORE:q023] ⚠️ console_error: [autosave:chat] saveChatNow 保存失败: Error: 无权操作此项目
+    at request (http://localhost:5184/src/services/api.ts:53:19)
+[EXPLORE:q023] ⚠️ network_4xx_unexpected: 403 http://localhost:5184/api/v1/projects/595a5529-d0d1-48cd-b1a6-18551122f554/chat
+[EXPLORE:q023] ⚠️ console_error: Failed to load resource: the server responded with a status of 403 (Forbidden)
+[EXPLORE:q023] ⚠️ console_error: [autosave:chat] 保存失败: Error: 无权操作此项目
+    at request (http://localhost:5184/src/services/api.ts:53:19)
+[EXPLORE:q023] ⚠️ network_4xx_unexpected: 403 ://localhost:5184/api/v1/projects/595a5529-d0d1-48cd-b1a6-18551122f554/workspace
+[EXPLORE:q023] ⚠️ console_error: Failed to load resource: the server responded with a status of 403 (Forbidden)
+[EXPLORE:q023] ⚠️ network_4xx_unexpected: 403 http://localhost:5184/api/v1/projects/595a5529-d0d1-48cd-b1a6-18551122f554/chat
+[EXPLORE:q023] ⚠️ console_error: Failed to load resource: the server responded with a status of 403 (Forbidden)
+[EXPLORE:q023] ⚠️ console_error: [autosave:chat] saveChatNow 保存失败: Error: 无权操作此项目
+    at request (http://localhost:5184/src/services/api.ts:53:19)
+[EXPLORE:q023] ⚠️ network_4xx_unexpected: 403 http://localhost:5184/api/v1/projects/595a5529-d0d1-48cd-b1a6-18551122f554/chat
+[EXPLORE:q023] ⚠️ console_error: Failed to load resource: the server responded with a status of 403 (Forbidden)
+[EXPLORE:q023] ⚠️ console_error: [autosave:chat] 保存失败: Error: 无权操作此项目
+    at request (http://localhost:5184/src/services/api.ts:53:19)
+[EXPLORE:q023] ⚠️ network_4xx_unexpected: 403 http://localhost:5184/api/v1/projects/595a5529-d0d1-48cd-b1a6-18551122f554/chat
+[EXPLORE:q023] ⚠️ console_error: Failed to load resource: the server responded with a status of 403 (Forbidden)
+[EXPLORE:q023] ⚠️ console_error: [autosave:chat] 保存失败: Error: 无权操作此项目
+    at request (http://localhost:5184/src/services/api.ts:53:19)
+[Q023] 首字退化比: 61.58, 内存比: 1.81, 代码闭合: true
+[Q023] 探查器: { network_4xx_unexpected: [33m46[39m, console_error: [33m83[39m }
+  x  1 [chromium] › specs\lifecycle-journey.spec.ts:790:7 › 全 Q 独立复测 @ai @lifecycle @q-case › TC-DLG-Q023: 长对话不卡死 + 长代码完整 + 不误判 (13.1m)
+
+
+  1) [chromium] › specs\lifecycle-journey.spec.ts:790:7 › 全 Q 独立复测 @ai @lifecycle @q-case › TC-DLG-Q023: 长对话不卡死 + 长代码完整 + 不误判 
+
+    Error: 首字退化 61.58x
+
+    [2mexpect([22m[31mreceived[39m[2m).[22mtoBeLessThan[2m([22m[32mexpected[39m[2m)[22m
+
+    Expected: < [32m3[39m
+    Received:   [31m61.58480565371025[39m
+
+      821 |     pwExpect(explorer.byKind('idle_timeout').length, '不应触发 idle_timeout（Q-023 渲染根因）').toBe(0);
+      822 |     pwExpect(explorer.byKind('ui_freeze').length, '不应有明显 UI 冻帧').toBe(0);
+    > 823 |     if (deg) pwExpect(deg, `首字退化 ${deg.toFixed(2)}x`).toBeLessThan(3);
+          |                                                       ^
+      824 |     if (memR) pwExpect(memR, `内存攀升 ${memR.toFixed(2)}x`).toBeLessThan(2.5);
+      825 |     console.log('[Q023] ✅ 渲染管线根因验证通过');
+      826 |   });
+        at G:\mediaProjects\fineSTEM\apps\frontend\tests\specs\lifecycle-journey.spec.ts:823:55
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\lifecycle-journey-全-Q-独立复测-11428-C-DLG-Q023-长对话不卡死-长代码完整-不误判-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\lifecycle-journey-全-Q-独立复测-11428-C-DLG-Q023-长对话不卡死-长代码完整-不误判-chromium\error-context.md
+
+  Slow test file: [chromium] › specs\lifecycle-journey.spec.ts (13.1m)
+  Consider running tests from slow files in parallel. See: https://playwright.dev/docs/test-parallel
+  1 failed
+    [chromium] › specs\lifecycle-journey.spec.ts:790:7 › 全 Q 独立复测 @ai @lifecycle @q-case › TC-DLG-Q023: 长对话不卡死 + 长代码完整 + 不误判 

@@ -148,6 +148,10 @@ class SkillStateReaderTool(BaseTool):
             result["teaching_mode"] = metadata_dict.get("teachingMode", "guided")
             result["research_docs"] = metadata_dict.get("researchDocs", False)
             result["paper_mode"] = metadata_dict.get("paperMode", False)
+            # Q-017 记忆持久化：返回学生画像，让 AI 重入项目时读到已收集的选择
+            student_profile = metadata_dict.get("student_profile")
+            if isinstance(student_profile, dict) and student_profile:
+                result["student_profile"] = student_profile
 
         if "history" in include:
             history_raw = getattr(state, "stage_history", "[]")
@@ -910,10 +914,16 @@ class ProjectCodeWriterTool(BaseTool):
         })
         if workspace is None:
             return ToolResult(False, error=f"未找到项目 {project_id}")
+        # 2026-07-28 Q-019 修复：data 必须回带 code/files。
+        # 前端 useStreamingChat 的 tool_result 路径会直接读 out.code/out.files 写编辑器
+        # （另一条 code_generated 事件路径由 orchestrator 单独发送）。
+        # 此前 data 只返回元数据，导致 tool_result 路径拿不到代码，编辑器空白。
         return ToolResult(True, data={
             "project_id": project_id,
+            "code": code,
             "language": language,
             "filename": filename,
+            "files": updated_files,
             "saved_at": saved_at,
             "code_length": len(code),
         })

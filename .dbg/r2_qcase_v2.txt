@@ -1,0 +1,28 @@
+﻿
+Running 21 tests using 1 worker
+
+[Q001] 卡片 9, 缺失 1
+  ok  1 [chromium] › specs\lifecycle-journey.spec.ts:423:7 › 全 Q 独立复测 @ai @lifecycle @q-case › TC-DLG-Q001: 连续多轮选项卡不丢失 (6.1m)
+[Q002] 兜底渲染卡片成功
+  ok  2 [chromium] › specs\lifecycle-journey.spec.ts:439:7 › 全 Q 独立复测 @ai @lifecycle @q-case › TC-DLG-Q002: AI 文字列选项时兜底渲染卡片 (20.2s)
+[Q003] 功能介绍后卡片数: 1
+  x   3 [chromium] › specs\lifecycle-journey.spec.ts:452:7 › 全 Q 独立复测 @ai @lifecycle @q-case › TC-DLG-Q003: 番茄钟功能介绍不误产生选项卡 (33.1s)
+[Q004] 同屏最大卡片数: 1
+  ok  4 [chromium] › specs\lifecycle-journey.spec.ts:463:7 › 全 Q 独立复测 @ai @lifecycle @q-case › TC-DLG-Q004: 同屏不出现重复卡片 (2.6m)
+[Q005] 提问 4 轮，去重 4
+  ok  5 [chromium] › specs\lifecycle-journey.spec.ts:483:7 › 全 Q 独立复测 @ai @lifecycle @q-case › TC-DLG-Q005: 不重复问已答问题 (1.6m)
+[Q006] 选项数: 6
+[Q006] 选中数: 2
+  ok  6 [chromium] › specs\lifecycle-journey.spec.ts:503:7 › 全 Q 独立复测 @ai @lifecycle @q-case › TC-DLG-Q006: 多选卡片可选多个 (26.8s)
+[Q007] 轮 1 有下一步: true
+[Q007] 轮 2 有下一步: true
+[Q007] 轮 3 有下一步: false
+  x   7 [chromium] › specs\lifecycle-journey.spec.ts:532:7 › 全 Q 独立复测 @ai @lifecycle @q-case › TC-DLG-Q007: 每轮回复有明确下一步 (1.1m)
+[Q008] ℹ️ 本轮未截断，无继续按钮（正常）
+  ok  8 [chromium] › specs\lifecycle-journey.spec.ts:550:7 › 全 Q 独立复测 @ai @lifecycle @q-case › TC-DLG-Q008: 截断时继续按钮/续接有效 (28.5s)
+[Q009] 思考过程区: 有
+  ok  9 [chromium] › specs\lifecycle-journey.spec.ts:571:7 › 全 Q 独立复测 @ai @lifecycle @q-case › TC-DLG-Q009: 思考链可展开显示 (31.4s)
+[Q010] AI 抱怨没选: false
+  ok 10 [chromium] › specs\lifecycle-journey.spec.ts:584:7 › 全 Q 独立复测 @ai @lifecycle @q-case › TC-DLG-Q010: 点选项卡后 AI 推进（识别[选择]格式） (49.4s)
+[Q011] 兜底卡片: 有
+  ok 11 [chromium] › specs\lifecycle-journey.spec.ts:604:7 › 全 Q 独立复测 @ai @lifecycle @q-case › TC-DLG-Q011: AI 文字列短词选项时兜底 (36.5s)

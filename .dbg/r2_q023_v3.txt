@@ -1,0 +1,36 @@
+﻿
+Running 1 test using 1 worker
+
+[Q023] 首字退化比: 68.90, 内存比: 1.33, 代码闭合: true
+[Q023] 探查器: {}
+  x  1 [chromium] › specs\lifecycle-journey.spec.ts:790:7 › 全 Q 独立复测 @ai @lifecycle @q-case › TC-DLG-Q023: 长对话不卡死 + 长代码完整 + 不误判 (11.2m)
+
+
+  1) [chromium] › specs\lifecycle-journey.spec.ts:790:7 › 全 Q 独立复测 @ai @lifecycle @q-case › TC-DLG-Q023: 长对话不卡死 + 长代码完整 + 不误判 
+
+    Error: 首字退化 68.90x
+
+    [2mexpect([22m[31mreceived[39m[2m).[22mtoBeLessThan[2m([22m[32mexpected[39m[2m)[22m
+
+    Expected: < [32m3[39m
+    Received:   [31m68.89698492462311[39m
+
+      821 |     pwExpect(explorer.byKind('idle_timeout').length, '不应触发 idle_timeout（Q-023 渲染根因）').toBe(0);
+      822 |     pwExpect(explorer.byKind('ui_freeze').length, '不应有明显 UI 冻帧').toBe(0);
+    > 823 |     if (deg) pwExpect(deg, `首字退化 ${deg.toFixed(2)}x`).toBeLessThan(3);
+          |                                                       ^
+      824 |     if (memR) pwExpect(memR, `内存攀升 ${memR.toFixed(2)}x`).toBeLessThan(2.5);
+      825 |     console.log('[Q023] ✅ 渲染管线根因验证通过');
+      826 |   });
+        at G:\mediaProjects\fineSTEM\apps\frontend\tests\specs\lifecycle-journey.spec.ts:823:55
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\lifecycle-journey-全-Q-独立复测-11428-C-DLG-Q023-长对话不卡死-长代码完整-不误判-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\lifecycle-journey-全-Q-独立复测-11428-C-DLG-Q023-长对话不卡死-长代码完整-不误判-chromium\error-context.md
+
+  Slow test file: [chromium] › specs\lifecycle-journey.spec.ts (11.2m)
+  Consider running tests from slow files in parallel. See: https://playwright.dev/docs/test-parallel
+  1 failed
+    [chromium] › specs\lifecycle-journey.spec.ts:790:7 › 全 Q 独立复测 @ai @lifecycle @q-case › TC-DLG-Q023: 长对话不卡死 + 长代码完整 + 不误判 

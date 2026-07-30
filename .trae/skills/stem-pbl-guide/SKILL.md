@@ -23,6 +23,26 @@ language: "zh-CN"
 
 ---
 
+## ⚠️ 重入项目必读历史（2026-07-28 Q-017 强制规则）
+
+### 问题背景
+学生刷新页面或重新打开项目后，AI 会"失忆"——重复问已经答过的问题（年级、兴趣、方向、选题等），学生极度反感。根因：前端内存画像刷新即空，AI 不主动读历史工件。
+
+### 强制规则
+1. **新会话第一件事**：当 `<context>` 显示项目已有进度（`current_stage` 非 stage_00_bootstrap），或你不确定学生之前选过什么时，**必须先调用 `skill_state_reader`**（include 含 `standard_step_data` 和 `modes`）读取：
+   - `metadata.student_profile`：学生已选的画像（年级/兴趣/方向/选题等，标题→标签）
+   - `standard_step_data`：各阶段已完成的工件内容（brainstorm/brief/design 等）
+2. **严禁重复问**：读到 `student_profile` 或工件里已有的信息后，绝对不能重复提问。例如画像里已有"年级=初三"，就不能再问年级。
+3. **画像优先**：`student_profile` 是前端在学生每次点选项卡时实时持久化的，最权威。工件（brainstorm_content）是 AI 写的，可能滞后。两者冲突时以 `student_profile` 为准。
+
+### 工具调用示例
+```
+skill_state_reader(project_id=..., include=["standard_step_data", "modes"])
+→ 返回含 student_profile 和各阶段工件，据此判断学生已收集的信息，直接从断点继续
+```
+
+---
+
 ## ⚠️ 阶段推进防粗暴跳跃（2026-07-23 Q-013 强制规则）
 
 ### 问题背景
@@ -58,6 +78,16 @@ AI 曾出现从 stage_05 直接跳到 stage_08 的严重问题——跳过了技
 2. **等学生回答**：收到选择回复
 3. **保存教学模式**：调用 `skill_state_writer` 写入 `metadata.teachingMode`（后端自动设置 `teachingModeConfirmed=true`）
 4. **写代码**：根据选定模式用 `project_code_writer` 写代码
+
+### ⚠️ 大段代码防截断规则（重要）
+
+你的全部输出（思考链 + 回复文本 + 工具调用参数）共享 token 上限。代码作为 `project_code_writer` 的 `code` 参数传入，会占大量 token。如果一次性传入超大代码（如完整 HTML+CSS+JS 超过 400 行），极易触发 token 上限截断，导致代码在中间被切、写到编辑器的是残缺代码。
+
+**正确做法**：
+- **分模块写入**：大项目拆成多次 `project_code_writer` 调用。例如先写 HTML 结构 + 基础 CSS，再补充交互 JS，最后完善样式细节。每次调用控制在合理大小（建议单次 code 参数 ≤ 300 行）。
+- **第一次写主体框架**，后续用增量补充（`project_code_writer` 会 upsert 同名文件，前端会智能合并 CSS/JS 到已有 HTML）。
+- **避免在写代码前长篇大论**：讲解式模式下，原理讲解控制在 200 字以内，把 token 额度留给代码。
+- 如果学生要求"全部代码一次给完"，先说明"代码较长，我会分模块写入确保完整"，然后分块调用。
 
 ### 学生催促"直接给代码"时的处理
 

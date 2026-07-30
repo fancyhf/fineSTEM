@@ -122,7 +122,10 @@ function highlightCodeLine(line: string, lang: string): React.ReactNode {
   return <>{segments}</>;
 }
 
-export function MarkdownText({ content, projectId }: { content: string; projectId?: string | null }) {
+// 2026-07-30 性能修复：流式渲染时，历史消息的 MarkdownText 不应随每帧重解析。
+// 加 React.memo：content/projectId 不变则跳过重渲染。流式中只有"当前那条"消息的
+// content 每帧变化，其余历史消息保持稳定的 props 引用，被 memo 拦截。
+function MarkdownTextImpl({ content, projectId }: { content: string; projectId?: string | null }) {
   const lines = content.split('\n');
   const nodes: React.ReactNode[] = [];
   let inCodeBlock = false;
@@ -289,3 +292,6 @@ export function MarkdownText({ content, projectId }: { content: string; projectI
     </div>
   );
 }
+
+// React.memo 包装：见组件顶部说明（历史消息渲染隔离）。
+export const MarkdownText = React.memo(MarkdownTextImpl);

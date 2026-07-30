@@ -1,0 +1,30 @@
+﻿ERROR tests/test_stage_constants.py::TestCodeAllowedStages::test_non_code_stages_block_code[stage_02_brief]
+ERROR tests/test_stage_constants.py::TestCodeAllowedStages::test_non_code_stages_block_code[stage_03_constraints]
+ERROR tests/test_stage_constants.py::TestCodeAllowedStages::test_non_code_stages_block_code[stage_04_track]
+ERROR tests/test_stage_constants.py::TestCodeAllowedStages::test_non_code_stages_block_code[stage_06_step_plan]
+ERROR tests/test_stage_constants.py::TestCodeAllowedStages::test_code_allowed_set_has_exactly_3
+ERROR tests/test_stream.py::test_stream - sqlalchemy.exc.OperationalError: (s...
+ERROR tests/test_tools_gates.py::TestSkillStateWriterWhitelist::test_block_writing_current_stage
+ERROR tests/test_tools_gates.py::TestSkillStateWriterWhitelist::test_block_writing_standard_step_data
+ERROR tests/test_tools_gates.py::TestSkillStateWriterWhitelist::test_block_writing_stages
+ERROR tests/test_tools_gates.py::TestSkillStateWriterWhitelist::test_allow_writing_metadata
+ERROR tests/test_tools_gates.py::TestSkillStateWriterWhitelist::test_allow_writing_stage_history
+ERROR tests/test_tools_gates.py::TestSkillStateWriterWhitelist::test_block_mixed_fields_reports_all_blocked
+ERROR tests/test_tools_gates.py::TestEvidenceTypeMapping::test_alias_map_covers_legacy_types
+ERROR tests/test_tools_gates.py::TestEvidenceTypeMapping::test_alias_map_values_all_legal
+ERROR tests/test_tools_gates.py::TestEvidenceTypeMapping::test_code_type_mapped_successfully
+ERROR tests/test_tools_gates.py::TestEvidenceTypeMapping::test_invalid_type_rejected
+ERROR tests/test_tools_gates.py::TestArtifactWriterGate::test_block_writing_future_artifact
+ERROR tests/test_tools_gates.py::TestArtifactWriterGate::test_allow_writing_current_stage_artifact
+ERROR tests/test_tools_gates.py::TestArtifactWriterGate::test_missing_params_rejected
+ERROR tests/test_tools_gates.py::TestArtifactWriterGate::test_unknown_artifact_rejected
+ERROR tests/test_tools_gates.py::TestAchievementCardGate::test_block_before_stage_08
+ERROR tests/test_tools_gates.py::TestAchievementCardGate::test_block_early_stage
+ERROR tests/test_tools_gates.py::TestAchievementCardGate::test_missing_params_rejected
+ERROR tests/test_tools_gates.py::TestStageAdvancerTargetGate::test_block_skip_to_final_stage
+ERROR tests/test_tools_gates.py::TestStageAdvancerTargetGate::test_block_backward_target
+ERROR tests/test_tools_gates.py::TestStageAdvancerTargetGate::test_missing_project_id
+ERROR tests/test_ws.py::test_ws - sqlalchemy.exc.OperationalError: (sqlite3.O...
+ERROR tests/test_ws_events.py::test - sqlalchemy.exc.OperationalError: (sqlit...
+ERROR tests/test_ws_proxy.py::test_ws_via_proxy - sqlalchemy.exc.OperationalE...
+7 failed, 208 passed, 36 skipped, 18 warnings, 173 errors in 137.03s (0:02:17)

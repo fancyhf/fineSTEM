@@ -1,0 +1,89 @@
+{
+  "started_at": "2026-07-29 15:19:13.151",
+  "finished_at": "2026-07-29 15:22:48.479",
+  "total": 5,
+  "passed": 5,
+  "failed": 0,
+  "overall_status": "passed",
+  "core_check_b": "passed",
+  "results": [
+    {
+      "id": "A",
+      "title": "手动改名即时生效",
+      "status": "passed",
+      "expected": "侧边栏立即显示\"我的专属助手\"",
+      "actual": "侧边栏显示\"我的专属助手\"",
+      "evidence": [
+        {
+          "type": "screenshot",
+          "snippet": "step2-5-after-rename.png",
+          "path": "g:\\mediaProjects\\fineSTEM\\.trae\\documents\\testing\\e2e_q022r2\\screenshots\\step2-5-after-rename.png"
+        }
+      ],
+      "notesToDev": ""
+    },
+    {
+      "id": "B",
+      "title": "对话后名字不被覆盖（核心）",
+      "status": "passed",
+      "expected": "对话流结束后侧边栏仍显示\"我的专属助手\"（不被覆盖回 AI 确认名）",
+      "actual": "侧边栏显示\"我的专属助手\"",
+      "evidence": [
+        {
+          "type": "screenshot",
+          "snippet": "step2-6-after-conversation.png",
+          "path": "g:\\mediaProjects\\fineSTEM\\.trae\\documents\\testing\\e2e_q022r2\\screenshots\\step2-6-after-conversation.png"
+        }
+      ],
+      "notesToDev": ""
+    },
+    {
+      "id": "C",
+      "title": "刷新后名字持久化",
+      "status": "passed",
+      "expected": "刷新后项目名仍为\"我的专属助手\"",
+      "actual": "侧边栏显示\"我的专属助手\"",
+      "evidence": [
+        {
+          "type": "screenshot",
+          "snippet": "step2-7-after-refresh.png",
+          "path": "g:\\mediaProjects\\fineSTEM\\.trae\\documents\\testing\\e2e_q022r2\\screenshots\\step2-7-after-refresh.png"
+        }
+      ],
+      "notesToDev": ""
+    },
+    {
+      "id": "API",
+      "title": "name_manually_overridden=true",
+      "status": "passed",
+      "expected": "data.name=\"我的专属助手\"; data.initial_data.name_manually_overridden=true",
+      "actual": "data.name=\"我的专属助手\"; data.initial_data.name_manually_overridden=true",
+      "evidence": [
+        {
+          "type": "payload",
+          "snippet": "GET /api/projects/59f531ad-aacb-4c1a-958d-34d259732f3a -> { name: \"我的专属助手\", initial_data: { name_manually_overridden: true } }"
+        }
+      ],
+      "notesToDev": ""
+    },
+    {
+      "id": "D",
+      "title": "AI 确认名自愈仍正常（不退化）",
+      "status": "passed",
+      "expected": "不手动改名时，name_manually_overridden 不影响项目；AI 确认名自愈仍正常",
+      "actual": "侧边栏: \"我想做一个数学公式练习工具\"; API: name=\"我想做一个数学公式练习工具\", overridden=undefined; aiConfirmed=\"undefined\"",
+      "evidence": [
+        {
+          "type": "screenshot",
+          "snippet": "step3-4-after-conversation.png",
+          "path": "g:\\mediaProjects\\fineSTEM\\.trae\\documents\\testing\\e2e_q022r2\\screenshots\\step3-4-after-conversation.png"
+        },
+        {
+          "type": "payload",
+          "snippet": "GET /api/projects/7fd7fb56-faae-4089-b81c-0d50704bf466 -> { name: \"我想做一个数学公式练习工具\", overridden: undefined, aiConfirmed: \"undefined\" }"
+        }
+      ],
+      "notesToDev": "AI did not confirm a name in skill_state during brief conversation - auto-sync N/A (not a regression)"
+    }
+  ]
+}
