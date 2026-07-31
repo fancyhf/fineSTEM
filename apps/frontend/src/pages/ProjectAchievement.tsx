@@ -10,6 +10,17 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge';
 import { ArrowLeft, Share2, Copy, ExternalLink, Globe, EyeOff, FileText, Save, Wand2 } from 'lucide-react';
 
+/**
+ * 后端返回的 share_url 是相对路径（如 /share/xxx），<a href> 会自动基于当前 origin 解析，
+ * 但直接复制相对路径粘贴到其他地方无法访问。此处拼上 origin 返回完整绝对 URL。
+ * 若后端已返回绝对 URL（http/https 开头）则原样使用。
+ */
+function toAbsoluteShareUrl(url: string): string {
+  if (/^https?:\/\//i.test(url)) return url;
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  return `${origin}${url.startsWith('/') ? '' : '/'}${url}`;
+}
+
 export default function ProjectAchievement() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
@@ -97,7 +108,7 @@ export default function ProjectAchievement() {
   const handleCopyShareLink = async () => {
     if (!shareUrl) return;
     try {
-      await navigator.clipboard.writeText(shareUrl);
+      await navigator.clipboard.writeText(toAbsoluteShareUrl(shareUrl));
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
@@ -411,7 +422,7 @@ export default function ProjectAchievement() {
                 <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 break-all">
                   <a href={shareUrl} target="_blank" rel="noopener noreferrer" className="text-teal-600 hover:underline flex items-center gap-2">
                     <ExternalLink className="h-4 w-4" />
-                    {shareUrl}
+                    {toAbsoluteShareUrl(shareUrl)}
                   </a>
                 </div>
                 <Button onClick={handleCopyShareLink} className="w-full">

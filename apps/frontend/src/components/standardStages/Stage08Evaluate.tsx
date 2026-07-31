@@ -9,10 +9,11 @@ export interface Stage08Payload {
 
 export function Stage08Evaluate({ value, onChange }: StageComponentProps<Stage08Payload>) {
   return (
-    <div className="space-y-3">
+    <div className="space-y-3" data-testid="stage08-evaluate-panel">
       <div>
         <label className="block text-sm text-gray-700 mb-1">验收总结</label>
         <textarea
+          data-testid="stage08-acceptance-summary"
           value={value.acceptance_summary}
           onChange={(e) => updateField(value, 'acceptance_summary', e.target.value, onChange)}
           className="w-full min-h-20 p-3 border border-gray-300 rounded-lg"
@@ -21,6 +22,7 @@ export function Stage08Evaluate({ value, onChange }: StageComponentProps<Stage08
       <div>
         <label className="block text-sm text-gray-700 mb-1">学习反思</label>
         <textarea
+          data-testid="stage08-reflection"
           value={value.reflection}
           onChange={(e) => updateField(value, 'reflection', e.target.value, onChange)}
           className="w-full min-h-20 p-3 border border-gray-300 rounded-lg"
@@ -29,6 +31,7 @@ export function Stage08Evaluate({ value, onChange }: StageComponentProps<Stage08
       <div>
         <label className="block text-sm text-gray-700 mb-1">下一轮迭代</label>
         <textarea
+          data-testid="stage08-next-iteration"
           value={value.next_iteration}
           onChange={(e) => updateField(value, 'next_iteration', e.target.value, onChange)}
           className="w-full min-h-20 p-3 border border-gray-300 rounded-lg"

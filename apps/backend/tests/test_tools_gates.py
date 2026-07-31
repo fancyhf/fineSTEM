@@ -96,6 +96,92 @@ class TestSkillStateWriterWhitelist:
         assert "metadata" not in blocked
 
 
+# ── SkillStateWriterTool 顶层改名键容错（Q-026 复测修复）──────────────
+
+class TestSkillStateWriterNameAlias:
+    """RT-26 补充：AI 把 project_name/name 写在 updates 顶层时自动搬运到 metadata，
+    而不是被白名单拒绝（拒绝会导致 AI 对学生宣称"项目名无法修改"）。"""
+
+    @pytest.mark.asyncio
+    async def test_top_level_project_name_moved_to_metadata(self):
+        """顶层 project_name → metadata.project_name，写入成功而非被拒。"""
+        tool = SkillStateWriterTool()
+        with patch("app.services.tools.db") as mock_db:
+            mock_db.update_skill_state.return_value = True
+            result = await tool.execute({
+                "project_id": "p1",
+                "updates": {"project_name": "每日心情"},
+            })
+        assert result.success, f"顶层 project_name 应被搬运而非拒绝: {result.error}"
+        written = mock_db.update_skill_state.call_args[0][1]
+        assert written["metadata"]["project_name"] == "每日心情"
+        assert "project_name" not in written  # 顶层键已移除
+
+    @pytest.mark.asyncio
+    async def test_top_level_name_key_also_moved(self):
+        """顶层 name 键同样搬运。"""
+        tool = SkillStateWriterTool()
+        with patch("app.services.tools.db") as mock_db:
+            mock_db.update_skill_state.return_value = True
+            result = await tool.execute({
+                "project_id": "p1",
+                "updates": {"name": "新名字"},
+            })
+        assert result.success
+        written = mock_db.update_skill_state.call_args[0][1]
+        assert written["metadata"]["project_name"] == "新名字"
+
+    @pytest.mark.asyncio
+    async def test_explicit_metadata_name_wins_over_top_level(self):
+        """显式 metadata.project_name 优先，顶层键不覆盖。"""
+        tool = SkillStateWriterTool()
+        with patch("app.services.tools.db") as mock_db:
+            mock_db.update_skill_state.return_value = True
+            result = await tool.execute({
+                "project_id": "p1",
+                "updates": {
+                    "project_name": "顶层名",
+                    "metadata": {"project_name": "显式名"},
+                },
+            })
+        assert result.success
+        written = mock_db.update_skill_state.call_args[0][1]
+        assert written["metadata"]["project_name"] == "显式名"
+
+    @pytest.mark.asyncio
+    async def test_metadata_project_name_syncs_projects_table(self):
+        """RT-26 主断言：metadata.project_name 写入后同步 projects.name。"""
+        tool = SkillStateWriterTool()
+        with patch("app.services.tools.db") as mock_db:
+            mock_db.update_skill_state.return_value = True
+            mock_project = type("P", (), {"name": "旧截断名", "initial_data": {}})()
+            mock_db.get_project.return_value = mock_project
+            result = await tool.execute({
+                "project_id": "p1",
+                "updates": {"metadata": {"project_name": "确认名"}},
+            })
+        assert result.success
+        mock_db.update_project.assert_called_once_with("p1", {"name": "确认名"})
+
+    @pytest.mark.asyncio
+    async def test_manual_override_blocks_sync(self):
+        """RT-26 保护：用户手动改过名（name_manually_overridden）则不覆盖。"""
+        tool = SkillStateWriterTool()
+        with patch("app.services.tools.db") as mock_db:
+            mock_db.update_skill_state.return_value = True
+            mock_project = type("P", (), {
+                "name": "手动名",
+                "initial_data": {"name_manually_overridden": True},
+            })()
+            mock_db.get_project.return_value = mock_project
+            result = await tool.execute({
+                "project_id": "p1",
+                "updates": {"metadata": {"project_name": "AI确认名"}},
+            })
+        assert result.success
+        mock_db.update_project.assert_not_called()
+
+
 # ── EvidenceSaverTool type 映射 ────────────────────────────────
 
 class TestEvidenceTypeMapping:
@@ -202,6 +288,58 @@ class TestArtifactWriterGate:
                 "content": "x",
             })
         assert not result.success
+
+
+# ── Q-028 工件名别名归一 ────────────────────────────
+
+class TestArtifactNameAlias:
+    """Q-028：AI 把验收报告写成 evaluation（非规范名 evaluate）时应自动归一，
+    不能回“未知工件名称”，否则 AI 会对学生宣称“评估报告无法修改”。"""
+
+    def test_normalize_evaluation_to_evaluate(self):
+        from app.services.stage_constants import normalize_artifact_name
+        assert normalize_artifact_name("evaluation") == "evaluate"
+        assert normalize_artifact_name("evaluate_content") == "evaluate"
+        assert normalize_artifact_name("evaluate") == "evaluate"
+        assert normalize_artifact_name("brainstorm") == "brainstorm"
+        assert normalize_artifact_name("unknown_xyz") == "unknown_xyz"
+        assert normalize_artifact_name("  evaluation  ") == "evaluate"
+
+    @pytest.mark.asyncio
+    async def test_writer_accepts_evaluation_alias(self):
+        """stage_08 时用 evaluation 别名写入，应被归一为 evaluate 并成功（不报 failed）。"""
+        tool = ArtifactWriterTool()
+        with patch("app.services.tools.db") as mock_db:
+            mock_state = type("S", (), {
+                "current_stage": "stage_08_evaluate",
+                "standard_step_data": {},
+            })()
+            mock_db.get_skill_state.return_value = mock_state
+            mock_db.update_skill_state.return_value = True
+            mock_db.get_project.return_value = type("P", (), {"name": "test"})()
+            result = await tool.execute({
+                "project_id": "p1",
+                "artifact_name": "evaluation",
+                "content": "# 验收报告\n功能完整",
+            })
+        assert result.success, f"evaluation 别名应被接受，error={result.error}"
+
+    @pytest.mark.asyncio
+    async def test_reader_accepts_evaluation_alias(self):
+        """artifact_reader 用 evaluation 别名读取，应归一为 evaluate 而非未知工件。"""
+        from app.services.tools import ArtifactReaderTool
+        tool = ArtifactReaderTool()
+        with patch("app.services.tools.db") as mock_db:
+            mock_state = type("S", (), {
+                "standard_step_data": {"evaluate_content": "已有验收内容"},
+            })()
+            mock_db.get_skill_state.return_value = mock_state
+            result = await tool.execute({
+                "project_id": "p1",
+                "artifact_name": "evaluation",
+            })
+        assert result.success
+        assert result.data["artifact_name"] == "evaluate"
 
 
 # ── AchievementCardTool 阶段门禁 ───────────────────────────────

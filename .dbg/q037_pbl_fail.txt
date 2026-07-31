@@ -1,0 +1,94 @@
+﻿FF.                                                                      [100%]
+================================== FAILURES ===================================
+________ TestPBLFullLoop.test_complete_stage_endpoint_drives_full_loop ________
+
+self = <test_projects.TestPBLFullLoop object at 0x000002A37B2F4B60>
+client = <starlette.testclient.TestClient object at 0x000002A37B376C90>
+auth_headers = {'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJiNmIzYTc1NC1jZTVkLTQzOTAtOTljMC0zZjFkMjI2ODk5YjUiLCJleHAiOjE3ODYxMDI3NjV9.16lFUiVpSE1Yhw-GIeI8Sd8dNuUW1hxTQwtzuorf1fs'}
+
+    def test_complete_stage_endpoint_drives_full_loop(
+        self, client: TestClient, auth_headers: dict
+    ):
+        """用 /pbl/complete-stage 端点逐阶段推完整条 PBL 链，并断言 docs 文件落盘。"""
+        # 1. 创建标准项目
+        create_resp = client.post(
+            "/api/v1/projects",
+            json={"name": "PBL 全链路集成测试", "mode": "standard"},
+            headers=auth_headers,
+        )
+        assert create_resp.status_code == 200
+        project = create_resp.json()["data"]
+        project_id = project["id"]
+        project_name = project["name"]
+    
+        # 2. 逐阶段推进
+        for stage, artifact_name, content in _PBL_STAGE_ARTIFACTS:
+            resp = client.post(
+                f"/api/v1/projects/{project_id}/pbl/complete-stage",
+                json={"stage": stage, "artifacts": {artifact_name: content}},
+                headers=auth_headers,
+            )
+            assert resp.status_code == 200, f"阶段 {stage} 推进失败: {resp.text}"
+    
+        # 3. 断言终态
+        progress = client.get(
+            f"/api/v1/projects/{project_id}/progress", headers=auth_headers
+        )
+        assert progress.status_code == 200
+>       assert progress.json()["data"]["current_stage"] == "stage_08_evaluate"
+E       AssertionError: assert 'stage_07_execute' == 'stage_08_evaluate'
+E         
+E         - stage_08_evaluate
+E         + stage_07_execute
+
+tests\test_projects.py:761: AssertionError
+____________ TestPBLFullLoop.test_workspace_restores_pbl_artifacts ____________
+
+self = <test_projects.TestPBLFullLoop object at 0x000002A37B2F6C30>
+client = <starlette.testclient.TestClient object at 0x000002A37B376C90>
+auth_headers = {'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2MDNkNDk5OS1lODlmLTQxMTMtYmVlOS1mOWJkMzhlZjEzMzIiLCJleHAiOjE3ODYxMDI3NjV9.1d8xztq10_WwILgdxajEs3BsqX7f3MtjiBE858ngNRk'}
+
+    def test_workspace_restores_pbl_artifacts(
+        self, client: TestClient, auth_headers: dict
+    ):
+        """推进到 stage_08 后，/workspace 恢复 standard_step_data 数据完整。"""
+        # 1. 创建项目并推到 stage_08
+        create_resp = client.post(
+            "/api/v1/projects",
+            json={"name": "Workspace 恢复测试", "mode": "standard"},
+            headers=auth_headers,
+        )
+        project_id = create_resp.json()["data"]["id"]
+    
+        for stage, artifact_name, content in _PBL_STAGE_ARTIFACTS:
+            client.post(
+                f"/api/v1/projects/{project_id}/pbl/complete-stage",
+                json={"stage": stage, "artifacts": {artifact_name: content}},
+                headers=auth_headers,
+            )
+    
+        # 2. 调 /workspace 恢复
+        ws_resp = client.get(
+            f"/api/v1/projects/{project_id}/workspace", headers=auth_headers
+        )
+        assert ws_resp.status_code == 200
+        ws_data = ws_resp.json()["data"]
+    
+        # 3. 断言 progress.current_stage 正确
+>       assert ws_data["progress"]["current_stage"] == "stage_08_evaluate"
+E       AssertionError: assert 'stage_07_execute' == 'stage_08_evaluate'
+E         
+E         - stage_08_evaluate
+E         + stage_07_execute
+
+tests\test_projects.py:801: AssertionError
+============================== warnings summary ===============================
+tests/test_projects.py::TestPBLFullLoop::test_complete_stage_endpoint_drives_full_loop
+  C:\Users\hf001\AppData\Roaming\Python\Python312\site-packages\httpx\_client.py:690: DeprecationWarning: The 'app' shortcut is now deprecated. Use the explicit style 'transport=WSGITransport(app=...)' instead.
+    warnings.warn(message, DeprecationWarning)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_projects.py::TestPBLFullLoop::test_complete_stage_endpoint_drives_full_loop
+FAILED tests/test_projects.py::TestPBLFullLoop::test_workspace_restores_pbl_artifacts
+2 failed, 1 passed, 1 warning in 1.12s

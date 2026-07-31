@@ -25,6 +25,51 @@ export default function ExploreDemoDetail() {
   const [activeTab, setActiveTab] = useState<'experience' | 'breakdown' | 'code'>('experience');
   const [selectedTemplateFile, setSelectedTemplateFile] = useState<string>('');
   const [currentScreenshot, setCurrentScreenshot] = useState(0);
+  const [codeCopied, setCodeCopied] = useState(false);
+
+  // code_url/download_url 可能指向 fork-template JSON 接口，直接新窗口打开会显示裸 JSON，需过滤
+  const isExternalResourceUrl = (url?: string | null) =>
+    !!url && /^https?:\/\//.test(url) && !url.includes('/api/v1/demos');
+
+  // 模板源码多为压缩成单行的字符串，展示前做轻量格式化提升可读性（复制/下载仍用原始内容）
+  const formatTemplateCode = (filePath: string, code: string) => {
+    if (!code || code.includes('\n')) return code;
+    if (/\.html?$/i.test(filePath)) {
+      return code
+        .replace(/></g, '>\n<')
+        .replace(/([{};])(?=\S)/g, '$1\n');
+    }
+    if (/\.(js|ts|css)$/i.test(filePath)) {
+      return code.replace(/([{};])(?=\S)/g, '$1\n');
+    }
+    return code;
+  };
+
+  const handleCopyTemplateCode = async () => {
+    const code = forkTemplate?.template_files?.[selectedTemplateFile];
+    if (!code) return;
+    try {
+      await navigator.clipboard.writeText(code);
+      setCodeCopied(true);
+      setTimeout(() => setCodeCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy template code:', err);
+    }
+  };
+
+  const handleDownloadTemplateFile = () => {
+    const code = forkTemplate?.template_files?.[selectedTemplateFile];
+    if (!code) return;
+    const blob = new Blob([code], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = selectedTemplateFile.split('/').pop() || 'template.txt';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
 
   const getScreenshotUrl = (path: string) => {
     if (path.startsWith('http')) return path;
@@ -397,28 +442,31 @@ export default function ExploreDemoDetail() {
 
                   {activeTab === 'code' && (
                     <div className="p-4 bg-gray-50 border rounded-lg space-y-3">
-                      <p className="text-sm text-gray-600">代码与模板资源：</p>
-                      <div className="flex flex-wrap gap-2">
-                        {demo.code_url && (
-                          <Button size="sm" variant="secondary" onClick={() => window.open(demo.code_url, '_blank')}>
-                            查看代码
-                          </Button>
-                        )}
-                        {demo.download_url && (
-                          <Button size="sm" variant="secondary" onClick={() => window.open(demo.download_url, '_blank')}>
-                            下载源码
-                          </Button>
-                        )}
-                      </div>
-                      {forkTemplate?.skeleton_code && (
-                        <p className="text-xs text-gray-500">
-                          模板骨架位置：{forkTemplate.skeleton_code}
-                        </p>
+                      {(isExternalResourceUrl(demo.code_url) || isExternalResourceUrl(demo.download_url)) && (
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-sm text-gray-600">外部代码资源：</p>
+                          {isExternalResourceUrl(demo.code_url) && (
+                            <Button size="sm" variant="secondary" onClick={() => window.open(demo.code_url, '_blank')}>
+                              查看代码仓库
+                            </Button>
+                          )}
+                          {isExternalResourceUrl(demo.download_url) && (
+                            <Button size="sm" variant="secondary" onClick={() => window.open(demo.download_url, '_blank')}>
+                              下载源码包
+                            </Button>
+                          )}
+                        </div>
                       )}
                       {!!forkTemplate?.template_files && (
-                        <div className="space-y-2 pt-2 border-t border-gray-200">
-                          <p className="text-sm font-medium text-gray-800">Fork 模板文件</p>
-                          <div className="flex flex-wrap gap-2">
+                        <div className="space-y-2">
+                          <div>
+                            <p className="text-sm font-medium text-gray-800">模板源码</p>
+                            <p className="text-xs text-gray-500 mt-0.5">
+                              以下是该 Demo 的最小可改版模板，可复制或下载后在此基础上修改。
+                              {forkTemplate.entry_file && <>入口文件：{forkTemplate.entry_file}</>}
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2">
                             {Object.keys(forkTemplate.template_files).map((filePath) => (
                               <Button
                                 key={filePath}
@@ -430,12 +478,34 @@ export default function ExploreDemoDetail() {
                               </Button>
                             ))}
                           </div>
-                          {selectedTemplateFile && (
-                            <pre className="text-xs bg-slate-900 text-slate-100 rounded-md p-3 overflow-auto max-h-80">
-                              {forkTemplate.template_files[selectedTemplateFile]}
-                            </pre>
+                          {selectedTemplateFile && forkTemplate.template_files[selectedTemplateFile] !== undefined && (
+                            <div className="rounded-md overflow-hidden border border-slate-700">
+                              <div className="flex items-center justify-between bg-slate-800 px-3 py-1.5">
+                                <span className="text-xs text-slate-300 font-mono">{selectedTemplateFile}</span>
+                                <div className="flex gap-2">
+                                  <button
+                                    className="text-xs text-slate-300 hover:text-white px-2 py-0.5 rounded border border-slate-600 hover:border-slate-400 transition-colors"
+                                    onClick={handleCopyTemplateCode}
+                                  >
+                                    {codeCopied ? '已复制 ✓' : '复制代码'}
+                                  </button>
+                                  <button
+                                    className="text-xs text-slate-300 hover:text-white px-2 py-0.5 rounded border border-slate-600 hover:border-slate-400 transition-colors"
+                                    onClick={handleDownloadTemplateFile}
+                                  >
+                                    下载此文件
+                                  </button>
+                                </div>
+                              </div>
+                              <pre className="text-xs bg-slate-900 text-slate-100 p-3 overflow-auto max-h-96 whitespace-pre-wrap break-all leading-relaxed">
+                                {formatTemplateCode(selectedTemplateFile, forkTemplate.template_files[selectedTemplateFile])}
+                              </pre>
+                            </div>
                           )}
                         </div>
+                      )}
+                      {!forkTemplate?.template_files && !isExternalResourceUrl(demo.code_url) && !isExternalResourceUrl(demo.download_url) && (
+                        <p className="text-sm text-gray-600">当前 Demo 暂无可查看的代码资源。</p>
                       )}
                     </div>
                   )}

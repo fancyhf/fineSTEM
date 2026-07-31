@@ -65,6 +65,27 @@ ARTIFACT_TO_FILENAME: dict[str, str] = {
     "evaluate": "07_evaluation.md",
 }
 
+# ── 工件名别名 → 规范名（Q-028，2026-07-31）──────────────────────
+# SKILL.md 的文档树/artifacts 键名叫 evaluation（07_evaluation.json），而
+# 白名单规范名是 evaluate，AI 照文档用 evaluation 必被"未知工件名称"拒绝，
+# 进而对学生宣称"评估报告受系统保护无法修改"。工具入口统一做别名归一。
+ARTIFACT_NAME_ALIASES: dict[str, str] = {
+    "evaluation": "evaluate",
+    "evaluate_content": "evaluate",
+    "brief": "project_brief",
+    "track": "track_plan",
+    "devlog": "dev_log",
+}
+
+
+def normalize_artifact_name(artifact_name: str) -> str:
+    """把 AI 可能使用的工件别名归一为规范名；未知名原样返回。"""
+    if not isinstance(artifact_name, str):
+        return artifact_name
+    name = artifact_name.strip()
+    return ARTIFACT_NAME_ALIASES.get(name, name)
+
+
 # 反向映射：工件名 → 所属阶段（从 ARTIFACT_FOR_STAGE 派生）
 ARTIFACT_TO_STAGE: dict[str, str] = {
     artifact: stage

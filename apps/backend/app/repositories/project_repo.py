@@ -90,6 +90,8 @@ def _to_project(model: ProjectModel) -> Project:
         author_id=model.author_id,
         name=model.name,
         mode=model.mode,  # type: ignore[arg-type]
+        # 2026-07-31 Q-034 修复：回填 description 列，否则 API 响应永远不含描述
+        description=model.description or "",
         current_stage=model.current_stage,
         from_demo_id=model.from_demo_id,
         initial_data=_normalize_initial_data(model.initial_data),
@@ -201,7 +203,8 @@ class ProjectRepo(BaseRepository):
             author_id=project.author_id,
             name=project.name,
             mode=project.mode,
-            description="",
+            # 2026-07-31 Q-034 修复：原先硬编码空串，AI 工具/REST 传入的描述从未落库
+            description=project.description or "",
             current_stage=project.current_stage,
             from_demo_id=project.from_demo_id,
             initial_data=json_dumps(project.initial_data, "{}"),

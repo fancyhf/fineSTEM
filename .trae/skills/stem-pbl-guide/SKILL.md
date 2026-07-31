@@ -43,6 +43,50 @@ skill_state_reader(project_id=..., include=["standard_step_data", "modes"])
 
 ---
 
+## ⚠️ 项目名确认与改名（2026-07-31 Q-026 强制规则）
+
+### 问题背景
+侧边栏项目列表显示的名字默认是学生首条消息的截断（如"我想做一个能帮我记录…"），非常难看。AI 曾错误地对学生宣称"项目名创建时已锁定无法修改"——这是**错的**，项目名可以也必须由你更新。
+
+### 强制规则
+1. **确认项目名后立即写入**：脑爆/立项阶段与学生敲定正式项目名后，**必须立即调用** `skill_state_writer` 写入：
+   ```
+   skill_state_writer(project_id=..., updates={"metadata": {"project_name": "确认的项目名"}})
+   ```
+   后端会自动把它同步到侧边栏项目列表显示名。
+2. **学生要求改名时同样操作**：学生说"把项目改名为XX"，直接用上面的写法更新 `metadata.project_name`，然后告知学生"已改好，侧边栏刷新后可见"。
+3. **绝对禁止**：
+   - ❌ 宣称"项目名无法修改/创建时锁定"（这是错误事实）
+   - ❌ 把 project_name 放在 updates 顶层（必须包在 metadata 里；即使写错了后端也会容错搬运，但不要依赖）
+   - ❌ 只在回复文字里说"已改名"而不真正调用工具
+4. **例外**：学生已在侧边栏手动改过名（后端标记 name_manually_overridden）时，你的写入不会覆盖学生手动名——这是预期行为，不用报错。
+
+---
+
+## ⚠️ 工件名必须用规范名 + 评估报告可修改（2026-07-31 Q-028 强制规则）
+
+### 问题背景
+AI 曾把验收报告的工件名写成 `evaluation`，而 `artifact_writer`/`artifact_reader` 的规范名是 `evaluate`，导致工具返回“未知工件名称” failed，AI 据此对学生宣称“评估报告受系统保护无法修改”——这是**错的**。
+
+### 强制规则
+1. **工件名只能用下列规范名**（调 `artifact_writer`/`artifact_reader` 的 `artifact_name`）：
+   `brainstorm` / `project_brief` / `constraints` / `track_plan` / `design` / `step_plan` / `dev_log` / `evaluate`。
+   - 验收/评估报告的工件名是 **`evaluate`**（不是 `evaluation`、不是 `evaluate_content`）。
+2. **评估报告完全可修改**：学生要求重写/修正验收报告时，直接调：
+   ```
+   artifact_writer(project_id=..., artifact_name="evaluate", content="正确的验收内容")
+   ```
+   后端会同时更新前端评估展示区（standard_step_data.evaluate_content 与 step8.payload）。
+3. **绝对禁止**：
+   - ❌ 宣称“评估报告/验收内容受系统保护无法修改”（错误事实）
+   - ❌ 把正确内容只写进 metadata 而不调 `artifact_writer(artifact_name="evaluate")`
+   - ❌ 因为用 evaluation 被拒就放弃（后端已对 evaluation 自动归一为 evaluate，但你应直接用规范名）
+
+### ⚠️ 不得提前进入验收阶段（stage_08）
+代码只实现了页面框架/风格、**业务逻辑尚未完成**时，绝不能把项目推进到 stage_08_evaluate。必须先在 stage_07_execute 把关键业务功能实现并验证可运行，再推进验收；验收内容必须基于**真实已实现的代码**（先用 `project_code_reader` 读），不得虚报“4/4 用例全部通过/完成度 100%”。
+
+---
+
 ## ⚠️ 阶段推进防粗暴跳跃（2026-07-23 Q-013 强制规则）
 
 ### 问题背景

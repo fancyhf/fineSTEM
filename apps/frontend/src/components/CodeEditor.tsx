@@ -61,7 +61,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
             : 'plaintext';
 
   return (
-    <div className="h-full w-full" data-testid="code-editor">
+    <div className="h-full w-full min-h-0" data-testid="code-editor">
       <Editor
         height="100%"
         defaultLanguage={monacoLanguage}

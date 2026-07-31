@@ -198,12 +198,13 @@ export function Research() {
 }
 
 function ProjectList({ items, completed, onRename, onDelete }: { items: Project[]; completed: boolean; onRename: (id: string, newName: string) => void; onDelete: (id: string) => void }) {
-  if (items.length === 0) {
+  const validItems = items.filter((item) => item.id && item.id.length > 0);
+  if (validItems.length === 0) {
     return <div className="text-sm text-gray-500">暂无项目</div>;
   }
   return (
     <div className="space-y-4">
-      {items.map((item) => (
+      {validItems.map((item) => (
         <ProjectCard
           key={item.id}
           item={item}

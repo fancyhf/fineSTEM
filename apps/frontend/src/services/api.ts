@@ -233,6 +233,9 @@ export const authApi = {
         data.message = `登录失败 (${res.status})`;
       }
       return data;
+    }).catch((err) => {
+      console.error('[authApi.login] 请求失败:', err);
+      throw new Error('网络连接失败，请检查后端服务是否启动');
     });
   },
   getMe: () => api.get<UserResponse>('/auth/me'),

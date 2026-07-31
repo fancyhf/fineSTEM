@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { MessageSquare, Code, Rocket, FileText, ChevronUp, Paperclip, Link2, FolderOpen, Plus, Sparkles, User, Zap, Play, Copy, Check, ArrowRight, BookOpen, PanelLeftClose, PanelLeftOpen, Terminal, Eye, Pencil, MoreHorizontal, Maximize2, PanelLeft, Loader2, X } from 'lucide-react';
+import { MessageSquare, Code, Rocket, FileText, ChevronUp, Paperclip, Image as ImageIcon, FolderOpen, Plus, Sparkles, User, Zap, Play, Copy, Check, ArrowRight, BookOpen, PanelLeftClose, PanelLeftOpen, Terminal, Eye, Pencil, MoreHorizontal, Maximize2, PanelLeft, Loader2, X } from 'lucide-react';
 import { ContinueButton } from '../components/ContinueButton';
 import { Card } from '../components/ui/Card';
 import { CodeGeneratedEvent, useStreamingChat } from '../hooks/useStreamingChat';
@@ -892,6 +892,9 @@ export function Create() {
   const [pendingImages, setPendingImages] = useState<{ id: string; file: File; previewUrl: string }[]>([]);
   const [isAnalyzingImages, setIsAnalyzingImages] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  // 2026-07-31 Q-036 后续：待发送的文本附件（与图片对称，前端直读内容注入对话）
+  const [pendingFiles, setPendingFiles] = useState<{ id: string; file: File }[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [activeScene, setActiveScene] = useState<string | null>(null);
   const [showChatHistory, setShowChatHistory] = useState(false);
@@ -3247,7 +3250,7 @@ let rawAssistantContent = '';
     return () => window.removeEventListener('message', onMessage);
   }, []);
 
-  // 2026-07-30 聊天发图：把文件加入待发列表（Paperclip 选择 / Ctrl+V 粘贴共用）
+  // 2026-07-30 聊天发图：把文件加入待发列表（图片按钮选择 / Ctrl+V 粘贴共用）
   const addPendingImages = (files: File[]) => {
     const accepted = files.filter((f) => f.type.startsWith('image/'));
     if (accepted.length === 0) return;
@@ -3269,19 +3272,42 @@ let rawAssistantContent = '';
     });
   };
 
+  // 2026-07-31 Q-036 后续：文本类附件（txt/md/csv/json/代码等）前端直接读取内容注入对话，
+  // 与图片走视觉识别对称；不新增后端端点。
+  const ATTACHMENT_ACCEPT = '.txt,.md,.markdown,.csv,.json,.log,.xml,.yml,.yaml,.html,.css,.js,.jsx,.ts,.tsx,.py,.java,.c,.cpp,.go,.rs,.sql,.sh';
+  const readPendingFileText = (file: File): Promise<string> => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(reader.error || new Error('read failed'));
+    reader.readAsText(file);
+  });
+  const addPendingFiles = (files: File[]) => {
+    if (files.length === 0) return;
+    setPendingFiles((prev) => [
+      ...prev,
+      ...files.map((file) => ({ id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, file })),
+    ]);
+  };
+  const removePendingFile = (id: string) => {
+    setPendingFiles((prev) => prev.filter((f) => f.id !== id));
+  };
+
   // 2026-07-30 聊天发图：统一发送入口。无图片直接走 handleSend；
   // 有图片时先逐张调后端 GLM-4V 识别成文字，拼进发给 AI 的消息（主模型 DeepSeek 无视觉能力），
   // 气泡里只展示用户原话 + 缩略图，不展示冗长的识别文本。
   const submitChatInput = async () => {
     if (isLoading || isAnalyzingImages) return;
     const text = inputValue.trim();
-    if (pendingImages.length === 0) {
+    if (pendingImages.length === 0 && pendingFiles.length === 0) {
       if (text || showChatHistory) handleSend();
       return;
     }
+    const NL = String.fromCharCode(10);
     const images = pendingImages;
+    const files = pendingFiles;
     setIsAnalyzingImages(true);
     try {
+      // 图片：走后端 GLM-4V 视觉识别成文字
       const descriptions: string[] = [];
       for (const img of images) {
         try {
@@ -3299,19 +3325,39 @@ let rawAssistantContent = '';
         reader.onerror = () => resolve(img.previewUrl);
         reader.readAsDataURL(img.file);
       })));
-      const sections = descriptions.map((desc, idx) => `【截图 ${idx + 1} 识别内容】
-${desc}`);
-      const combined = [
-        text || '请帮我看看下面截图里的问题。',
-        '（以下是我发送的截图经视觉模型识别出的文字内容，请据此帮我诊断和回答）',
-        ...sections,
-      ].join(`
-
-`);
-      const displayContent = text ? `${text}
-[附 ${images.length} 张截图]` : `[附 ${images.length} 张截图]`;
+      // 文本附件：前端直读内容（过长截断，避免超出模型上下文）
+      const FILE_MAX = 20000;
+      const fileSections: string[] = [];
+      for (let i = 0; i < files.length; i++) {
+        const f = files[i];
+        try {
+          const raw = await readPendingFileText(f.file);
+          const clipped = raw.length > FILE_MAX ? raw.slice(0, FILE_MAX) + NL + '...（文件内容过长，已截断）' : raw;
+          fileSections.push('【附件 ' + (i + 1) + '：' + f.file.name + '】' + NL + clipped);
+        } catch (err) {
+          console.error('[chat-file] 附件读取失败:', err);
+          fileSections.push('【附件 ' + (i + 1) + '：' + f.file.name + '】' + NL + '（该文件读取失败）');
+        }
+      }
+      const imgSections = descriptions.map((desc, idx) => '【截图 ' + (idx + 1) + ' 识别内容】' + NL + desc);
+      const parts: string[] = [text || '请帮我看看下面的内容。'];
+      if (imgSections.length > 0) {
+        parts.push('（以下是我发送的截图经视觉模型识别出的文字内容，请据此帮我诊断和回答）');
+        parts.push(...imgSections);
+      }
+      if (fileSections.length > 0) {
+        parts.push('（以下是我上传的文件内容，请据此帮我分析和回答）');
+        parts.push(...fileSections);
+      }
+      const combined = parts.join(NL + NL);
+      const badges: string[] = [];
+      if (images.length > 0) badges.push('附 ' + images.length + ' 张截图');
+      if (files.length > 0) badges.push('附 ' + files.length + ' 个文件');
+      const badgeText = badges.length > 0 ? '[' + badges.join('、') + ']' : '';
+      const displayContent = text ? (badgeText ? text + NL + badgeText : text) : badgeText;
       images.forEach((img) => URL.revokeObjectURL(img.previewUrl));
       setPendingImages([]);
+      setPendingFiles([]);
       await handleSend(combined, undefined, { displayContent, displayImages });
     } finally {
       setIsAnalyzingImages(false);
@@ -3484,7 +3530,7 @@ ${desc}`);
                       }}
                       className="flex-1 text-left min-w-0 cursor-pointer"
                     >
-                      <div className={`text-xs truncate ${projectContext.projectId === proj.id ? 'text-teal-700 font-medium' : 'text-gray-600'}`}>
+                      <div data-testid="project-name" className={`text-xs truncate ${projectContext.projectId === proj.id ? 'text-teal-700 font-medium' : 'text-gray-600'}`}>
                         📍 {proj.name}
                       </div>
                       {proj.created_at && (
@@ -3750,13 +3796,38 @@ ${desc}`);
                   )}
                 </div>
               )}
+              {/* 2026-07-31 Q-036 后续：待发送文本附件预览条 */}
+              {pendingFiles.length > 0 && (
+                <div data-testid="file-preview" className="flex flex-wrap items-center gap-2 px-3 pt-2.5">
+                  {pendingFiles.map((f) => (
+                    <div key={f.id} className="relative inline-flex items-center gap-1.5 pl-2 pr-5 py-1 bg-slate-100 text-slate-700 rounded-lg text-xs max-w-[200px]">
+                      <FileText className="w-3.5 h-3.5 flex-shrink-0 text-slate-400" />
+                      <span className="truncate">{f.file.name}</span>
+                      <button
+                        onClick={() => removePendingFile(f.id)}
+                        disabled={isAnalyzingImages}
+                        className="absolute top-1/2 -translate-y-1/2 right-1 w-3.5 h-3.5 text-slate-400 hover:text-red-500 flex items-center justify-center transition-colors"
+                        title="移除这个附件"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
               <textarea ref={textareaRef} data-testid="chat-input" value={inputValue} onChange={(e) => setInputValue(e.target.value)} onKeyDown={handleKeyDown}
                 onPaste={(e) => {
-                  const files = Array.from(e.clipboardData?.items || [])
-                    .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
+                  const allFiles = Array.from(e.clipboardData?.items || [])
+                    .filter((item) => item.kind === 'file')
                     .map((item) => item.getAsFile())
                     .filter((f): f is File => Boolean(f));
-                  if (files.length > 0) { e.preventDefault(); addPendingImages(files); }
+                  const imgs = allFiles.filter((f) => f.type.startsWith('image/'));
+                  const docs = allFiles.filter((f) => !f.type.startsWith('image/'));
+                  if (imgs.length > 0 || docs.length > 0) {
+                    e.preventDefault();
+                    if (imgs.length > 0) addPendingImages(imgs);
+                    if (docs.length > 0) addPendingFiles(docs);
+                  }
                 }}
                 rows={1}
                 placeholder={isLoading ? 'AI 正在思考...' : showChatHistory ? '继续对话...' : '输入你的目标、项目想法或代码需求...'}
@@ -3780,14 +3851,33 @@ ${desc}`);
                     onClick={() => imageInputRef.current?.click()}
                     disabled={isLoading || isAnalyzingImages}
                     className="p-1 hover:bg-gray-100 rounded text-gray-400 hover:text-teal-600 transition-colors"
-                    title="发送截图/图片（也可直接 Ctrl+V 粘贴）"
+                    title="添加图片（也可直接 Ctrl+V 粘贴）"
+                  >{/* 2026-07-31 图标统一：图片上传全局统一用 Image 图标（同首页），并移除无功能的 Link2 占位按钮 */}
+                    <ImageIcon className="w-3.5 h-3.5" /></button>
+                  {/* 2026-07-31 Q-036 后续：附件上传（文本类，与首页 Paperclip 语义一致） */}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept={ATTACHMENT_ACCEPT}
+                    multiple
+                    className="hidden"
+                    onChange={(e) => {
+                      addPendingFiles(Array.from(e.target.files || []));
+                      e.target.value = '';
+                    }}
+                  />
+                  <button
+                    data-testid="attach-file-button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isLoading || isAnalyzingImages}
+                    className="p-1 hover:bg-gray-100 rounded text-gray-400 hover:text-teal-600 transition-colors"
+                    title="添加附件（文本/代码/csv/json 等）"
                   ><Paperclip className="w-3.5 h-3.5" /></button>
-                  <button className="p-1 hover:bg-gray-100 rounded text-gray-400 transition-colors"><Link2 className="w-3.5 h-3.5" /></button>
                   <span className="text-[10px] text-gray-300 ml-1 hidden sm:inline">Enter 发送 · Shift+Enter / Ctrl+Enter 换行</span>
                 </div>
                 <div className="flex items-center gap-2">
                   {!user && <span className="text-[10px] text-amber-600">匿名剩余 {5 - Number(localStorage.getItem('anonymous_chat_count') || '0')} 次</span>}
-                  <button data-testid="send-button" onClick={() => submitChatInput()} disabled={(!inputValue.trim() && pendingImages.length === 0 && !showChatHistory) || isAnalyzingImages}
+                  <button data-testid="send-button" onClick={() => submitChatInput()} disabled={(!inputValue.trim() && pendingImages.length === 0 && pendingFiles.length === 0 && !showChatHistory) || isAnalyzingImages}
                     className="p-1 bg-gray-900 hover:bg-gray-800 disabled:bg-gray-200 text-white rounded-lg transition-colors">
                     {isAnalyzingImages ? <Loader2 className="w-4 h-4 animate-spin" /> : <ChevronUp className="w-4 h-4" />}
                   </button>

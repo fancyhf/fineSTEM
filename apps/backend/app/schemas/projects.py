@@ -231,6 +231,9 @@ class ProjectBase(BaseModel):
     项目基础字段
     """
     name: str = Field(..., min_length=1, max_length=200, description="项目名称")
+    # 2026-07-31 Q-034 修复：schema 缺 description 字段，AI 工具传入的项目描述
+    # 被 Pydantic 静默丢弃，项目列表永远显示"暂无描述"
+    description: str = Field(default="", max_length=2000, description="项目描述")
     mode: Literal['light', 'standard'] = Field(default='light', description="项目模式")
     from_demo_id: Optional[str] = Field(None, description="来源 Demo ID")
     initial_data: Optional[Dict[str, Any]] = Field(default_factory=dict, description="初始数据")
@@ -248,6 +251,7 @@ class ProjectUpdate(BaseModel):
     项目更新请求
     """
     name: Optional[str] = None
+    description: Optional[str] = Field(default=None, max_length=2000, description="项目描述")
     mode: Optional[Literal['light', 'standard']] = None
     initial_data: Optional[Dict[str, Any]] = Field(default=None, description="项目数据（含代码快照等）")
 

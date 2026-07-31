@@ -530,6 +530,118 @@ def _sync_project_name_from_skill_state(project_id: str, project: Any, skill_sta
     return current_name
 
 
+def _extract_project_description(skill_state: Any) -> str | None:
+    """
+    从 skill_state 中提取 AI 生成的项目描述（Q-034 修复）。
+
+    描述在 AI 对话过程中散落在多处 PBL 数据里，按优先级尝试：
+      0. metadata.project_description / description（AI 用 skill_state_writer 显式写入）
+      1. standard_step_data.brief_content（JSON 工件，含 one_liner/description）
+      2. standard_step_data.one_liner / description（顶层）
+      3. light_step_data.one_liner（轻项目 step_1，跳过创建时的占位符种子）
+
+    返回去除首尾空白后的描述；找不到返回 None。
+    """
+    if not skill_state:
+        return None
+
+    def _clean(v: Any) -> str | None:
+        if isinstance(v, str):
+            s = v.strip()
+            # 过滤 project_creator 未传 description 时写入的占位符种子
+            if not s or s == "生成首个可运行版本" or s.endswith("的首个可运行版本"):
+                return None
+            return s
+        return None
+
+    # 0. metadata（AI 显式写入，优先级最高）
+    meta = getattr(skill_state, "metadata", None)
+    if isinstance(meta, dict):
+        desc = _clean(meta.get("project_description") or meta.get("description"))
+        if desc:
+            return desc
+
+    # 1. standard_step_data.brief_content（JSON 工件）
+    ssd = getattr(skill_state, "standard_step_data", None) or {}
+    if isinstance(ssd, dict):
+        brief = ssd.get("brief_content")
+        if isinstance(brief, str):
+            try:
+                parsed = json.loads(brief)
+                if isinstance(parsed, dict):
+                    desc = _clean(parsed.get("one_liner") or parsed.get("description") or parsed.get("summary"))
+                    if desc:
+                        return desc
+            except (json.JSONDecodeError, TypeError):
+                pass
+        elif isinstance(brief, dict):
+            desc = _clean(brief.get("one_liner") or brief.get("description") or brief.get("summary"))
+            if desc:
+                return desc
+        # 2. 顶层 one_liner / description
+        desc = _clean(ssd.get("one_liner") or ssd.get("description"))
+        if desc:
+            return desc
+
+    # 3. light_step_data.one_liner
+    lsd = getattr(skill_state, "light_step_data", None)
+    if isinstance(lsd, dict):
+        desc = _clean(lsd.get("one_liner"))
+        if desc:
+            return desc
+
+    return None
+
+
+def _sync_project_description_from_skill_state(project_id: str, project: Any, skill_state: Any) -> str:
+    """
+    若 projects.description 为空，从 PBL 数据/成果卡自动回填（Q-034 数据自愈）。
+
+    历史原因：schema 缺字段 + 仓储层硬编码空串，AI 创建项目时传的 description
+    从未落库，存量项目的 description 列全部为空。本函数在构建 workspace /
+    列表时检测并回填：优先用 skill_state 里 AI 生成的描述，其次用成果卡 one_liner。
+
+    用户手动改过描述（initial_data.description_manually_overridden）则跳过，
+    与 Q-022 名字同步的防覆盖策略一致。
+
+    返回应显示的描述（回填成功用新值，否则用原值）。
+    """
+    current_desc = (getattr(project, "description", "") or "").strip()
+    if not project:
+        return current_desc
+    initial_data = getattr(project, "initial_data", None)
+    if isinstance(initial_data, dict) and initial_data.get("description_manually_overridden") is True:
+        return current_desc
+    # 已有描述则不覆盖（只做空值回填，不做内容更新）
+    if current_desc:
+        return current_desc
+    confirmed_desc = _extract_project_description(skill_state)
+    if not confirmed_desc:
+        # 兼容存量已完成项目：skill_state 无描述时用成果卡 one_liner 兑底
+        try:
+            card = db.get_achievement_card_by_project(project_id)
+            candidate = (getattr(card, "one_liner", "") or "").strip() if card else ""
+            if candidate and candidate != "生成首个可运行版本" and not candidate.endswith("的首个可运行版本"):
+                confirmed_desc = candidate
+        except Exception:
+            confirmed_desc = None
+    if not confirmed_desc:
+        return current_desc
+    try:
+        updated = db.update_project(project_id, {"description": confirmed_desc})
+        if updated and (getattr(updated, "description", "") or "") == confirmed_desc:
+            import logging
+            logging.getLogger(__name__).info(
+                "[Q-034] 项目描述自动回填: %s -> '%s'",
+                project_id[:8], confirmed_desc[:50],
+            )
+            return confirmed_desc
+    except Exception as exc:  # 回填失败不阻断主流程
+        import logging
+        logging.getLogger(__name__).warning("[Q-034] 项目描述回填失败: %s", exc)
+    return current_desc
+
+
 def _build_workspace_payload(project_id: str) -> tuple[ProjectProgress, ProjectWorkspaceData]:
     skill_state = db.get_skill_state(project_id)
     if not skill_state:
@@ -549,6 +661,14 @@ def _build_workspace_payload(project_id: str) -> tuple[ProjectProgress, ProjectW
             project = project.model_copy(update={"name": effective_name})
         except Exception:
             pass
+    # 2026-07-31 Q-034 修复：description 为空时从 PBL 数据自动回填（同步到 projects 表）
+    if project:
+        effective_desc = _sync_project_description_from_skill_state(project_id, project, skill_state)
+        if effective_desc and effective_desc != (getattr(project, "description", "") or ""):
+            try:
+                project = project.model_copy(update={"description": effective_desc})
+            except Exception:
+                pass
     standard_step_data = skill_state.standard_step_data or {}
     if project:
         draft_data, _ = _build_achievement_draft(project_id, project)
@@ -618,6 +738,8 @@ async def create_project(
         id=str(uuid.uuid4()),
         author_id=current_user.id,
         name=project_data.name,
+        # 2026-07-31 Q-034：透传创建请求里的描述（如 Demo Fork 携带的 demo.description）
+        description=project_data.description or "",
         mode=project_data.mode,
         from_demo_id=project_data.from_demo_id,
         initial_data=project_data.initial_data or {},
@@ -660,7 +782,23 @@ async def list_user_projects(
         stage=stage,
     )
     total_pages = (total + page_size - 1) // page_size
-    
+
+    # 2026-07-31 Q-034 存量数据自愈：历史项目 description 列全为空（仓储层曾硬编码
+    # 空串），列表页恒显示"暂无描述"。仅对描述为空的项目尝试从 PBL 数据/
+    # 成果卡回填（回填后落库，下次列表不再重复查询）。
+    healed_projects = []
+    for item in projects:
+        if not (getattr(item, "description", "") or "").strip():
+            try:
+                skill_state = db.get_skill_state(item.id)
+                desc = _sync_project_description_from_skill_state(item.id, item, skill_state)
+                if desc:
+                    item = item.model_copy(update={"description": desc})
+            except Exception:
+                pass  # 自愈失败不阻断列表返回
+        healed_projects.append(item)
+    projects = healed_projects
+
     return ApiResponse(
         data=PaginationResult(
             items=projects,
@@ -873,6 +1011,15 @@ async def update_project(
         else:
             existing_initial = dict(existing_initial)  # 浅拷贝避免改原对象
         existing_initial["name_manually_overridden"] = True
+        update_data["initial_data"] = existing_initial
+
+    # 2026-07-31 Q-034：用户手动改描述时同样打标，防止描述自愈逻辑反向覆盖
+    if "description" in update_data and update_data["description"]:
+        existing_initial = update_data.get("initial_data")
+        if not isinstance(existing_initial, dict):
+            existing_initial = getattr(project, "initial_data", None)
+            existing_initial = dict(existing_initial) if isinstance(existing_initial, dict) else {}
+        existing_initial["description_manually_overridden"] = True
         update_data["initial_data"] = existing_initial
 
     updated_project = db.update_project(project_id, update_data)

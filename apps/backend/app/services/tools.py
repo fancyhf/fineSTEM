@@ -22,6 +22,7 @@ from app.services.stage_constants import (
     can_advance_to,
     artifact_stage_gate,
     is_code_allowed_stage,
+    normalize_artifact_name,
     stage_index,
 )
 
@@ -259,6 +260,9 @@ class SkillStateWriterTool(BaseTool):
     name = "skill_state_writer"
     description = (
         "更新项目的 SKILL_STATE 元数据（如教学模式、论文模式、阶段历史）。"
+        "**修改/确认项目显示名**：写 updates.metadata.project_name（如 "
+        "updates={'metadata': {'project_name': '新名字'}}），后端会自动同步到侧边栏项目列表——"
+        "项目名不是锁定的，与学生确认或学生要求改名时必须这样写。"
         "**禁止**用于推进阶段（必须用 stage_advancer）或写入工件内容（必须用 artifact_writer）——"
         "这两个字段受白名单保护，本工具会拒绝写入。"
     )
@@ -300,6 +304,25 @@ class SkillStateWriterTool(BaseTool):
         if not project_id or not updates:
             return ToolResult(False, error="缺少必填参数 project_id 或 updates")
 
+        # Q-026 复测修复（2026-07-31）：AI 改项目名时常把 name/project_name 放在 updates
+        # 顶层，原先被白名单一票拒绝，AI 收到 failed 后直接对学生宣称"项目名无法修改"。
+        # 现在把这些改名意图键自动搬运进 metadata（不覆盖已显式给出的 metadata 同名键），
+        # 让改名走 Q-026 的 metadata→projects.name 同步通道。
+        _NAME_ALIAS_KEYS = ("project_name", "display_name", "name")
+        _alias_hits = [k for k in _NAME_ALIAS_KEYS if isinstance(updates.get(k), str) and updates[k].strip()]
+        if _alias_hits:
+            meta_updates = updates.get("metadata")
+            if not isinstance(meta_updates, dict):
+                meta_updates = {}
+            meta_updates.setdefault("project_name", updates[_alias_hits[0]].strip())
+            for k in _alias_hits:
+                updates.pop(k, None)  # 多个别名键都移除，只取第一个命中的值
+            updates["metadata"] = meta_updates
+            import logging as _log
+            _log.getLogger(__name__).info(
+                "[Q-026] 顶层改名键 %s 已搬运至 metadata.project_name", _alias_hits
+            )
+
         # 字段白名单过滤：拦截受保护字段
         blocked_fields = [k for k in updates.keys() if k not in self.ALLOWED_FIELDS]
         if blocked_fields:
@@ -311,6 +334,7 @@ class SkillStateWriterTool(BaseTool):
                     f"这些字段必须用专用工具：current_stage/stages → stage_advancer；"
                     f"standard_step_data → artifact_writer。"
                     f"本工具只允许更新元数据：{sorted(self.ALLOWED_FIELDS)}。"
+                    f"如需修改项目显示名，请写 updates.metadata.project_name。"
                 ),
                 data={"blocked_fields": blocked_fields, "allowed_fields": sorted(self.ALLOWED_FIELDS)},
             )
@@ -593,6 +617,8 @@ class ArtifactReaderTool(BaseTool):
         artifact_name = params.get("artifact_name")
         if not project_id or not artifact_name:
             return ToolResult(False, error="缺少必填参数")
+        # Q-028: 工件名别名归一（如 evaluation → evaluate）
+        artifact_name = normalize_artifact_name(artifact_name)
 
         state = db.get_skill_state(project_id)
         if not state:
@@ -623,7 +649,7 @@ class ArtifactWriterTool(BaseTool):
         "type": "object",
         "properties": {
             "project_id": {"type": "string", "description": "项目 ID（必填）"},
-            "artifact_name": {"type": "string", "description": "工件名称（必填）"},
+            "artifact_name": {"type": "string", "description": "工件规范名（必填），只能是：brainstorm/project_brief/constraints/track_plan/design/step_plan/dev_log/evaluate。验收/评估报告必须用 evaluate（不是 evaluation）。"},
             "content": {"type": "string", "description": "文档内容（必填）"},
             "artifact_type": {"type": "string", "enum": ["document", "code", "report"], "description": "工件类型"},
         },
@@ -643,6 +669,8 @@ class ArtifactWriterTool(BaseTool):
 
         if not all([project_id, artifact_name, content]):
             return ToolResult(False, error="缺少必填参数 project_id / artifact_name / content")
+        # Q-028: 工件名别名归一（AI 照 SKILL.md 文档常写 evaluation，规范名是 evaluate）
+        artifact_name = normalize_artifact_name(artifact_name)
 
         state = db.get_skill_state(project_id)
         if not state:
@@ -1376,7 +1404,10 @@ class AchievementCardTool(BaseTool):
             )
 
         # 门禁通过后才延迟导入（避免循环依赖）
-        from app.db.models import AchievementCard
+        # 注：db.create_achievement_card 期望的是 schema AchievementCard（与 projects.py 一致），
+        # 而非 ORM 模型 AchievementCardModel。早前误写为 from app.db.models import
+        # AchievementCard 会引发 ImportError（模型名实为 AchievementCardModel），导致成果卡生成失败。
+        from app.schemas.achievements import AchievementCard
         from app.schemas.achievements import AchievementCardCreate
         from app.services.stage08_sync import build_stage08_payload, merge_stage08_into_standard_data
 

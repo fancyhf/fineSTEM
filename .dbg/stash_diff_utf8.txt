@@ -1,0 +1,625 @@
+﻿diff --git a/apps/backend/app/api/achievement_cards.py b/apps/backend/app/api/achievement_cards.py
+index c2dc43a..2ebe339 100644
+--- a/apps/backend/app/api/achievement_cards.py
++++ b/apps/backend/app/api/achievement_cards.py
+@@ -7,6 +7,7 @@ links: .trae/documents/api-specs/v1/spec.json
+ """
+ 
+ from typing import Optional
++import uuid
+ from fastapi import APIRouter, Depends, HTTPException, status
+ from app.schemas.achievements import (
+     AchievementCard,
+@@ -211,7 +212,7 @@ async def fork_project_from_card(card_id: str, current_user: UserResponse = Depe
+         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="原项目不存在")
+ 
+     project = Project(
+-        id="",
++        id=str(uuid.uuid4()),
+         name=f"{source_project.name} - Fork",
+         mode=source_project.mode,
+         from_demo_id=source_project.from_demo_id,
+diff --git a/apps/backend/runtime/agent_metrics.json b/apps/backend/runtime/agent_metrics.json
+index c8ef7d4..2cc8264 100644
+--- a/apps/backend/runtime/agent_metrics.json
++++ b/apps/backend/runtime/agent_metrics.json
+@@ -1,6 +1,6 @@
+ {
+-  "total_requests": 81,
+-  "success_requests": 81,
++  "total_requests": 85,
++  "success_requests": 85,
+   "error_requests": 0,
+   "latency_ms": [
+     5386,
+@@ -83,6 +83,10 @@
+     1,
+     0,
+     0,
++    0,
++    1,
++    0,
++    0,
+     0
+   ]
+ }
+\ No newline at end of file
+diff --git a/apps/frontend/src/components/CodeEditor.tsx b/apps/frontend/src/components/CodeEditor.tsx
+index c3272c7..8cfbda9 100644
+--- a/apps/frontend/src/components/CodeEditor.tsx
++++ b/apps/frontend/src/components/CodeEditor.tsx
+@@ -61,7 +61,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
+             : 'plaintext';
+ 
+   return (
+-    <div className="h-full w-full">
++    <div className="h-full w-full min-h-0">
+       <Editor
+         height="100%"
+         defaultLanguage={monacoLanguage}
+diff --git a/apps/frontend/src/pages/Create.tsx b/apps/frontend/src/pages/Create.tsx
+index b8fc122..25d3f05 100644
+--- a/apps/frontend/src/pages/Create.tsx
++++ b/apps/frontend/src/pages/Create.tsx
+@@ -16,6 +16,8 @@ interface Message {
+   id: string;
+   role: 'user' | 'assistant';
+   content: string;
++  /** 恢复历史项目时保留的原始内容（含 XML 标签），用于解析 QuestionCard */
++  _rawContent?: string;
+   skillInfo?: { skill_id: string; skill_name: string; sub_skill_name?: string };
+   toolCalls?: { tool_name: string; success: boolean; data?: any }[];
+ }
+@@ -52,14 +54,25 @@ function collapseRepeatedFragments(content: string): string {
+ 
+ function sanitizeAssistantNarration(content: string): string {
+   let cleaned = content;
++  // 移除 DSML tool_call 标签块
+   cleaned = cleaned.replace(/<｜｜DSML｜｜[\s\S]*?tool_calls>/gi, '');
+   cleaned = cleaned.replace(/<\|[\s\S]*?\|>/g, '');
++  // 移除 option/question XML 标签
+   cleaned = cleaned.replace(/<option\s+id=["'][^"']*["'][^>]*>[\s\S]*?<\/option>/gi, '');
+-  cleaned = cleaned.replace(/^\s*(tool_calls|invoke name=|parameter name=|artifact_writer|artifact_reader).*$\n?/gim, '');
+-  cleaned = cleaned.replace(/^\s*```(?:markdown|md)?\s*复制\s*$/gim, '```');
+-  cleaned = cleaned.replace(/^\s*<[^>\n]*calls[^>\n]*>\s*$/gim, '');
+   cleaned = cleaned.replace(/^\s*<\/?(?:option|label|desc)[^>]*>\s*$/gim, '');
+   cleaned = cleaned.replace(/^\s*<\/?question[^>]*>\s*$/gim, '');
++  // 移除工具调用的内部实现细节（artifact_writer / artifact_reader 等工具的 Python 代码）
++  // 匹配模式：文件路径 + 工具名.py + import/函数定义代码块
++  cleaned = cleaned.replace(/(?:projects\/[a-f0-9]{-}+)?\s*(?:artifact_writer|artifact_reader|evidence_saver|code_runner|resource_searcher|project_creator)\.py\s*\n[\s\S]*?(?=\n\n|\n---|\n##|\n###|\n<[a-z]|\Z)/gim, '');
++  // 匹配独立的工具调用代码段（包含 import sys/json/pathlib + args + file_path 等特征）
++  cleaned = cleaned.replace(/^(?:import (sys|json|os|pathlib|argparse)\n)+(?:from pathlib import Path\n)?(?:args\s*=\s*json\.loads\(sys\.stdin\.read\(\)\)\n)*(?:project_id|artifact_name|file_path|content)\s*=\s*args\[.+\]\n[\s\S]*?(?=\n\n|\n---|\n##|\n###|\n<[a-z]|\Z)/gim, '');
++  // 移除行首的工具调用标记（原有逻辑增强）
++  cleaned = cleaned.replace(/^\s*(tool_calls|invoke name=|parameter name=|artifact_writer|artifact_reader|evidence_saver|code_runner).*$\n?/gim, '');
++  // 移除 "复制" 标记
++  cleaned = cleaned.replace(/^\s*```(?:markdown|md)?\s*复制\s*$/gim, '```');
++  cleaned = cleaned.replace(/^\s*<[^>\n]*calls[^>\n]*>\s*$/gim, '');
++  // 移除 "读取参数/确定文件路径/写入文件/返回成功" 等工具步骤标题后跟的代码块
++  cleaned = cleaned.replace(/^(?:读取参数|确定文件路径|写入文件|返回成功|执行结果|调用参数)[:：]\s*\n[\s\S]*?(?=\n\n|\n---|\n##|\n###|\n<[a-z]|\Z)/gim, '');
+   cleaned = collapseRepeatedFragments(cleaned);
+   return cleaned;
+ }
+@@ -84,11 +97,15 @@ function normalizeWorkspaceMessages(items: Array<Record<string, unknown>> | unde
+     .filter((item) => typeof item?.role === 'string' && typeof item?.content === 'string')
+     .map((item, index) => {
+       const role: Message['role'] = item.role === 'user' ? 'user' : 'assistant';
+-      const content = cleanRestoredMessageContent(String(item.content || ''));
++      const rawContent = String(item.content || '');
++      // 保留原始内容用于 question 解析，显示时再用 clean 版本
++      const content = cleanRestoredMessageContent(rawContent);
+       return {
+         id: typeof item.id === 'string' ? item.id : `restored-${index}`,
+         role,
+         content,
++        // 保留原始内容供恢复时解析 question 使用
++        _rawContent: rawContent,
+         skillInfo: typeof item.skillInfo === 'object' && item.skillInfo
+           ? {
+               skill_id: String((item.skillInfo as Record<string, unknown>).skill_id || ''),
+@@ -381,6 +398,113 @@ function parseQuestionFromText(text: string): QuestionData | null {
+   return { id: `q-fallback-${Date.now()}`, title, options };
+ }
+ 
++/**
++ * 根据恢复的消息上下文和当前阶段，生成 fallback QuestionCard
++ *
++ * 当历史消息中的 XML option 标签已被清洗无法解析时，
++ * 根据 AI 最后回复的内容特征和项目阶段，智能推荐合适的交互选项。
++ * 这保证了恢复历史项目后用户仍能看到 AI 给出的方案选项。
++ */
++function buildFallbackQuestionFromContext(lastAssistantContent: string, currentStage: string): QuestionData | null {
++  if (!lastAssistantContent || !lastAssistantContent.trim()) return null;
++
++  const trimmed = lastAssistantContent.trim();
++  // 内容太短不应该是需要用户做选择的完整回复，跳过
++  if (trimmed.length < 8) return null;
++
++  const hasCode = /```/.test(lastAssistantContent);
++  // 检测 AI 回复是否明确暗示需要用户做选择/确认（需要更明确的语义关键词）
++  const needsChoice = /方案|规划|选择|建议|怎么做|下一步|继续.*\?|采纳|决定|你想|你觉得|哪个|哪种|倾向|偏好|确认|推进|好不好|可以吗|行不行|要不要|是否|愿不愿意|想不想|希望|期待|请选择|请确认|你希望|你喜欢|你倾向/.test(lastAssistantContent);
++  // 检测是否是"最后一个问题"/"帮你规划"等引导性结尾（收紧匹配条件）
++  const isGuidanceEnding = /最后.*问题[^？！。]|帮你规划[终极最终]?方案|接下来我需要|下面给你|那么根据/.test(lastAssistantContent);
++
++  if (!needsChoice && !isGuidanceEnding) return null;
++
++  const stage = currentStage || '';
++
++  // 根据不同阶段生成不同的选项
++  let options: { id: string; label: string; description?: string; recommended?: boolean }[] = [];
++
++  if (stage.startsWith('stage_01') || stage.startsWith('brainstorm')) {
++    // 脑暴选题阶段
++    options = [
++      { id: 'opt_adopt', label: '好的，采纳建议', description: '按 AI 的建议继续推进', recommended: true },
++      { id: 'opt_other_idea', label: '有其他想法', description: '我想调整方向或补充想法' },
++      { id: 'opt_decide_self', label: '我自己决定', description: '我已经有明确的想法了' },
++      { id: 'opt_other', label: '其他', description: '我有其他问题' },
++    ];
++  } else if (stage.startsWith('stage_02') || stage.startsWith('brief')) {
++    // 开题立项阶段
++    options = [
++      { id: 'opt_adopt', label: '好的，采纳建议', description: '按 AI 的建议完善开题', recommended: true },
++      { id: 'opt_modify', label: '修改部分内容', description: '我想调整开题的某些部分' },
++      { id: 'opt_add', label: '补充更多信息', description: '我还有信息要补充' },
++      { id: 'opt_other', label: '其他', description: '我有其他问题' },
++    ];
++  } else if (stage.startsWith('stage_03') || stage.startsWith('constraints')) {
++    // 范围裁剪阶段
++    options = [
++      { id: 'opt_adopt', label: '好的，采纳建议', description: '按 AI 建议的范围执行', recommended: true },
++      { id: 'opt_expand', label: '范围太窄了', description: '我想扩大一些范围' },
++      { id: 'opt_narrow', label: '再精简一点', description: '我想进一步聚焦核心功能' },
++      { id: 'opt_other', label: '其他', description: '我有其他想法' },
++    ];
++  } else if (stage.startsWith('stage_04') || stage.startsWith('track')) {
++    // 轨道选择阶段
++    options = [
++      { id: 'opt_adopt', label: '好的，采纳建议', description: '按 AI 推荐的轨道进行', recommended: true },
++      { id: 'opt_switch', label: '换一个轨道', description: '我想看看其他实现路线' },
++      { id: 'opt_detail', label: '了解更多', description: '我想先了解各轨道的细节' },
++      { id: 'opt_other', label: '其他', description: '我有其他问题' },
++    ];
++  } else if (stage.startsWith('stage_05') || stage.startsWith('design')) {
++    // 设计蓝图阶段
++    options = [
++      { id: 'opt_adopt', label: '好的，采纳方案', description: '按这个设计方案继续', recommended: true },
++      { id: 'opt_modify_design', label: '修改设计', description: '我想调整设计方案的部分内容' },
++      { id: 'opt_see_more', label: '看更多细节', description: '我想了解更详细的设计说明' },
++      { id: 'opt_other', label: '其他', description: '我有其他想法' },
++    ];
++  } else if (stage.startsWith('stage_06') || stage.startsWith('step_plan')) {
++    // 分步计划阶段
++    options = [
++      { id: 'opt_adopt', label: '好的，采纳计划', description: '按这个计划开始执行', recommended: true },
++      { id: 'opt_adjust', label: '调整计划', description: '我想修改计划的某些步骤' },
++      { id: 'opt_simplify', label: '简化一下', description: '计划太复杂了，想简化' },
++      { id: 'opt_other', label: '其他', description: '我有其他想法' },
++    ];
++  } else if (hasCode) {
++    // 有代码内容的通用场景
++    options = [
++      { id: 'opt_next', label: '下一步', description: '继续项目的下一步', recommended: true },
++      { id: 'opt_run', label: '运行代码', description: '执行并查看运行结果' },
++      { id: 'opt_modify', label: '修改需求', description: '调整或优化当前内容' },
++      { id: 'opt_other', label: '其他', description: '我有其他问题或想法' },
++    ];
++  } else {
++    // 通用 fallback
++    options = [
++      { id: 'opt_adopt', label: '好的，采纳建议', description: '按 AI 的建议继续推进', recommended: true },
++      { id: 'opt_other_idea', label: '有其他想法', description: '我有自己的想法或问题' },
++      { id: 'opt_decide_self', label: '我自己决定', description: '我已经知道该怎么做了' },
++      { id: 'opt_other', label: '其他', description: '输入其他内容' },
++    ];
++  }
++
++  // 从 AI 回复中提取可能的标题/问题文本
++  let title = '接下来你想怎么做？';
++  const titleMatch = lastAssistantContent.match(/(?:帮你|给你|以下|如下|这些)[^\n]{0,50}(方案|建议|选项|选择|规划)/);
++  if (titleMatch) {
++    title = lastAssistantContent.slice(Math.max(0, lastAssistantContent.indexOf(titleMatch[0]) - 10)).trim().slice(0, 80) || title;
++  }
++
++  return {
++    id: `q-restore-fallback-${Date.now()}`,
++    title,
++    options,
++  };
++}
++
+ function EnhancedMarkdownText({
+   content,
+   projectId,
+@@ -511,6 +635,8 @@ export function Create() {
+   const [previewHtml, setPreviewHtml] = useState('');
+   const [showEditor, setShowEditor] = useState(false);
+   const [editorTab, setEditorTab] = useState<'code' | 'preview'>('code');
++  const [editorWidth, setEditorWidth] = useState(480);
++  const [isResizing, setIsResizing] = useState(false);
+   const [runningCode, setRunningCode] = useState(false);
+   const [activeSkill, setActiveSkill] = useState<SkillOption>(SKILL_OPTIONS[0]);
+   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
+@@ -619,8 +745,24 @@ export function Create() {
+     setPreviewHtml(workspace.preview_html || '');
+     setShowEditor(true);
+     setEditorTab('code');
+-    setMessages(normalizeWorkspaceMessages(workspace.chat_messages));
+-    setPendingQuestion(null);
++    const restoredMessages = normalizeWorkspaceMessages(workspace.chat_messages);
++    setMessages(restoredMessages);
++    // 恢复项目时，尝试从最后一条 assistant 消息中解析 QuestionCard
++    // 优先使用原始内容（含 XML 标签）解析，fallback 到清洗后内容
++    let restoredQuestion: QuestionData | null = null;
++    for (let i = restoredMessages.length - 1; i >= 0; i--) {
++      const msg = restoredMessages[i];
++      if (msg.role === 'assistant') {
++        const rawForParse = msg._rawContent || msg.content;
++        restoredQuestion = parseQuestionFromText(rawForParse);
++        if (!restoredQuestion) {
++          // 如果 XML 解析失败，使用 fallback 逻辑根据上下文生成选项
++          restoredQuestion = buildFallbackQuestionFromContext(msg.content, project.current_stage || progress.current_stage || '');
++        }
++        break;
++      }
++    }
++    setPendingQuestion(restoredQuestion);
+     setIsLoading(false);
+     setShowChatHistory(true);
+     setRestoreDone(true);
+@@ -662,8 +804,22 @@ export function Create() {
+             setEditorLanguage(toEditorLanguage(data.language));
+             setShowEditor(true);
+             setEditorTab('code');
+-            setMessages(normalizeWorkspaceMessages(Array.isArray(data.messages) ? data.messages : []));
+-            setPendingQuestion(null);
++            const fallbackMessages = normalizeWorkspaceMessages(Array.isArray(data.messages) ? data.messages : []);
++            setMessages(fallbackMessages);
++            // 回退恢复路径：同样需要尝试解析 QuestionCard
++            let fallbackQuestion: QuestionData | null = null;
++            for (let i = fallbackMessages.length - 1; i >= 0; i--) {
++              const msg = fallbackMessages[i];
++              if (msg.role === 'assistant') {
++                const rawForParse = msg._rawContent || msg.content;
++                fallbackQuestion = parseQuestionFromText(rawForParse);
++                if (!fallbackQuestion) {
++                  fallbackQuestion = buildFallbackQuestionFromContext(msg.content, data.currentStage || '');
++                }
++                break;
++              }
++            }
++            setPendingQuestion(fallbackQuestion);
+             setIsLoading(false);
+             setShowChatHistory(true);
+             setRestoreDone(true);
+@@ -1186,6 +1342,8 @@ export function Create() {
+     setIsLoading(true);
+     let rawAssistantContent = '';
+     let assistantContent = '';
++    // 标记是否已收到 content_update 事件，用于决定最终内容以哪个为准
++    let receivedContentUpdate = false;
+     setMessages((prev) => [...prev, { id: nextMessageId(), role: 'assistant', content: '' }]);
+ 
+     try {
+@@ -1199,15 +1357,19 @@ export function Create() {
+         },
+         (token) => {
+           rawAssistantContent += token;
+-          assistantContent = cleanAssistantMessageContent(rawAssistantContent);
+-          setMessages((prev) => {
+-            const copy = [...prev];
+-            const last = copy[copy.length - 1];
+-            if (last && last.role === 'assistant') {
+-              last.content = assistantContent;
+-            }
+-            return copy;
+-          });
++          // 只有在没有收到 content_update 时才用 token 更新显示
++          // content_update 会一次性提供后端处理后的完整干净内容
++          if (!receivedContentUpdate) {
++            assistantContent = cleanAssistantMessageContent(rawAssistantContent);
++            setMessages((prev) => {
++              const copy = [...prev];
++              const last = copy[copy.length - 1];
++              if (last && last.role === 'assistant') {
++                last.content = assistantContent;
++              }
++              return copy;
++            });
++          }
+         },
+         {
+           onSkillActivated: (data) => {
+@@ -1257,24 +1419,54 @@ export function Create() {
+             }
+           },
+           onContentUpdate: (dedupedContent) => {
+-            assistantContent = cleanAssistantMessageContent(dedupedContent);
+-            setMessages(prev => {
+-              const updated = [...prev];
+-              const lastIdx = updated.length - 1;
+-              if (lastIdx >= 0 && updated[lastIdx].role === 'assistant') {
+-                updated[lastIdx] = { ...updated[lastIdx], content: assistantContent };
+-              }
+-              return updated;
+-            });
++            // 标记已收到 content_update，后续 token 不再覆盖内容
++            receivedContentUpdate = true;
++            const cleanedUpdate = cleanAssistantMessageContent(dedupedContent);
++            // 智能合并：只有当 content_update 的内容比当前 token 累积的内容更有价值时才替换
++            // 防止后端 strip_question_xml 过度删除导致内容变少
++            if (cleanedUpdate.length >= assistantContent.length * 0.5 || assistantContent.length < 10) {
++              assistantContent = cleanedUpdate;
++            }
++            // 如果 content_update 导致内容丢失（比原始内容短太多），保留 token 累积的版本
++            if (rawAssistantContent.length > cleanedUpdate.length * 1.5 && rawAssistantContent.length > 20) {
++              // token 累积的内容明显更多，保留 token 版本
++              console.warn('[stream] content_update 内容明显短于 token 累积内容，保留 token 版本', {
++                tokenLen: rawAssistantContent.length,
++                updateLen: cleanedUpdate.length,
++              });
++            } else {
++              setMessages(prev => {
++                const updated = [...prev];
++                const lastIdx = updated.length - 1;
++                if (lastIdx >= 0 && updated[lastIdx].role === 'assistant') {
++                  updated[lastIdx] = { ...updated[lastIdx], content: assistantContent };
++                }
++                return updated;
++              });
++            }
+             if (!requestOverrides?.suppressQuestionCard && !pendingQuestion) {
+               const fallback = parseQuestionFromText(assistantContent);
+-              if (fallback) setPendingQuestion(fallback);
++              if (fallback) {
++                setPendingQuestion(fallback);
++              } else {
++                // content_update 后如果没有 XML option，根据上下文生成 fallback
++                const contextFallback = buildFallbackQuestionFromContext(assistantContent, projectContext.currentStage);
++                if (contextFallback) setPendingQuestion(contextFallback);
++              }
+             }
+           },
+         },
+       );
+ 
+       assistantContent = cleanAssistantMessageContent(streamResult.content || assistantContent || rawAssistantContent);
++      // 防御性检查：如果 AI 回复内容为空，用原始未清洗内容重试，或给出提示
++      if (!assistantContent.trim() && rawAssistantContent.trim()) {
++        // 清洗后变空了但原始内容非空（比如全部是 XML 标签被洗掉了）
++        assistantContent = rawAssistantContent
++          .replace(/<[^>]+>/g, '')
++          .replace(/\n{3,}/g, '\n\n')
++          .trim();
++      }
+       setMessages(prev => {
+         const updated = [...prev];
+         const lastIdx = updated.length - 1;
+@@ -1286,7 +1478,13 @@ export function Create() {
+ 
+       if (!requestOverrides?.suppressQuestionCard && !pendingQuestion) {
+         const finalFallback = parseQuestionFromText(assistantContent);
+-        if (finalFallback) setPendingQuestion(finalFallback);
++        if (finalFallback) {
++          setPendingQuestion(finalFallback);
++        } else {
++          // 如果没有 XML option 根据上下文生成 fallback 选项
++          const contextFallback = buildFallbackQuestionFromContext(assistantContent, projectContext.currentStage);
++          if (contextFallback) setPendingQuestion(contextFallback);
++        }
+       }
+ 
+       const codeResult = extractCodeFromResponse(assistantContent);
+@@ -1365,6 +1563,33 @@ export function Create() {
+     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
+   };
+ 
++  // 拖拽分割线调整编辑器宽度
++  const handleResizeStart = useCallback((e: React.MouseEvent) => {
++    e.preventDefault();
++    setIsResizing(true);
++    const startX = e.clientX;
++    const startWidth = editorWidth;
++
++    const handleMouseMove = (moveEvent: MouseEvent) => {
++      const delta = startX - moveEvent.clientX; // 向左拖变大，向右拖变小
++      const newWidth = Math.max(280, Math.min(window.innerWidth - 400, startWidth + delta));
++      setEditorWidth(newWidth);
++    };
++
++    const handleMouseUp = () => {
++      setIsResizing(false);
++      document.removeEventListener('mousemove', handleMouseMove);
++      document.removeEventListener('mouseup', handleMouseUp);
++      document.body.style.cursor = '';
++      document.body.style.userSelect = '';
++    };
++
++    document.addEventListener('mousemove', handleMouseMove);
++    document.addEventListener('mouseup', handleMouseUp);
++    document.body.style.cursor = 'col-resize';
++    document.body.style.userSelect = 'none';
++  }, [editorWidth]);
++
+   const handleSceneClick = (label: string) => {
+     setActiveScene(label);
+     const prompts: Record<string, string> = {
+@@ -1624,7 +1849,11 @@ export function Create() {
+           {showChatHistory ? (
+             <div className="flex-1 overflow-y-auto">
+               <div className="p-4 space-y-3 bg-white">
+-                {messages.map((msg) => (
++                {messages.map((msg) => {
++                  // 过滤掉 content 为空的 assistant 消息（除非正在加载中，此时由 isLoading 动画覆盖）
++                  const isEmptyAssistant = msg.role === 'assistant' && !msg.content.trim();
++                  if (isEmptyAssistant) return null;
++                  return (
+                   <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                     <div className={`max-w-[85%] rounded-2xl px-4 py-2.5 ${
+                       msg.role === 'user' ? 'bg-teal-600 text-white rounded-br-sm' : 'bg-gray-50 text-gray-800 rounded-bl-sm border border-gray-100'
+@@ -1645,7 +1874,8 @@ export function Create() {
+                       )}
+                     </div>
+                   </div>
+-                ))}
++                  );
++                })}
+                 {isLoading && (
+                   <div className="flex justify-start">
+                     <div className="bg-gray-50 rounded-2xl rounded-bl-sm px-4 py-3 border border-gray-100 flex items-center gap-2">
+@@ -1719,44 +1949,54 @@ export function Create() {
+         </Card>
+       </div>
+ 
+-      <div className={`flex-shrink-0 flex flex-col gap-2 transition-all duration-300 ${showEditor ? 'w-[480px]' : 'w-10'}`}>
++      {/* 可拖拽分割线 */}
++      {showEditor && (
++        <div
++          onMouseDown={handleResizeStart}
++          className={`w-1 flex-shrink-0 cursor-col-resize transition-colors ${isResizing ? 'bg-teal-400' : 'bg-gray-200 hover:bg-teal-300'} active:bg-teal-400`}
++          style={{ touchAction: 'none' }}
++        />
++      )}
++
++      <div className={`flex-shrink-0 h-full flex flex-col transition-all duration-300 ${showEditor ? '' : 'w-10'}`}
++        style={showEditor ? { width: editorWidth } : undefined}>
+         {showEditor ? (
+-          <>
+-            <Card className="flex-1 flex flex-col p-0 overflow-hidden">
+-              <div className="flex items-center justify-between px-3 py-2 border-b border-gray-100 bg-gray-100">
+-                <div className="flex items-center gap-2">
+-                  <button onClick={() => setEditorTab('code')} className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors ${editorTab === 'code' ? 'bg-gray-700 text-white' : 'text-gray-500 hover:bg-gray-200'}`}>
+-                    <Terminal className="w-3 h-3" /> 代码
+-                  </button>
+-                  <button onClick={() => setEditorTab('preview')} className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors ${editorTab === 'preview' ? 'bg-gray-700 text-white' : 'text-gray-500 hover:bg-gray-200'}`}>
+-                    <Eye className="w-3 h-3" /> 预览
+-                  </button>
+-                </div>
+-                <div className="flex items-center gap-1">
+-                  <select value={editorLanguage} onChange={(e) => setEditorLanguage(e.target.value)}
+-                    className="text-xs border border-gray-300 rounded px-1.5 py-0.5 bg-white text-gray-600 outline-none">
+-                    <option value="python">Python</option>
+-                    <option value="javascript">JavaScript</option>
+-                    <option value="html">HTML</option>
+-                    <option value="css">CSS</option>
+-                  </select>
+-                  <button onClick={handleRunEditorCode} className="flex items-center gap-1 px-2 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-xs font-medium transition-colors">
+-                    <Play className="w-3 h-3" /> 运行
+-                  </button>
+-                  <button onClick={() => setShowEditor(false)} className="p-1 hover:bg-gray-200 rounded text-gray-400 transition-colors">
+-                    <PanelLeftClose className="w-4 h-4" />
+-                  </button>
+-                </div>
++          <div className="h-full flex flex-col rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
++            {/* 工具栏 - 用固定高度确保始终可见 */}
++            <div className="flex items-center justify-between px-3 py-2 border-b border-gray-100 bg-gray-100 shrink-0">
++              <div className="flex items-center gap-2">
++                <button onClick={() => setEditorTab('code')} className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors ${editorTab === 'code' ? 'bg-gray-700 text-white' : 'text-gray-500 hover:bg-gray-200'}`}>
++                  <Terminal className="w-3 h-3" /> 代码
++                </button>
++                <button onClick={() => setEditorTab('preview')} className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors ${editorTab === 'preview' ? 'bg-gray-700 text-white' : 'text-gray-500 hover:bg-gray-200'}`}>
++                  <Eye className="w-3 h-3" /> 预览
++                </button>
+               </div>
+-              <div className={`flex-1 min-h-0 ${editorTab === 'code' ? 'bg-[#1e1e1e]' : 'bg-white'}`}>
+-                {editorTab === 'code' ? (
+-                  <CodeEditor code={editorCode} language={editorLanguage} onChange={(v) => setEditorCode(v)} />
+-                ) : (
+-                  <CodePreview htmlContent={previewHtml} title="运行结果" />
+-                )}
++              <div className="flex items-center gap-1">
++                <select value={editorLanguage} onChange={(e) => setEditorLanguage(e.target.value)}
++                  className="text-xs border border-gray-300 rounded px-1.5 py-0.5 bg-white text-gray-600 outline-none">
++                  <option value="python">Python</option>
++                  <option value="javascript">JavaScript</option>
++                  <option value="html">HTML</option>
++                  <option value="css">CSS</option>
++                </select>
++                <button onClick={handleRunEditorCode} className="flex items-center gap-1 px-2 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-xs font-medium transition-colors">
++                  <Play className="w-3 h-3" /> 运行
++                </button>
++                <button onClick={() => setShowEditor(false)} className="p-1 hover:bg-gray-200 rounded text-gray-400 transition-colors">
++                  <PanelLeftClose className="w-4 h-4" />
++                </button>
+               </div>
+-            </Card>
+-          </>
++            </div>
++            {/* 编辑器区域 - 填充剩余空间 */}
++            <div className="flex-1 min-h-0" style={{ height: 0 }}>
++              {editorTab === 'code' ? (
++                <CodeEditor code={editorCode} language={editorLanguage} onChange={(v) => setEditorCode(v)} />
++              ) : (
++                <CodePreview htmlContent={previewHtml} title="运行结果" />
++              )}
++            </div>
++          </div>
+         ) : (
+           <button onClick={() => setShowEditor(true)}
+             className="flex flex-col items-center justify-center gap-1 py-4 bg-gray-100 hover:bg-gray-200 rounded-lg border border-gray-200 text-gray-400 hover:text-teal-600 transition-colors">
+diff --git a/apps/frontend/src/pages/Login.tsx b/apps/frontend/src/pages/Login.tsx
+index 7f37bfc..ccfda3f 100644
+--- a/apps/frontend/src/pages/Login.tsx
++++ b/apps/frontend/src/pages/Login.tsx
+@@ -20,7 +20,7 @@ export default function Login() {
+     setLoading(true);
+     try {
+       await login(email, password);
+-      navigate('/dashboard');
++      navigate('/');
+     } catch (err: any) {
+       setError(err.message || '登录失败');
+     } finally {
+diff --git a/apps/frontend/src/pages/Register.tsx b/apps/frontend/src/pages/Register.tsx
+index f6b773d..4804b0b 100644
+--- a/apps/frontend/src/pages/Register.tsx
++++ b/apps/frontend/src/pages/Register.tsx
+@@ -33,7 +33,7 @@ export default function Register() {
+     setLoading(true);
+     try {
+       await register(name, email, password);
+-      navigate('/dashboard');
++      navigate('/');
+     } catch (err: any) {
+       setError(err.message || '注册失败');
+     } finally {
+diff --git a/apps/frontend/src/pages/Research.tsx b/apps/frontend/src/pages/Research.tsx
+index 87ec906..f675f37 100644
+--- a/apps/frontend/src/pages/Research.tsx
++++ b/apps/frontend/src/pages/Research.tsx
+@@ -80,10 +80,11 @@ export function Research() {
+ }
+ 
+ function ProjectList({ items, completed }: { items: Project[]; completed: boolean }) {
+-  if (items.length === 0) {
++  const validItems = items.filter((item) => item.id && item.id.length > 0);
++  if (validItems.length === 0) {
+     return <div className="text-sm text-gray-500">暂无项目</div>;
+   }
+-  return <div className="space-y-4">{items.map((item) => <ProjectCard key={item.id} item={item} completed={completed} />)}</div>;
++  return <div className="space-y-4">{validItems.map((item) => <ProjectCard key={item.id} item={item} completed={completed} />)}</div>;
+ }
+ 
+ interface ProjectCardProps {
+diff --git a/apps/frontend/src/services/api.ts b/apps/frontend/src/services/api.ts
+index 74c2035..5acc104 100644
+--- a/apps/frontend/src/services/api.ts
++++ b/apps/frontend/src/services/api.ts
+@@ -215,7 +215,17 @@ export const authApi = {
+       method: 'POST',
+       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+       body: formData,
+-    }).then(res => res.json() as Promise<ApiResponse<AuthResponse>>);
++    }).then(async (res) => {
++      const data = await res.json() as ApiResponse<AuthResponse>;
++      // 即使 HTTP 状态码非 2xx，也返回数据让调用方处理 detail 字段
++      if (!res.ok && !data.message) {
++        data.message = (data as any).detail || `登录失败 (${res.status})`;
++      }
++      return data;
++    }).catch((err) => {
++      console.error('[authApi.login] 请求失败:', err);
++      throw new Error('网络连接失败，请检查后端服务是否启动');
++    });
+   },
+   getMe: () => api.get<UserResponse>('/auth/me'),
+   updateMe: (data: UserUpdate) => api.patch<UserResponse>('/auth/me', data),

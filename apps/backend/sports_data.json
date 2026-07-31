@@ -1,0 +1,12 @@
+[
+  {
+    "id": 1,
+    "date": "2026-07-31",
+    "sport": "跑步",
+    "duration": 30,
+    "intensity": "适中",
+    "calories": 150,
+    "note": "44",
+    "created_at": "2026-07-31 17:34"
+  }
+]

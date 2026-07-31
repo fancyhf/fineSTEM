@@ -37,27 +37,46 @@ _KNOWN_BROWSER_PATHS = [
 ]
 
 
+def _dir_has_chrome(path: Optional[str]) -> bool:
+    """校验目录确实含 chrome 可执行文件（headless shell 或完整版），空壳目录返回 False。"""
+    if not path:
+        return False
+    try:
+        p = Path(path)
+    except (TypeError, ValueError):
+        return False
+    if not p.exists():
+        return False
+    return any(p.rglob("chrome*.exe"))
+
+
 def _ensure_browsers_path_env() -> Optional[str]:
     """
     确保 PLAYWRIGHT_BROWSERS_PATH 环境变量可用。
 
-    - 若已设置则沿用。
-    - 否则在已知默认位置中找到第一个存在且含 chromium 的目录写入环境变量。
+    - 若已设置且目录内确有 chrome 则沿用。
+    - 否则在已知默认位置中找到第一个含 chromium 的目录写入环境变量。
     - 找不到则返回 None（调用方再按默认行为报错）。
+
+    注意：不能只校验"目录存在"。用户机器上 PLAYWRIGHT_BROWSERS_PATH 可能被设成
+    H:/dev-env/playwright 这类只有 ffmpeg/winldd 的空壳目录，此时必须回退到含真实
+    chrome 的候选目录，否则 Playwright 会去空目录找 chrome-headless-shell.exe 报错。
     """
     existing = os.environ.get("PLAYWRIGHT_BROWSERS_PATH")
-    if existing and Path(existing).exists():
+    if _dir_has_chrome(existing):
         return existing
 
     for candidate in _KNOWN_BROWSER_PATHS:
-        if not Path(candidate).exists():
-            continue
-        # 简单校验该目录下是否包含 chrome 可执行文件
-        has_chrome = any(Path(candidate).rglob("chrome*.exe"))
-        if has_chrome:
+        if _dir_has_chrome(candidate):
             os.environ["PLAYWRIGHT_BROWSERS_PATH"] = candidate
             logger.info("screenshot: 设置 PLAYWRIGHT_BROWSERS_PATH=%s", candidate)
             return candidate
+
+    if existing:
+        logger.warning(
+            "screenshot: PLAYWRIGHT_BROWSERS_PATH=%s 不含 chrome，且候选目录均无可用浏览器",
+            existing,
+        )
     return None
 
 
@@ -73,14 +92,18 @@ _KNOWN = [
     r"H:\dev-env\playwright",
 ]
 
+def _dir_has_chrome(path):
+    if not path:
+        return False
+    p = Path(path)
+    return p.exists() and any(p.rglob("chrome*.exe"))
+
 def ensure_browser_path():
     existing = os.environ.get("PLAYWRIGHT_BROWSERS_PATH")
-    if existing and Path(existing).exists():
+    if _dir_has_chrome(existing):
         return existing
     for c in _KNOWN:
-        if not Path(c).exists():
-            continue
-        if any(Path(c).rglob("chrome*.exe")):
+        if _dir_has_chrome(c):
             os.environ["PLAYWRIGHT_BROWSERS_PATH"] = c
             return c
     return None
