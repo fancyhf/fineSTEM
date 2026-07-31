@@ -48,6 +48,7 @@ Desktop.ini
 .idea/
 .vscode/
 .zcode/
+.qoder/
 *.swp
 *.swo
 
