@@ -453,6 +453,12 @@ export const chatApi = {
   // 失败/超时降级为放行（is_real_question=true），避免漏掉真问题。
   verifyQuestion: (title: string, options: VerifyQuestionOption[]) =>
     api.post<VerifyQuestionResult>('/chat/verify-question', { title, options }),
+  // 2026-07-30 聊天发图：上传截图 → GLM-4V 视觉识别 → 文字描述（报错/代码逐字转录）
+  describeImage: (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.postForm<{ description: string }>('/chat/describe-image', formData);
+  },
 };
 
 export const documentsApi = {

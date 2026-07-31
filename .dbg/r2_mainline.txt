@@ -1,0 +1,123 @@
+﻿
+Running 1 test using 1 worker
+
+[EXPLORE:mainline] ⚠️ duplicate_card: 同屏 2 张选项卡
+[EXPLORE:mainline] ⚠️ duplicate_card: 同屏 2 张选项卡
+[EXPLORE:mainline] ⚠️ console_error: [autosave:chat] saveChatNow 保存失败: TypeError: Failed to fetch
+    at request (http://localhost:5184/src/services/api.ts:31:26)
+    at Object.
+[EXPLORE:mainline] ⚠️ console_error: 刷新后对话丢失 10→0（Q-016）
+[MAINLINE] 探查器汇总: { duplicate_card: [33m2[39m, console_error: [33m2[39m }
+[MAINLINE] 生命体征: {
+  samples: [
+    {
+      turn: [33m1[39m,
+      stage: [32m'brainstorm'[39m,
+      firstTokenMs: [33m426[39m,
+      heapMb: [33m34[39m,
+      msgLength: [33m3046[39m
+    },
+    {
+      turn: [33m2[39m,
+      stage: [32m'brainstorm'[39m,
+      firstTokenMs: [90mundefined[39m,
+      heapMb: [33m34[39m,
+      msgLength: [33m1789[39m
+    },
+    {
+      turn: [33m3[39m,
+      stage: [32m'brainstorm'[39m,
+      firstTokenMs: [90mundefined[39m,
+      heapMb: [33m32[39m,
+      msgLength: [33m835[39m
+    },
+    {
+      turn: [33m4[39m,
+      stage: [32m'brainstorm'[39m,
+      firstTokenMs: [90mundefined[39m,
+      heapMb: [33m32[39m,
+      msgLength: [33m1308[39m
+    },
+    {
+      turn: [33m5[39m,
+      stage: [32m'brainstorm'[39m,
+      firstTokenMs: [90mundefined[39m,
+      heapMb: [33m35[39m,
+      msgLength: [33m2850[39m
+    },
+    {
+      turn: [33m6[39m,
+      stage: [32m'brainstorm'[39m,
+      firstTokenMs: [90mundefined[39m,
+      heapMb: [33m53[39m,
+      msgLength: [33m3099[39m
+    },
+    {
+      turn: [33m7[39m,
+      stage: [32m'track'[39m,
+      firstTokenMs: [33m29228[39m,
+      heapMb: [33m37[39m,
+      msgLength: [33m3484[39m
+    },
+    {
+      turn: [33m8[39m,
+      stage: [32m'design'[39m,
+      firstTokenMs: [33m19130[39m,
+      heapMb: [33m51[39m,
+      msgLength: [33m5780[39m
+    },
+    {
+      turn: [33m9[39m,
+      stage: [32m'execute'[39m,
+      firstTokenMs: [33m-1[39m,
+      heapMb: [33m41[39m,
+      msgLength: [33m4297[39m
+    },
+    {
+      turn: [33m10[39m,
+      stage: [32m'evaluate'[39m,
+      firstTokenMs: [33m-1[39m,
+      heapMb: [33m29[39m,
+      msgLength: [33m3736[39m
+    }
+  ],
+  firstTokenDegradation: [33m-0.002347417840375587[39m,
+  memRatio: [33m0.8529411764705882[39m
+}
+[MAINLINE] 探查器发现: [
+  {
+    kind: [32m'duplicate_card'[39m,
+    timestamp: [32m'2026-07-30T07:06:04.807Z'[39m,
+    detail: [32m'同屏 2 张选项卡'[39m,
+    turn: [33m8[39m
+  },
+  {
+    kind: [32m'duplicate_card'[39m,
+    timestamp: [32m'2026-07-30T07:07:40.600Z'[39m,
+    detail: [32m'同屏 2 张选项卡'[39m,
+    turn: [33m9[39m
+  },
+  {
+    kind: [32m'console_error'[39m,
+    timestamp: [32m'2026-07-30T07:09:19.189Z'[39m,
+    detail: [32m'[autosave:chat] saveChatNow 保存失败: TypeError: Failed to fetch\n'[39m +
+      [32m'    at request (http://localhost:5184/src/services/api.ts:31:26)\n'[39m +
+      [32m'    at Object.post (http://localhost:5184/src/services/api.ts:115:45)\n'[39m +
+      [32m'    at Object.saveChatHistory (http://localhost:5184/src/services/api.ts:217:38)\n'[39m +
+      [32m'    at http://localhost:5184/src/pages/Create.tsx?t=1785388671940:977:17\n'[39m +
+      [32m'    at HTMLDocument.handleLeave (http://localhost:5184/src/pages/Create.tsx?t=1785388671940:1308:9)'[39m,
+    turn: [33m10[39m
+  },
+  {
+    kind: [32m'console_error'[39m,
+    timestamp: [32m'2026-07-30T07:09:24.323Z'[39m,
+    detail: [32m'刷新后对话丢失 10→0（Q-016）'[39m,
+    turn: [33m10[39m
+  }
+]
+[MAINLINE] ✅ TC-DLG-035 完成
+  ok 1 [chromium] › specs\lifecycle-journey.spec.ts:306:7 › 项目生命周期主线全程 @ai @lifecycle @mainline › TC-DLG-035: 主线旅程全程 stage_01→08（含探查器） (7.9m)
+
+  Slow test file: [chromium] › specs\lifecycle-journey.spec.ts (7.9m)
+  Consider running tests from slow files in parallel. See: https://playwright.dev/docs/test-parallel
+  1 passed (7.9m)

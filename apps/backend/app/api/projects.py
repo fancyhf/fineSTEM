@@ -432,6 +432,9 @@ def _extract_confirmed_project_name(skill_state: Any) -> str | None:
 
     AI 在脑爆/简报阶段确定的项目名存放在 PBL 数据里，而 projects.name 是创建时的
     默认值（用户首条消息截断）。本函数从多处尝试提取确认后的名字：
+      0. metadata.project_name / display_name（Q-026：AI 用 skill_state_writer 写的
+         确认名，最显式的意图——此前不读这里，导致 AI 反复"改名"都只落在 metadata，
+         顶层 name 永不同步）
       1. standard_step_data.brief_content（JSON 字符串，stage_02 工件，含 project_name）
       2. standard_step_data.project_name（顶层，部分流程直接写）
       3. light_step_data.project_name（轻项目 step_1）
@@ -446,6 +449,13 @@ def _extract_confirmed_project_name(skill_state: Any) -> str | None:
             s = v.strip()
             return s or None
         return None
+
+    # 0. metadata.project_name / display_name（Q-026：AI 显式确认名，优先级最高）
+    meta = getattr(skill_state, "metadata", None)
+    if isinstance(meta, dict):
+        name = _clean(meta.get("project_name") or meta.get("display_name"))
+        if name:
+            return name
 
     # 1. standard_step_data.brief_content（JSON 工件，最权威）
     ssd = getattr(skill_state, "standard_step_data", None) or {}
@@ -548,7 +558,14 @@ def _build_workspace_payload(project_id: str) -> tuple[ProjectProgress, ProjectW
             achievement_card=achievement,
             draft_data=draft_data,
         )
-        hydrated_standard_data = merge_stage08_into_standard_data(standard_step_data, hydrated_stage8)
+        hydrated_standard_data = merge_stage08_into_standard_data(
+            standard_step_data,
+            hydrated_stage8,
+            # Q-027：水合路径不得用 payload 渲染文本覆盖非空的 evaluate_content——
+            # 否则 AI 用 artifact_writer 写的完整验收文档每次 GET workspace 都会
+            # 被回滚成三段式渲染文本（"AI 无法修改项目总结"的根因之一）。
+            sync_evaluate_content=False,
+        )
         if hydrated_standard_data != standard_step_data:
             updated_state = db.update_skill_state(project_id, {"standard_step_data": hydrated_standard_data})
             if updated_state:

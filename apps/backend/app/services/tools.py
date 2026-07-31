@@ -357,6 +357,38 @@ class SkillStateWriterTool(BaseTool):
         if not updated:
             return ToolResult(False, error=f"更新失败：未找到项目 {project_id}")
 
+        # Q-026：AI 写 metadata.project_name / display_name 时，立即同步到
+        # projects.name（项目列表显示用）。此前只落在 skill_states.metadata，
+        # 顶层 name 永不更新，AI 反复"改名"都改了个寂寞。
+        # 尊重 name_manually_overridden：用户手动改过名则不覆盖（与 Q-022 一致）。
+        if "metadata" in updates and isinstance(updates["metadata"], dict):
+            confirmed_name = str(
+                updates["metadata"].get("project_name")
+                or updates["metadata"].get("display_name")
+                or ""
+            ).strip()
+            if confirmed_name:
+                try:
+                    project = db.get_project(project_id)
+                    initial_data = getattr(project, "initial_data", None) if project else None
+                    manually_overridden = (
+                        isinstance(initial_data, dict)
+                        and initial_data.get("name_manually_overridden") is True
+                    )
+                    current_name = (getattr(project, "name", "") or "").strip() if project else ""
+                    if project and not manually_overridden and current_name != confirmed_name:
+                        db.update_project(project_id, {"name": confirmed_name})
+                        import logging as _log
+                        _log.getLogger(__name__).info(
+                            "[Q-026] 项目名随 metadata 同步: %s '%s' -> '%s'",
+                            project_id[:8], current_name, confirmed_name,
+                        )
+                except Exception as name_exc:
+                    import logging as _log
+                    _log.getLogger(__name__).warning(
+                        "[Q-026] 项目名同步失败 project=%s: %s", project_id, name_exc
+                    )
+
         return ToolResult(True, data={"updated_fields": list(updates.keys())})
 
 
@@ -628,6 +660,43 @@ class ArtifactWriterTool(BaseTool):
         if mapping:
             result = save_artifact(project_id, artifact_name, content, db)
             if result.get("status") == "valid":
+                # Q-027：AI 更新验收文档（evaluate）时，把新文档解析出的字段正向
+                # 覆盖进 step8.payload——否则前端评估卡片读的旧 payload 永远不变，
+                # 且水合逻辑会用旧 payload 把 AI 刚写的内容反向回滚
+                # （build_stage08_payload 的优先级是"已有 payload 最高"，
+                # 对 AI 主动重写的场景必须在这里反转）。
+                if artifact_name == "evaluate":
+                    try:
+                        from app.services.stage08_sync import (
+                            _parse_evaluate_content,
+                            ensure_dict,
+                            merge_stage08_into_standard_data,
+                        )
+                        parsed_fields = _parse_evaluate_content(content)
+                        if parsed_fields:
+                            fresh_state = db.get_skill_state(project_id)
+                            standard_data = ensure_dict(
+                                getattr(fresh_state, "standard_step_data", None) or {}
+                            )
+                            old_payload = ensure_dict(
+                                ensure_dict(standard_data.get("step8")).get("payload")
+                            )
+                            new_payload = {**old_payload, **{
+                                k: v for k, v in parsed_fields.items() if v and v.strip()
+                            }}
+                            merged = merge_stage08_into_standard_data(
+                                standard_data,
+                                new_payload,
+                                # 不覆盖 evaluate_content：save_artifact 刚写入的 AI 原文是权威源
+                                sync_evaluate_content=False,
+                            )
+                            db.update_skill_state(project_id, {"standard_step_data": merged})
+                            result["stage08_payload_synced"] = True
+                    except Exception as sync_exc:
+                        import logging as _log
+                        _log.getLogger(__name__).warning(
+                            "stage08_payload_sync_failed project=%s: %s", project_id, sync_exc
+                        )
                 return ToolResult(True, data=result)
             return ToolResult(False, error=f"写入工件失败: {artifact_name}", data=result)
 
@@ -779,14 +848,23 @@ class ProjectCodeWriterTool(BaseTool):
     """将生成的代码写入项目工作区。"""
 
     name = "project_code_writer"
-    description = "将完整可运行代码保存到指定项目的编辑器工作区，确保 AI 生成的代码真实落盘"
+    description = (
+        "将完整可运行代码保存到指定项目的编辑器工作区，确保 AI 生成的代码真实落盘。"
+        "长代码请分块写入：第一次 mode=replace 写文件开头，后续 mode=append 逐块追加到同一文件，"
+        "避免单次 code 参数过大触发 token 截断"
+    )
     parameters_schema = {
         "type": "object",
         "properties": {
             "project_id": {"type": "string", "description": "项目 ID（必填）"},
-            "code": {"type": "string", "description": "完整源代码（必填）"},
+            "code": {"type": "string", "description": "源代码（必填）。mode=append 时为要追加到文件末尾的代码片段"},
             "language": {"type": "string", "description": "代码语言，如 html/python/javascript/typescript/css"},
             "filename": {"type": "string", "description": "主文件名，如 index.html 或 main.py"},
+            "mode": {
+                "type": "string",
+                "enum": ["replace", "append"],
+                "description": "写入模式：replace=整文件覆盖（默认）；append=追加到同名文件末尾（长代码分块写入，防截断）",
+            },
         },
         "required": ["project_id", "code"],
     }
@@ -796,6 +874,9 @@ class ProjectCodeWriterTool(BaseTool):
         code = str(params.get("code") or "")
         language = str(params.get("language") or "html").strip().lower() or "html"
         filename = str(params.get("filename") or "").strip() or _guess_code_filename(language)
+        mode = str(params.get("mode") or "replace").strip().lower()
+        if mode not in ("replace", "append"):
+            mode = "replace"
         if not project_id:
             return ToolResult(False, error="缺少必填参数 project_id")
         if len(code.strip()) <= 10:
@@ -883,6 +964,17 @@ class ProjectCodeWriterTool(BaseTool):
         if existing_ws and isinstance(existing_ws.get("files"), list):
             existing_files = list(existing_ws["files"])
 
+        # === append 分块模式（2026-07-30 截断治理）===
+        # 长代码单次作为工具参数传入会触发 LLM output token 上限截断（Q-023 实证）。
+        # append 模式允许 AI 把大文件拆成多次调用逐块写入：本片段拼接到同名文件末尾。
+        if mode == "append":
+            prev_entry = next((f for f in existing_files if f.get("name") == filename), None)
+            prev_content = str(prev_entry.get("content") or "") if prev_entry else ""
+            if prev_content:
+                joiner = "" if prev_content.endswith("\n") or code.startswith("\n") else "\n"
+                code = f"{prev_content}{joiner}{code}"
+            # 文件不存在时 append 退化为首次写入（不报错，方便 AI 无脑分块）
+
         # 构建新文件条目
         new_file_entry = {
             "name": filename,
@@ -926,6 +1018,119 @@ class ProjectCodeWriterTool(BaseTool):
             "files": updated_files,
             "saved_at": saved_at,
             "code_length": len(code),
+            "write_mode": mode,
+        })
+
+
+class ProjectCodeReaderTool(BaseTool):
+    """读取项目工作区已保存的代码（2026-07-30 新增）。
+
+    背景：学生汇报"按钮点击没反应"等代码问题时，AI 此前没有任何途径读回
+    工作区代码（15 个工具只有写代码的 project_code_writer），只能给泛泛建议。
+    本工具让 AI 读取学生编辑器里的真实代码，进行针对性诊断。
+    """
+
+    name = "project_code_reader"
+    description = (
+        "读取项目编辑器工作区中已保存的代码文件。学生汇报 bug/报错/功能不工作时，"
+        "必须先调用本工具读取当前代码，再基于真实代码定位问题，不要凭空猜测"
+    )
+    # 单文件内容返回上限：防止超大文件撑爆 LLM 输入上下文
+    MAX_CONTENT_CHARS = 60000
+
+    parameters_schema = {
+        "type": "object",
+        "properties": {
+            "project_id": {"type": "string", "description": "项目 ID（必填）"},
+            "filename": {
+                "type": "string",
+                "description": "要读取的文件名（可选）。不传则返回全部文件的内容与清单",
+            },
+            "list_only": {
+                "type": "boolean",
+                "description": "true 时只返回文件清单（文件名/语言/大小），不返回内容",
+            },
+        },
+        "required": ["project_id"],
+    }
+
+    async def execute(self, params: Dict[str, Any]) -> ToolResult:
+        project_id = str(params.get("project_id") or "").strip()
+        filename = str(params.get("filename") or "").strip()
+        list_only = bool(params.get("list_only"))
+        if not project_id:
+            return ToolResult(False, error="缺少必填参数 project_id")
+
+        workspace = db.get_project_workspace(project_id)
+        if workspace is None:
+            return ToolResult(False, error=f"未找到项目 {project_id}")
+
+        files: list[dict] = []
+        if isinstance(workspace.get("files"), list):
+            files = [f for f in workspace["files"] if isinstance(f, dict)]
+        # 兼容旧数据：files 为空但顶层有 code 时合成单文件条目
+        if not files and workspace.get("code"):
+            files = [{
+                "name": workspace.get("filename") or _guess_code_filename(str(workspace.get("language") or "html")),
+                "language": workspace.get("language") or "html",
+                "content": workspace.get("code") or "",
+                "is_main": True,
+            }]
+
+        if not files:
+            return ToolResult(True, data={
+                "project_id": project_id,
+                "files": [],
+                "total_files": 0,
+                "message": "工作区为空：该项目还没有保存过任何代码文件",
+            })
+
+        manifest = [{
+            "name": f.get("name"),
+            "language": f.get("language"),
+            "is_main": bool(f.get("is_main")),
+            "chars": len(str(f.get("content") or "")),
+        } for f in files]
+
+        if list_only:
+            return ToolResult(True, data={
+                "project_id": project_id,
+                "files": manifest,
+                "total_files": len(manifest),
+                "saved_at": workspace.get("saved_at"),
+            })
+
+        def _pack(entry: dict) -> dict:
+            content = str(entry.get("content") or "")
+            truncated = len(content) > self.MAX_CONTENT_CHARS
+            return {
+                "name": entry.get("name"),
+                "language": entry.get("language"),
+                "is_main": bool(entry.get("is_main")),
+                "chars": len(content),
+                "truncated": truncated,
+                "content": content[: self.MAX_CONTENT_CHARS],
+            }
+
+        if filename:
+            target = next((f for f in files if f.get("name") == filename), None)
+            if target is None:
+                return ToolResult(False, error=(
+                    f"文件 {filename} 不存在。工作区现有文件："
+                    f"{', '.join(str(m['name']) for m in manifest)}"
+                ), data={"files": manifest})
+            return ToolResult(True, data={
+                "project_id": project_id,
+                "file": _pack(target),
+                "total_files": len(manifest),
+                "saved_at": workspace.get("saved_at"),
+            })
+
+        return ToolResult(True, data={
+            "project_id": project_id,
+            "files": [_pack(f) for f in files],
+            "total_files": len(manifest),
+            "saved_at": workspace.get("saved_at"),
         })
 
 
@@ -1429,6 +1634,7 @@ TOOL_REGISTRY: Dict[str, BaseTool] = {
     "evidence_saver": EvidenceSaverTool(),
     "code_runner": CodeRunnerTool(),
     "project_code_writer": ProjectCodeWriterTool(),
+    "project_code_reader": ProjectCodeReaderTool(),
     "resource_searcher": ResourceSearcherTool(),
     "project_creator": ProjectCreatorTool(),
     "achievement_card": AchievementCardTool(),

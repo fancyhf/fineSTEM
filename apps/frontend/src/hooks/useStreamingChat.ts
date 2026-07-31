@@ -206,8 +206,28 @@ function buildOutgoingMessage(
   message: string,
   skillId: string | undefined,
   context: Record<string, unknown> | undefined,
+  history?: Array<{ role: 'user' | 'assistant'; content: string }>,
 ): string {
   const parts: string[] = [];
+
+  // 2026-07-30 Q-025 修复：注入近期对话历史。
+  // 根因：此前 payload.messages（buildStreamHistory 构造）传进了 hook 却从未发送给 daemon，
+  // AI 只靠 ZeroClaw session 记忆，而 session 不可靠（不回放上文）→ AI 失忆，记不住"已决定重写"
+  // 这种近期对话。现在把历史原文注入 <conversation_history> 块，AI 每轮都能看到上文。
+  if (Array.isArray(history) && history.length > 0) {
+    // 每条 assistant 内容若过长（含代码块）截断到 ~500 字（保留首尾），避免 context 爆炸。
+    // user 内容一般短，不截断。
+    const MAX_ASSISTANT_LEN = 500;
+    const lines = history.map((m) => {
+      const speaker = m.role === 'user' ? '学生' : '导师';
+      let c = m.content || '';
+      if (m.role === 'assistant' && c.length > MAX_ASSISTANT_LEN) {
+        c = `${c.slice(0, 200)}\n…（省略中段）…\n${c.slice(-200)}`;
+      }
+      return `[${speaker}]: ${c}`;
+    });
+    parts.push(`<conversation_history>\n${lines.join('\n')}\n</conversation_history>`);
+  }
 
   // 项目上下文（关键：让 AI 知道当前在哪个项目）
   if (context && (context.project_id || context.project_name)) {
@@ -254,6 +274,15 @@ function buildOutgoingMessage(
           `skill_state_reader（include 含 standard_step_data 和 metadata）读取已收集的学生画像` +
           `（metadata.student_profile）和各阶段工件，严禁重复问已答过的问题` +
           `（如年级、兴趣、方向、选题等）。</memory_hint>`,
+      );
+    } else if (Array.isArray(studentProfile) && studentProfile.length > 0) {
+      // 2026-07-30 失忆修复：初始化阶段（stage_00/无阶段）也要防重复问——
+      // 此前 memory_hint 只在非 stage_00 注入，初始化三轮提问中途续聊时 AI 无任何
+      // 防重复指令，会重走初始化提问流程（用户反馈的"重复问阶段初始化问题"）。
+      parts.push(
+        `<memory_hint>学生已回答过 <context> 中 student_profile 列出的问题，` +
+          `严禁重复提问这些已有答案的问题（如年级、兴趣、方向），` +
+          `请直接基于已有答案继续下一步。</memory_hint>`,
       );
     }
   }
@@ -537,10 +566,23 @@ async function _doStreamWithAutoContinue(
     let receivedSessionStart = false;
     let finishReason: string | null = null;
 
-    const totalTimeout = setTimeout(() => {
+    // 2026-07-30 Q-023 残留截断修复：totalTimeout 120s→300s 且随非终态帧重置。
+    // 根因：原 120s 从握手后一次性计时，chunk 期间从不重置（clearTimeout 只在终态帧）。
+    // 讲解式生成大段代码（多工具调用+长文本）整体响应超 120s → reject 超时 → catch 追加
+    // "[输出被截断]"。改为"自最后一个活动帧起 300s 无活动才超时"——只要流还活着就不超时。
+    // idleTimer(90s) 兜底"真卡死"的快速判定；totalTimeout(300s,随活动重置)兜底"永久挂起"。
+    const TOTAL_TIMEOUT_MS = 300000;
+    const resetTotalTimeout = () => {
+      clearTimeout(totalTimeout);
+      totalTimeout = setTimeout(() => {
+        ws.close();
+        reject(new Error('AI 响应超时，请稍后重试'));
+      }, TOTAL_TIMEOUT_MS);
+    };
+    let totalTimeout = setTimeout(() => {
       ws.close();
       reject(new Error('AI 响应超时，请稍后重试'));
-    }, 120000);
+    }, TOTAL_TIMEOUT_MS);
 
     // 2026-07-29 Q-023 修复A：chunk 间空闲超时（idleTimer）。
     // 背景：totalTimeout（120s）从握手后一次性计时，不随 chunk 重置。
@@ -617,6 +659,9 @@ async function _doStreamWithAutoContinue(
         // 终态帧（done/aborted/error）在各自分支里 clearIdleTimer，不在这里重置。
         if (idleTimer && type && type !== 'done' && type !== 'aborted' && type !== 'error') {
           resetIdleTimer();
+          // 2026-07-30 Q-023 残留截断修复：totalTimeout 也随活动帧重置，
+          // 避免大段代码生成整体超时被强制截断。
+          resetTotalTimeout();
         }
 
         // 握手阶段
@@ -641,8 +686,9 @@ async function _doStreamWithAutoContinue(
           connectedOk = true;
           clearTimeout(handshakeTimeout);
           // 握手完成，发出第一条用户消息
-          // 通过 buildOutgoingMessage 把项目上下文注入消息文本（替代被删的 cwd 字段）
-          const outgoing = buildOutgoingMessage(payload.message, payload.skillId, payload.context);
+          // 通过 buildOutgoingMessage 把项目上下文 + 近期对话历史注入消息文本（替代被删的 cwd 字段）
+          // Q-025：传入 payload.messages 让 AI 看到上文，避免失忆
+          const outgoing = buildOutgoingMessage(payload.message, payload.skillId, payload.context, payload.messages);
           ws.send(JSON.stringify({
             type: 'message',
             content: outgoing,
@@ -679,6 +725,10 @@ async function _doStreamWithAutoContinue(
             // 2026-07-22 实证修复：ZeroClaw 工具名带 finestem__ 前缀，
             // 必须归一化成短名（ask_question / project_creator 等）才能匹配后续判断。
             const toolName = normalizeToolName(data.name);
+            // 2026-07-30 可观测性：每个工具调用打一条控制台日志。此前前端不打印
+            // 工具名，E2E 脚本靠匹配控制台文本断言"AI 调用了 project_code_reader"
+            // 永远捕不到（2026-07-30 实测报告 A1.7/TC-07 假阴性根因）。
+            console.info('[tool_call]', toolName);
             events?.onToolCall?.({
               tool_name: toolName,
               success: true,
@@ -726,6 +776,8 @@ async function _doStreamWithAutoContinue(
             const parsed = parseMcpOutput(data.output);
             const success = parsed.success;
             const outData = parsed.data;
+            // 2026-07-30 可观测性：与 tool_call 对称，结果也打日志（含成败）
+            console.info('[tool_result]', toolName, success ? 'ok' : 'failed');
             events?.onToolCall?.({
               tool_name: toolName,
               success,
@@ -1052,10 +1104,53 @@ async function _doStreamWithAutoContinue(
 
         if (type === 'error') {
           clearTimeout(totalTimeout);
-          clearIdleTimer();  // Q-023 修复A
-          streamLogger.logError(data.message || 'ZeroClaw 错误', 'websocket_error');
+          clearIdleTimer();  // Q-023 修复 A
+          const errMsg = typeof data.message === 'string' ? data.message : 'ZeroClaw 错误';
+          streamLogger.logError(errMsg, 'websocket_error');
           ws.close();
-          reject(new Error(typeof data.message === 'string' ? data.message : 'ZeroClaw 错误'));
+          // 2026-07-30 截断治理：daemon 的 "Invalid JSON: unexpected end of hex escape" 类错误
+          // 是工具调用 JSON 参数被 token 上限切在 unicode 转义中间后，daemon 解析失败报的错
+          // （与截断同源，闭源不可修）。此前这里无条件 reject → catch 把整条消息替换成
+          // “请求失败：Invalid JSON...”，已生成的内容全丢。
+          // 现在：只要本轮已有内容，就保留内容并 resolve({stalled:true})，让上层显示
+          // “继续生成”按钮，用户可接着写；只有完全没内容时才 reject 报错。
+          if (fullContent.trim().length > 0) {
+            console.warn('[useStreamingChat] daemon error 帧但已有内容，保留内容走续接路径:', errMsg, {
+              contentLength: fullContent.length,
+            });
+            resolve({ content: fullContent, sessionId, stalled: true });
+          } else if (
+            /invalid json|unexpected end/i.test(errMsg) &&
+            AUTO_CONTINUE_CONFIG.enableAutoContinue &&
+            continueAttempt < AUTO_CONTINUE_CONFIG.maxAttempts
+          ) {
+            // 2026-07-30 截断治理二期：无内容时的 Invalid JSON——AI 本轮第一步就发了超长
+            // 工具调用（如 project_code_writer 带整段代码），JSON 参数被 token 上限切在
+            // 转义符中间，daemon 解析失败。此前直接 reject → 气泡只剩"请求失败"，用户手动
+            // 发"继续"后 AI 原样重发超长调用，再次撞墙（项目 8a7c155e 实测：连续 3 条
+            // Invalid JSON 气泡）。现在同一 session 自动重试，并在重试消息里运行时纠偏
+            // （复述 ≤300 行分块规则），让 AI 改用分块写入而不是原样重发。
+            console.warn(`[useStreamingChat] Invalid JSON 且无内容，自动重试并纠偏 (${continueAttempt + 1}/${AUTO_CONTINUE_CONFIG.maxAttempts}):`, errMsg);
+            streamLogger.log('invalid_json_auto_retry', { attempt: continueAttempt + 1, errMsg });
+            try { events?.onAutoContinue?.({ attempt: continueAttempt + 1, maxAttempts: AUTO_CONTINUE_CONFIG.maxAttempts, status: 'started' }); } catch (e) { console.error(e); }
+            const retryPayload: StreamPayload = {
+              ...payload,
+              message: '刚才你的工具调用参数太长，被输出上限截断，系统报了 Invalid JSON 错误，那次调用没有生效。请重新执行刚才的操作，并严格遵守：project_code_writer 单次 code 参数不超过 300 行；更长的代码拆成多块——第一块 mode="replace"，后续每块 mode="append"（同一 filename），在完整语句边界处断开。现在先写第一块。',
+              messages: undefined,
+              sessionId,
+            };
+            _doStreamWithAutoContinue(retryPayload, onToken, events, token, agent, baseUrl, sessionId, continueAttempt + 1, accumulatedContent)
+              .then((result) => {
+                try { events?.onAutoContinue?.({ attempt: continueAttempt + 1, maxAttempts: AUTO_CONTINUE_CONFIG.maxAttempts, status: 'completed' }); } catch (e) { console.error(e); }
+                resolve(result);
+              })
+              .catch((retryErr) => {
+                try { events?.onAutoContinue?.({ attempt: continueAttempt + 1, maxAttempts: AUTO_CONTINUE_CONFIG.maxAttempts, status: 'failed' }); } catch (e) { console.error(e); }
+                reject(retryErr instanceof Error ? retryErr : new Error(errMsg));
+              });
+          } else {
+            reject(new Error(errMsg));
+          }
           return;
         }
 

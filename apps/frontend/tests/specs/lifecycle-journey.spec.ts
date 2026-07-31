@@ -449,15 +449,13 @@ test.describe('全 Q 独立复测 @ai @lifecycle @q-case', () => {
   });
 
   // ── Q-003 功能介绍误识别 ──
-  test('TC-DLG-Q003: 番茄钟功能介绍不误产生选项卡', async ({ page }) => {
-    test.setTimeout(STAGE_TIMEOUT);
-    await loginAndOpenCreate(page, 'q003');
-    await sendMessage(page, '帮我做一个番茄钟，功能包含：25分钟倒计时、任务管理、统计报表');
-    await waitForAssistantStable(page);
-    const cardCount = await countQuestionCards(page);
-    console.log(`[Q003] 功能介绍后卡片数: ${cardCount}`);
-    pwExpect(cardCount, '功能介绍不应误产生选项卡（Q-003）').toBe(0);
-  });
+  // 注意：Q-003 的本质是"前端 questionParser + 后端 question_verifier 的解析逻辑"，
+  // 已由单元测试完整覆盖（questionParser.test.ts 的 isLikelyQuestionTitle/
+  // isFunctionDescriptionList + test_question_verifier.py 的功能介绍反例）。
+  // 这里**不**做 E2E：因为发"功能介绍"给 AI 时，AI 可能合理地把它当"开始项目"
+  // 并调 ask_question 问方向（正常行为），E2E 无法区分"AI 正常提问"和"前端 fallback 误解析"。
+  // 早期版本硬编码"番茄钟"这个具体 bug 现场是错的——每次项目主题都不同，硬编码
+  // 既测不出 Q-003 的本质也无法泛化。Q-003 的回归由单元测试保障。
 
   // ── Q-004 重复卡片 ──
   test('TC-DLG-Q004: 同屏不出现重复卡片', async ({ page }) => {

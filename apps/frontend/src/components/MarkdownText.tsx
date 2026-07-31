@@ -24,7 +24,7 @@ function isProjectPath(text: string): boolean {
   );
 }
 
-function splitInline(text: string, projectId?: string | null): React.ReactNode[] {
+function splitInline(text: string, projectId?: string | null, onOpenFile?: (path: string) => void): React.ReactNode[] {
   const result: React.ReactNode[] = [];
   const pattern = /(`[^`]+`|\*\*[^*]+\*\*)/g;
   let lastIndex = 0;
@@ -40,16 +40,37 @@ function splitInline(text: string, projectId?: string | null): React.ReactNode[]
     } else if (token.startsWith('`')) {
       const inlineCode = token.slice(1, -1);
       if (projectId && isProjectPath(inlineCode)) {
+        const fileHref = `/create?project=${projectId}&file=${encodeURIComponent(inlineCode)}`;
+        // 2026-07-30 修复：有 onOpenFile 时不再路由跳转（避免打断当前会话/回到项目主页），
+        // 普通点击在右侧编辑区直接打开；Ctrl/Cmd/中键点击保留浏览器默认行为 → 新页签打开。
+        if (onOpenFile) {
+          result.push(
+            <a
+              key={`code-link-${match.index}`}
+              href={fileHref}
+              onClick={(e) => {
+                if (e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0) return;
+                e.preventDefault();
+                onOpenFile(inlineCode);
+              }}
+              className="px-1 py-0.5 rounded bg-teal-50 text-teal-700 underline decoration-teal-300 underline-offset-2 hover:bg-teal-100"
+              title="在右侧代码编辑区打开（Ctrl+点击新页签打开）"
+            >
+              {inlineCode}
+            </a>
+          );
+        } else {
         result.push(
           <Link
             key={`code-link-${match.index}`}
-            to={`/create?project=${projectId}&file=${encodeURIComponent(inlineCode)}`}
+            to={fileHref}
             className="px-1 py-0.5 rounded bg-teal-50 text-teal-700 underline decoration-teal-300 underline-offset-2 hover:bg-teal-100"
             title="在代码编辑器中打开此文件"
           >
             {inlineCode}
           </Link>
         );
+        }
       } else {
       result.push(
         <code key={`code-${match.index}`} className="px-1 py-0.5 rounded bg-gray-100 text-pink-700">
@@ -125,7 +146,7 @@ function highlightCodeLine(line: string, lang: string): React.ReactNode {
 // 2026-07-30 性能修复：流式渲染时，历史消息的 MarkdownText 不应随每帧重解析。
 // 加 React.memo：content/projectId 不变则跳过重渲染。流式中只有"当前那条"消息的
 // content 每帧变化，其余历史消息保持稳定的 props 引用，被 memo 拦截。
-function MarkdownTextImpl({ content, projectId }: { content: string; projectId?: string | null }) {
+function MarkdownTextImpl({ content, projectId, onOpenFile }: { content: string; projectId?: string | null; onOpenFile?: (path: string) => void }) {
   const lines = content.split('\n');
   const nodes: React.ReactNode[] = [];
   let inCodeBlock = false;
@@ -145,7 +166,7 @@ function MarkdownTextImpl({ content, projectId }: { content: string; projectId?:
             <tr className="border-b-2 border-gray-300">
               {tableHeader.map((cell, ci) => (
                 <th key={ci} className={`px-3 py-1.5 font-semibold text-gray-800 ${tableAlign[ci] === 'center' ? 'text-center' : tableAlign[ci] === 'right' ? 'text-right' : 'text-left'}`}>
-                  {splitInline(cell.trim(), projectId)}
+                  {splitInline(cell.trim(), projectId, onOpenFile)}
                 </th>
               ))}
             </tr>
@@ -155,7 +176,7 @@ function MarkdownTextImpl({ content, projectId }: { content: string; projectId?:
               <tr key={ri} className="border-b border-gray-200">
                 {row.map((cell, ci) => (
                   <td key={ci} className={`px-3 py-1.5 text-gray-700 ${tableAlign[ci] === 'center' ? 'text-center' : tableAlign[ci] === 'right' ? 'text-right' : 'text-left'}`}>
-                    {splitInline(cell.trim(), projectId)}
+                    {splitInline(cell.trim(), projectId, onOpenFile)}
                   </td>
                 ))}
               </tr>
@@ -267,14 +288,14 @@ function MarkdownTextImpl({ content, projectId }: { content: string; projectId?:
       return;
     }
     if (line.startsWith('- ')) {
-      nodes.push(<p key={`li-${idx}`}>• {splitInline(line.slice(2), projectId)}</p>);
+      nodes.push(<p key={`li-${idx}`}>• {splitInline(line.slice(2), projectId, onOpenFile)}</p>);
       return;
     }
     if (line.trim() === '') {
       nodes.push(<div key={`sp-${idx}`} className="h-2" />);
       return;
     }
-    nodes.push(<p key={`p-${idx}`}>{splitInline(line, projectId)}</p>);
+    nodes.push(<p key={`p-${idx}`}>{splitInline(line, projectId, onOpenFile)}</p>);
   });
 
   // flush 末尾未完成的表格

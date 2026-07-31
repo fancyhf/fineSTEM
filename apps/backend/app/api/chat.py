@@ -6,13 +6,14 @@ AI 对话兼容 API 路由
 """
 
 from typing import Any, Dict, List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 from pydantic import BaseModel, Field
 from app.api.auth import get_optional_current_user
 from app.schemas.agent import AgentChatRequest
 from app.schemas.auth import UserResponse
 from app.schemas.common import ApiResponse
 from app.services.orchestrator import agent_orchestrator_service
+from app.services.providers.image_provider import describe_chat_image
 from app.services.question_verifier import verify_question_payload
 
 router = APIRouter(prefix="/chat", tags=["AI 对话"])
@@ -111,4 +112,55 @@ async def verify_question(
             reason=result["reason"],
         ),
         message="确认完成",
+    )
+
+
+# ===== 2026-07-30 聊天发图：截图/图片 → GLM-4V 视觉识别 → 文字描述 =====
+
+_ALLOWED_IMAGE_TYPES = {"image/png", "image/jpeg", "image/webp", "image/gif"}
+_MAX_IMAGE_BYTES = 5 * 1024 * 1024  # 5MB
+
+
+class DescribeImageResponse(BaseModel):
+    description: str = Field(..., description="图片的文字描述（代码/报错会被逐字转录）")
+
+
+@router.post("/describe-image", response_model=ApiResponse[DescribeImageResponse])
+async def describe_image(
+    file: UploadFile = File(...),
+    current_user: Optional[UserResponse] = Depends(get_optional_current_user),
+):
+    """
+    识别学生在聊天框发送的截图/图片。
+
+    主对话模型（DeepSeek）不支持视觉，前端先调本接口用 GLM-4V 把图片
+    转成文字描述（报错/代码逐字转录），再把描述拼进发给 AI 的消息。
+    鉴权与 /chat/completions 一致（支持匿名）。
+    """
+    content_type = (file.content_type or "").lower()
+    if content_type not in _ALLOWED_IMAGE_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"不支持的图片格式: {content_type or '未知'}，仅支持 png/jpeg/webp/gif",
+        )
+
+    image_bytes = await file.read()
+    if not image_bytes:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="图片内容为空")
+    if len(image_bytes) > _MAX_IMAGE_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="图片超过 5MB，请压缩后重试",
+        )
+
+    description = await describe_chat_image(image_bytes, content_type)
+    if not description:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="图片识别服务暂不可用，请稍后重试或直接用文字描述问题",
+        )
+
+    return ApiResponse(
+        data=DescribeImageResponse(description=description),
+        message="识别成功",
     )

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { MessageSquare, Code, Rocket, FileText, ChevronUp, Paperclip, Link2, FolderOpen, Plus, Sparkles, User, Zap, Play, Copy, Check, ArrowRight, BookOpen, PanelLeftClose, PanelLeftOpen, Terminal, Eye, Pencil, MoreHorizontal, Maximize2, PanelLeft, Loader2 } from 'lucide-react';
+import { MessageSquare, Code, Rocket, FileText, ChevronUp, Paperclip, Link2, FolderOpen, Plus, Sparkles, User, Zap, Play, Copy, Check, ArrowRight, BookOpen, PanelLeftClose, PanelLeftOpen, Terminal, Eye, Pencil, MoreHorizontal, Maximize2, PanelLeft, Loader2, X } from 'lucide-react';
 import { ContinueButton } from '../components/ContinueButton';
 import { Card } from '../components/ui/Card';
 import { CodeGeneratedEvent, useStreamingChat } from '../hooks/useStreamingChat';
@@ -13,7 +13,7 @@ import { CodeEditor } from '../components/CodeEditor';
 import { ProjectFilesPanel } from '../components/ProjectFilesPanel';
 import { QuestionCard, QuestionData } from '../components/QuestionCard';
 import { useAuth } from '../contexts/AuthContext';
-import { projectsApi, codeExecutionApi } from '../services/api';
+import { projectsApi, codeExecutionApi, authStorage, chatApi } from '../services/api';
 import { ProjectWorkspaceResponse, FileEntry } from '../types';
 import { streamLogger } from '../lib/streamLogger';
 
@@ -30,6 +30,8 @@ interface Message {
   thinking?: string;
   /** 续接累计字符数（用于"正在自动续接..."提示） */
   continueStatus?: 'continuing' | 'failed';
+  /** 2026-07-30 聊天发图：用户消息附带的图片缩略图（dataURL，仅展示用，不持久化） */
+  images?: string[];
 }
 
 function buildStreamHistory(messages: Message[]): Array<{ role: 'user' | 'assistant'; content: string }> {
@@ -569,12 +571,14 @@ const EnhancedMarkdownText = React.memo(function EnhancedMarkdownText({
   projectId,
   onWriteCode,
   onRunCode,
+  onOpenFile,
 }: {
   content: string;
   isCurrentQuestion?: boolean;
   projectId?: string | null;
   onWriteCode: (code: string, lang: string) => void;
   onRunCode: (code: string, lang: string) => void;
+  onOpenFile?: (path: string) => void;
 }) {
   // 历史消息（非当前问题）：彻底删除所有 option 标签，避免已答问题在历史消息中显示
   const displayContent = isCurrentQuestion ? content : cleanHistoricalAssistantContent(content);
@@ -584,13 +588,13 @@ const EnhancedMarkdownText = React.memo(function EnhancedMarkdownText({
   let match;
   let key = 0;
   while ((match = codeBlockRegex.exec(displayContent)) !== null) {
-    if (match.index > lastIndex) parts.push(<MarkdownText key={key++} content={displayContent.slice(lastIndex, match.index)} projectId={projectId} />);
+    if (match.index > lastIndex) parts.push(<MarkdownText key={key++} content={displayContent.slice(lastIndex, match.index)} projectId={projectId} onOpenFile={onOpenFile} />);
     const language = match[1] || 'text';
     const code = match[2].trim();
     parts.push(<CodeBlock key={key++} code={code} language={language} onWriteToEditor={() => onWriteCode(code, language)} onRun={() => onRunCode(code, language)} />);
     lastIndex = match.index + match[0].length;
   }
-  if (lastIndex < displayContent.length) parts.push(<MarkdownText key={key++} content={displayContent.slice(lastIndex)} projectId={projectId} />);
+  if (lastIndex < displayContent.length) parts.push(<MarkdownText key={key++} content={displayContent.slice(lastIndex)} projectId={projectId} onOpenFile={onOpenFile} />);
   return <>{parts}</>;
 });
 
@@ -609,12 +613,14 @@ const MessageItem = React.memo(function MessageItem({
   projectId,
   onWriteCode,
   onRunCode,
+  onOpenFile,
 }: {
   msg: Message;
   isCurrentQuestion: boolean;
   projectId?: string | null;
   onWriteCode: (code: string, lang: string) => void;
   onRunCode: (code: string, lang: string) => void;
+  onOpenFile?: (path: string) => void;
 }) {
   return (
     <div data-testid={`message-${msg.role}`} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
@@ -645,6 +651,7 @@ const MessageItem = React.memo(function MessageItem({
               projectId={projectId}
               onWriteCode={onWriteCode}
               onRunCode={onRunCode}
+              onOpenFile={onOpenFile}
             />
             {msg.continueStatus === 'continuing' && (
               <div className="mt-1.5 text-[11px] text-teal-600 flex items-center gap-1">
@@ -658,7 +665,23 @@ const MessageItem = React.memo(function MessageItem({
             )}
           </>
         ) : (
-          <div className="text-sm whitespace-pre-wrap">{msg.content}</div>
+          <div>
+            {/* 2026-07-30 聊天发图：用户消息里的图片缩略图 */}
+            {msg.images && msg.images.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-1.5">
+                {msg.images.map((src, idx) => (
+                  <img
+                    key={idx}
+                    src={src}
+                    alt={`附图 ${idx + 1}`}
+                    className="max-w-[180px] max-h-[140px] rounded-lg border border-teal-400/40 object-cover cursor-zoom-in"
+                    onClick={() => window.open(src, '_blank')}
+                  />
+                ))}
+              </div>
+            )}
+            <div className="text-sm whitespace-pre-wrap">{msg.content}</div>
+          </div>
         )}
       </div>
     </div>
@@ -865,6 +888,10 @@ export function Create() {
   // 读取，避免闭包捕获陈旧值。每次 messages 变化时由下方 useEffect 同步。
   const messagesRef = useRef<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
+  // 2026-07-30 聊天发图：待发送的图片（附件按钮/粘贴截图添加，发送时走视觉识别）
+  const [pendingImages, setPendingImages] = useState<{ id: string; file: File; previewUrl: string }[]>([]);
+  const [isAnalyzingImages, setIsAnalyzingImages] = useState(false);
+  const imageInputRef = useRef<HTMLInputElement>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [activeScene, setActiveScene] = useState<string | null>(null);
   const [showChatHistory, setShowChatHistory] = useState(false);
@@ -1019,6 +1046,43 @@ const [runResultBlobUrl, setRunResultBlobUrl] = useState<string | null>(null); /
     projectsApi.saveChatHistory(pid, { messages: msgs }).catch((error) => {
       console.error('[autosave:chat] saveChatNow 保存失败:', error);
     });
+  }, [projectContext.projectId]);
+
+  /**
+   * 页面卸载时用 fetch keepalive 保存对话（2026-07-30 Q-016 修复）。
+   *
+   * 根因（生命周期测试 R2 实证）：页面卸载（刷新/关闭/跳转）时调 saveChatNow（普通 fetch），
+   * 浏览器会取消未完成的 fetch → `TypeError: Failed to fetch` → 对话不落库 → 刷新后全丢。
+   *
+   * 修复：用 `fetch(url, { keepalive: true })`——这是现代浏览器专为"页面卸载时可靠发送"
+   * 设计的机制（等价于 sendBeacon，但支持自定义 header，所以能带 Authorization）。
+   * sendBeacon 无法设置 header（不带 token 会被后端 401 拒绝），故选 fetch keepalive。
+   * keepalive 请求体积上限 64KB，超长对话会被截断——对教学场景（几十轮）足够；
+   * 超长时降级为普通 saveChatNow（尽力而为）。
+   */
+  const saveChatBeacon = useCallback((projectId?: string) => {
+    const pid = projectId || projectContext.projectId;
+    if (!pid || pid.startsWith('local-')) return;
+    const msgs = messagesRef.current;
+    if (!msgs || msgs.length === 0) return;
+    const apiBase = import.meta.env.VITE_API_URL || '/api/v1';
+    const url = `${apiBase}/projects/${pid}/chat`;
+    const body = JSON.stringify({ messages: msgs });
+    // keepalive body 上限 ~64KB；超长降级普通 fetch（页面若还没卸载仍可能成功）
+    const useKeepalive = body.length < 60000;
+    try {
+      fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(authStorage.getToken() ? { Authorization: `Bearer ${authStorage.getToken()}` } : {}),
+        },
+        body,
+        keepalive: useKeepalive,
+      }).catch((e) => console.error('[autosave:chat] keepalive 保存失败', e));
+    } catch (e) {
+      console.error('[autosave:chat] keepalive fetch 异常', e);
+    }
   }, [projectContext.projectId]);
 
   const buildWorkspaceSavePayload = useCallback((code: string, language: string, fileName: string) => {
@@ -1220,7 +1284,26 @@ const [runResultBlobUrl, setRunResultBlobUrl] = useState<string | null>(null); /
   useEffect(() => {
     if (restoreRef.current) return;
     const restore = sessionStorage.getItem('finestem_restore_project');
-    if (!restore) return;
+    if (!restore) {
+      // 2026-07-30 F5 刷新兜底恢复：finestem_restore_project 是读一次即删的跳转数据，
+      // F5 后 React 状态全丢且无任何恢复入口，用户继续发消息会被当作新项目重新建项
+      // （MOCK_USER 2026-07-30 实测复现：刷新后"继续完善"新建了第二个项目）。
+      // 用本页签记录的活跃项目 ID 重拉 workspace 恢复对话与代码。
+      const activePid = sessionStorage.getItem('finestem_active_project_id');
+      if (!activePid) return;
+      restoreRef.current = true;
+      projectsApi.getWorkspace(activePid)
+        .then((res) => {
+          if (res.data) {
+            applyWorkspaceRestore(res.data);
+            console.log('[restore] F5 刷新后通过活跃项目 ID 恢复:', activePid);
+          }
+        })
+        .catch((error) => {
+          console.warn('[restore] F5 刷新恢复失败，按新会话处理:', error);
+        });
+      return;
+    }
     restoreRef.current = true;
     sessionStorage.removeItem('finestem_restore_project');
     try {
@@ -1268,6 +1351,14 @@ const [runResultBlobUrl, setRunResultBlobUrl] = useState<string | null>(null); /
       console.error('[restore] 恢复失败:', e);
     }
   }, [applyWorkspaceRestore]);
+
+  // 2026-07-30 F5 刷新恢复：活跃项目 ID 写入 sessionStorage（仅本页签，新页签仍是新会话）
+  useEffect(() => {
+    const pid = projectContext.projectId;
+    if (pid && !pid.startsWith('local-')) {
+      sessionStorage.setItem('finestem_active_project_id', pid);
+    }
+  }, [projectContext.projectId]);
 
   useEffect(() => { const q = searchParams.get('q'); if (q && messages.length === 0) handleSendRef.current?.(q); }, [messages.length, searchParams]);
 
@@ -1393,23 +1484,27 @@ const [runResultBlobUrl, setRunResultBlobUrl] = useState<string | null>(null); /
     return () => { if (chatSaveTimerRef.current) clearTimeout(chatSaveTimerRef.current); };
   }, [consumeRestoreAutosaveGuard, messages, projectContext.projectId]);
 
-  // 2026-07-28 对话丢失修复：页面离开/隐藏时强制保存对话。
+  // 2026-07-28 对话丢失修复 + 2026-07-30 Q-016 修复：页面离开/隐藏时强制保存对话。
   // 用户刷新、切标签页、最小化窗口时，防抖定时器（3s）可能还没触发就丢失。
-  // 监听 visibilitychange（切后台/最小化/切标签，最高频丢失场景）和 pagehide（卸载），
-  // 用 saveChatNow（走正常 fetch + token）立即保存。
+  // - visibilitychange（切后台/最小化/切标签，页面未卸载）：用 saveChatNow（普通 fetch，可重试）
+  // - pagehide（页面卸载/刷新/关闭）：用 saveChatBeacon（fetch keepalive，浏览器保证导航后仍完成）。
+  //   原来统一用 saveChatNow，但页面卸载时普通 fetch 被取消（TypeError: Failed to fetch）→ 对话丢。
   useEffect(() => {
-    const handleLeave = () => {
+    const handleVisibility = () => {
       if (document.visibilityState !== 'visible') {
         saveChatNow();
       }
     };
-    document.addEventListener('visibilitychange', handleLeave);
-    window.addEventListener('pagehide', handleLeave);
-    return () => {
-      document.removeEventListener('visibilitychange', handleLeave);
-      window.removeEventListener('pagehide', handleLeave);
+    const handlePageHide = () => {
+      saveChatBeacon();
     };
-  }, [projectContext.projectId, saveChatNow]);
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('pagehide', handlePageHide);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('pagehide', handlePageHide);
+    };
+  }, [projectContext.projectId, saveChatNow, saveChatBeacon]);
 
   const ensureActiveProjectForAdvance = useCallback(async () => {
     if (projectContext.projectId && !projectContext.projectId.startsWith('local-')) {
@@ -1565,6 +1660,8 @@ const [runResultBlobUrl, setRunResultBlobUrl] = useState<string | null>(null); /
 
   const handleStartNewProject = useCallback(() => {
     projectCreatingRef.current = false;
+    // 主动新建项目：清掉 F5 恢复用的活跃项目 ID，避免刷新后又回到旧项目
+    sessionStorage.removeItem('finestem_active_project_id');
     setProjectContext({
       projectId: null,
       projectName: '',
@@ -1954,6 +2051,28 @@ const handleWriteCodeToEditor = useCallback((code: string, language: string) => 
     setEditorTab('code');
   }, [activeFileName, editorCode, editorLanguage]);
 
+  /**
+   * 2026-07-30：AI 回复里的文件链接点击 → 直接在右侧编辑区打开（不路由跳转，
+   * 避免回到项目主页/丢失当前会话）。同时展开文件树面板让学生看到文件位置；
+   * 工作区找不到该文件时兜底新页签打开。
+   */
+  const openFileFromChatLink = useCallback((path: string) => {
+    const target = decodeURIComponent(path).trim();
+    const matched = projectFiles.find(
+      (f) => f.name === target || f.name.endsWith('/' + target) || f.name.endsWith(target),
+    );
+    if (matched) {
+      handleSelectFile(matched);
+      setShowEditor(true);
+      setShowFilesPanel(true);
+      return;
+    }
+    console.warn('[chat-link] 工作区未找到文件，新页签打开兜底:', target);
+    if (projectContext.projectId) {
+      window.open(`/create?project=${projectContext.projectId}&file=${encodeURIComponent(target)}`, '_blank');
+    }
+  }, [projectFiles, handleSelectFile, projectContext.projectId]);
+
   /** 导出项目 ZIP */
   const handleExportZip = useCallback(async () => {
     if (!projectContext.projectId) return;
@@ -2251,6 +2370,10 @@ const handleSend = async (
         context?: Record<string, unknown>;
         suppressQuestionCard?: boolean;
         isContinue?: boolean;
+        /** 2026-07-30 聊天发图：气泡展示用短文本（完整识别结果只发给 AI，不污染 UI） */
+        displayContent?: string;
+        /** 2026-07-30 聊天发图：气泡展示的图片缩略图 dataURL */
+        displayImages?: string[];
       },
     ) => {
       const message = (text || inputValue).trim();
@@ -2311,16 +2434,21 @@ const handleSend = async (
 
     // 2026-07-23 Q-005 修复：注入已收集的学生回答（具体值），防止 AI 重复问
     // 用 studentProfileRef（title → labels）注入具体答案，让 AI 直接读到"年级=初中"等
-    // 2026-07-23 Q-005+: 限制最近 5 条，防止 context 过长导致 AI 混乱
+    // 2026-07-30 失忆修复：原 slice(-5) 只保留最近 5 条——初始化/脔爆阶段问题一多，
+    // 最早的年级/兴趣答案就滑出 context，AI 拿不到又重复问（用户反馈的"重复问
+    // 阶段初始化问题"正是这个窗口效应）。画像条目本身很短（"标题=答案"），
+    // 全量注入不会撑爆 context，仅设 20 条硬上限防极端情况。
     const studentProfile = studentProfileRef.current;
     if (studentProfile.size > 0) {
-      // Map 保持插入顺序，取最后 5 条（最近的回答）
+      // Map 保持插入顺序，全量注入（最多 20 条，超出时保留最早 10 条 + 最近 10 条）
       const allEntries: string[] = [];
       studentProfile.forEach((labels, title) => {
         const shortTitle = title.length > 15 ? title.slice(0, 15) + '...' : title;
         allEntries.push(`${shortTitle} = ${labels.join('/')}`);
       });
-      const profileEntries = allEntries.slice(-5);  // 最近 5 条
+      const profileEntries = allEntries.length <= 20
+        ? allEntries
+        : [...allEntries.slice(0, 10), ...allEntries.slice(-10)];
       effectiveContext.student_profile = profileEntries;
     }
     // 与 stem-pbl-guide Skill 状态机严格对齐：仅 stage_05_design / stage_07_execute / stage_08_evaluate 允许代码生成。
@@ -2395,7 +2523,12 @@ const handleSend = async (
     // 也不清空 question 流。续接只是延续最后一条 assistant 消息。
     const isContinueRequest = requestOverrides?.isContinue === true;
     if (!isContinueRequest) {
-      const userMsg: Message = { id: nextMessageId(), role: 'user', content: message };
+      const userMsg: Message = {
+        id: nextMessageId(),
+        role: 'user',
+        content: requestOverrides?.displayContent ?? message,
+        images: requestOverrides?.displayImages,
+      };
       setMessages((prev) => [...prev, userMsg]);
     }
     setInputValue('');
@@ -3015,6 +3148,11 @@ let rawAssistantContent = '';
       const isTimeoutError = !isDaemonDown && (errMsg.includes('超时') || errMsg.includes('timeout') || errMsg.includes('aborted'));
       const isConnectionError = !isDaemonDown && (errMsg.includes('连接') || errMsg.includes('connection') || errMsg.includes('closed'));
 
+      // 2026-07-30 截断治理二期：Invalid JSON（工具调用参数被 token 上限截断）自动重试耗尽后
+      // 才会走到这里。原始报错对学生太吓人，换成可行动的友好提示 + "继续生成"按钮。
+      // 同时修复历史遗留 bug：这里原来有两个连续的 setMessages，第二个没有 isDaemonDown
+      // 分支，会把第一个写入的"AI 导师暂时离线"友好提示覆盖回"请求失败"，现已合并。
+      const isToolJsonError = !isDaemonDown && /invalid json|unexpected end/i.test(errMsg);
       setMessages((prev) => {
         const copy = [...prev];
         const last = copy[copy.length - 1];
@@ -3022,6 +3160,8 @@ let rawAssistantContent = '';
           if (isDaemonDown) {
             // daemon 挂了：友好提示，不吓到学生
             last.content = '🔌 AI 导师暂时离线了。请稍等片刻再试，或刷新页面。如果问题持续，请联系老师。';
+          } else if (isToolJsonError) {
+            last.content = '⚠️ AI 这次写的代码太长，传输时被截断了（已自动重试仍未成功）。请点击下方"继续生成"，AI 会改用分块方式重写。';
           } else if (isTimeoutError || isConnectionError) {
             last.content = `${assistantContent}\n\n[输出被截断，请点击下方"继续生成"按钮]`;
           } else {
@@ -3031,23 +3171,8 @@ let rawAssistantContent = '';
         return copy;
       });
 
-      // daemon 挂了不显示继续按钮；超时/连接错误才显示
-      
-      setMessages((prev) => {
-        const copy = [...prev];
-        const last = copy[copy.length - 1];
-        if (last && last.role === 'assistant') {
-          if (isTimeoutError || isConnectionError) {
-            last.content = `${assistantContent}\n\n[输出被截断，请点击下方"继续生成"按钮]`;
-          } else {
-            last.content = `请求失败：${errMsg}`;
-          }
-        }
-        return copy;
-      });
-      
-      // 如果是超时或连接错误，显示继续按钮
-      if (isTimeoutError || isConnectionError) {
+      // 超时/连接错误/工具 JSON 截断：显示继续按钮（daemon 挂了不显示，点了也没用）
+      if (isTimeoutError || isConnectionError || isToolJsonError) {
         setShowContinueButton(true);
       }
     } finally {
@@ -3122,8 +3247,93 @@ let rawAssistantContent = '';
     return () => window.removeEventListener('message', onMessage);
   }, []);
 
+  // 2026-07-30 聊天发图：把文件加入待发列表（Paperclip 选择 / Ctrl+V 粘贴共用）
+  const addPendingImages = (files: File[]) => {
+    const accepted = files.filter((f) => f.type.startsWith('image/'));
+    if (accepted.length === 0) return;
+    setPendingImages((prev) => [
+      ...prev,
+      ...accepted.map((file) => ({
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        file,
+        previewUrl: URL.createObjectURL(file),
+      })),
+    ]);
+  };
+
+  const removePendingImage = (id: string) => {
+    setPendingImages((prev) => {
+      const target = prev.find((img) => img.id === id);
+      if (target) URL.revokeObjectURL(target.previewUrl);
+      return prev.filter((img) => img.id !== id);
+    });
+  };
+
+  // 2026-07-30 聊天发图：统一发送入口。无图片直接走 handleSend；
+  // 有图片时先逐张调后端 GLM-4V 识别成文字，拼进发给 AI 的消息（主模型 DeepSeek 无视觉能力），
+  // 气泡里只展示用户原话 + 缩略图，不展示冗长的识别文本。
+  const submitChatInput = async () => {
+    if (isLoading || isAnalyzingImages) return;
+    const text = inputValue.trim();
+    if (pendingImages.length === 0) {
+      if (text || showChatHistory) handleSend();
+      return;
+    }
+    const images = pendingImages;
+    setIsAnalyzingImages(true);
+    try {
+      const descriptions: string[] = [];
+      for (const img of images) {
+        try {
+          const res = await chatApi.describeImage(img.file);
+          descriptions.push(res.data?.description || '（识别结果为空）');
+        } catch (err) {
+          console.error('[chat-image] 截图识别失败:', err);
+          descriptions.push('（图片识别服务暂不可用，本张截图未能识别）');
+        }
+      }
+      // 转 dataURL 供气泡展示（blob URL 在部分场景会提前失效）
+      const displayImages = await Promise.all(images.map((img) => new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || img.previewUrl));
+        reader.onerror = () => resolve(img.previewUrl);
+        reader.readAsDataURL(img.file);
+      })));
+      const sections = descriptions.map((desc, idx) => `【截图 ${idx + 1} 识别内容】
+${desc}`);
+      const combined = [
+        text || '请帮我看看下面截图里的问题。',
+        '（以下是我发送的截图经视觉模型识别出的文字内容，请据此帮我诊断和回答）',
+        ...sections,
+      ].join(`
+
+`);
+      const displayContent = text ? `${text}
+[附 ${images.length} 张截图]` : `[附 ${images.length} 张截图]`;
+      images.forEach((img) => URL.revokeObjectURL(img.previewUrl));
+      setPendingImages([]);
+      await handleSend(combined, undefined, { displayContent, displayImages });
+    } finally {
+      setIsAnalyzingImages(false);
+    }
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
+    // 中文输入法组词中的 Enter 不触发发送
+    if (e.nativeEvent.isComposing) return;
+    // 2026-07-30 分行增强：Ctrl+Enter / Alt+Enter 也插入换行（微信等国内 IM 习惯）。
+    // textarea 默认不处理 Ctrl+Enter，需手动在光标处插入换行符。
+    if (e.key === 'Enter' && (e.ctrlKey || e.altKey)) {
+      e.preventDefault();
+      const el = e.currentTarget;
+      const start = el.selectionStart ?? inputValue.length;
+      const end = el.selectionEnd ?? inputValue.length;
+      const NEWLINE = String.fromCharCode(10);
+      setInputValue(inputValue.slice(0, start) + NEWLINE + inputValue.slice(end));
+      requestAnimationFrame(() => { el.selectionStart = el.selectionEnd = start + 1; });
+      return;
+    }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitChatInput(); }
   };
 
   const handleSceneClick = (label: string) => {
@@ -3446,6 +3656,7 @@ let rawAssistantContent = '';
                         projectId={renderProjectId}
                         onWriteCode={handleWriteCodeToEditor}
                         onRunCode={handleRunCode}
+                        onOpenFile={openFileFromChatLink}
                       />
                     );
                   });
@@ -3515,20 +3726,70 @@ let rawAssistantContent = '';
 
           <div className="px-3 pt-2 pb-3">
             <div className="relative border border-gray-200 rounded-xl bg-white focus-within:border-teal-400 focus-within:ring-1 focus-within:ring-teal-100 transition-all">
-              <textarea ref={textareaRef} data-testid="chat-input" value={inputValue} onChange={(e) => setInputValue(e.target.value)} onKeyDown={handleKeyDown} rows={1}
+              {/* 2026-07-30 聊天发图：待发送图片预览条 */}
+              {pendingImages.length > 0 && (
+                <div data-testid="image-preview" className="flex flex-wrap items-center gap-2 px-3 pt-2.5">
+                  {pendingImages.map((img) => (
+                    <div key={img.id} className="relative">
+                      <img src={img.previewUrl} alt="待发送截图" className="w-14 h-14 object-cover rounded-lg border border-gray-200" />
+                      <button
+                        onClick={() => removePendingImage(img.id)}
+                        disabled={isAnalyzingImages}
+                        className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-gray-700 hover:bg-red-500 text-white rounded-full flex items-center justify-center transition-colors"
+                        title="移除这张图片"
+                      >
+                        <X className="w-2.5 h-2.5" />
+                      </button>
+                    </div>
+                  ))}
+                  {isAnalyzingImages && (
+                    <div className="flex items-center gap-1 text-[11px] text-teal-600">
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      <span>正在识别截图内容…</span>
+                    </div>
+                  )}
+                </div>
+              )}
+              <textarea ref={textareaRef} data-testid="chat-input" value={inputValue} onChange={(e) => setInputValue(e.target.value)} onKeyDown={handleKeyDown}
+                onPaste={(e) => {
+                  const files = Array.from(e.clipboardData?.items || [])
+                    .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
+                    .map((item) => item.getAsFile())
+                    .filter((f): f is File => Boolean(f));
+                  if (files.length > 0) { e.preventDefault(); addPendingImages(files); }
+                }}
+                rows={1}
                 placeholder={isLoading ? 'AI 正在思考...' : showChatHistory ? '继续对话...' : '输入你的目标、项目想法或代码需求...'}
                 disabled={isLoading}
                 className="w-full resize-none border-0 bg-transparent px-3 py-2.5 text-sm outline-none placeholder-gray-400 max-h-48" />
               <div className="flex items-center justify-between px-2 py-1">
                 <div className="flex items-center gap-1">
-                  <button className="p-1 hover:bg-gray-100 rounded text-gray-400 transition-colors"><Paperclip className="w-3.5 h-3.5" /></button>
+                  <input
+                    ref={imageInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/gif"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => {
+                      addPendingImages(Array.from(e.target.files || []));
+                      e.target.value = '';
+                    }}
+                  />
+                  <button
+                    data-testid="attach-image-button"
+                    onClick={() => imageInputRef.current?.click()}
+                    disabled={isLoading || isAnalyzingImages}
+                    className="p-1 hover:bg-gray-100 rounded text-gray-400 hover:text-teal-600 transition-colors"
+                    title="发送截图/图片（也可直接 Ctrl+V 粘贴）"
+                  ><Paperclip className="w-3.5 h-3.5" /></button>
                   <button className="p-1 hover:bg-gray-100 rounded text-gray-400 transition-colors"><Link2 className="w-3.5 h-3.5" /></button>
+                  <span className="text-[10px] text-gray-300 ml-1 hidden sm:inline">Enter 发送 · Shift+Enter / Ctrl+Enter 换行</span>
                 </div>
                 <div className="flex items-center gap-2">
                   {!user && <span className="text-[10px] text-amber-600">匿名剩余 {5 - Number(localStorage.getItem('anonymous_chat_count') || '0')} 次</span>}
-                  <button data-testid="send-button" onClick={() => handleSend()} disabled={!inputValue.trim() && !showChatHistory}
+                  <button data-testid="send-button" onClick={() => submitChatInput()} disabled={(!inputValue.trim() && pendingImages.length === 0 && !showChatHistory) || isAnalyzingImages}
                     className="p-1 bg-gray-900 hover:bg-gray-800 disabled:bg-gray-200 text-white rounded-lg transition-colors">
-                    <ChevronUp className="w-4 h-4" />
+                    {isAnalyzingImages ? <Loader2 className="w-4 h-4 animate-spin" /> : <ChevronUp className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
@@ -3644,7 +3905,7 @@ let rawAssistantContent = '';
               {editorTab === 'code' ? (
                 <CodeEditor code={editorCode} language={editorLanguage} onChange={(v) => setEditorCode(v)} />
               ) : (
-                <CodePreview htmlContent={previewHtml} title="运行结果" />
+                <CodePreview htmlContent={previewHtml} title="运行结果" onAskAI={(text) => handleSendRef.current?.(text)} />
               )}
             </div>
           </>
@@ -3708,12 +3969,17 @@ let rawAssistantContent = '';
                   sandbox="allow-scripts allow-modals allow-same-origin allow-forms allow-popups"
                 />
               ) : (
-                // 普通输出（Python等）：srcDoc 渲染
-                <iframe
-                  srcDoc={runResultHtml}
-                  className="w-full h-full border-0 block"
+                // 普通输出（HTML/JS/Python 结果页）：复用 CodePreview，
+                // 2026-07-31 复测修复：模态框才是学生点"运行"后的视觉主路径，
+                // 之前用裸 iframe 没有控制台面板，报错看不见也无法一键让 AI 诊断。
+                // 点"让 AI 诊断"时顺手关模态框，让学生回到聊天区看 AI 回复。
+                <CodePreview
+                  htmlContent={runResultHtml}
                   title="运行结果"
-                  sandbox="allow-scripts allow-modals allow-same-origin allow-forms allow-popups"
+                  onAskAI={(text) => {
+                    setShowRunResultModal(false);
+                    handleSendRef.current?.(text);
+                  }}
                 />
               )}
             </div>

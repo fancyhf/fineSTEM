@@ -163,8 +163,18 @@ def build_evaluate_content(payload: dict[str, Any]) -> str:
 def merge_stage08_into_standard_data(
     standard_step_data: Any,
     payload: dict[str, Any],
+    *,
+    sync_evaluate_content: bool = True,
 ) -> dict[str, Any]:
-    """将阶段 8 payload 写回 standard_step_data，同时同步 evaluate_content。"""
+    """将阶段 8 payload 写回 standard_step_data，同时同步 evaluate_content。
+
+    sync_evaluate_content：
+      True（默认，表单保存路径）——用 payload 渲染文本覆盖 evaluate_content，
+        学生在表单里编辑的内容是权威源。
+      False（Q-027，水合/工具路径）——仅当 evaluate_content 为空时才填入渲染
+        文本；非空则保留原文（可能是 AI 用 artifact_writer 写的完整验收文档，
+        不得被三段式渲染文本回滚）。
+    """
     standard_data = ensure_dict(standard_step_data)
     step8_raw = ensure_dict(standard_data.get("step8"))
     next_payload = {
@@ -177,7 +187,9 @@ def merge_stage08_into_standard_data(
     standard_data["step8"] = step8_raw
 
     evaluate_content = build_evaluate_content(next_payload)
-    if evaluate_content:
+    if evaluate_content and (
+        sync_evaluate_content or not str(standard_data.get("evaluate_content") or "").strip()
+    ):
         standard_data["evaluate_content"] = evaluate_content
     return standard_data
 

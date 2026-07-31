@@ -1,12 +1,15 @@
 """
-AI 图像生成服务
+AI 图像服务
 
-用途：基于智谱 CogView 模型为成果档案卡自动生成封面图
+用途：
+1. 基于智谱 CogView 模型为成果档案卡自动生成封面图
+2. 基于智谱 GLM-4V 识别学生在聊天中发送的截图（报错/界面/代码）
 维护者：AI Agent
 """
 
 from __future__ import annotations
 
+import base64
 import logging
 from typing import Optional
 
@@ -20,6 +23,77 @@ GLM_IMAGE_BASE = "https://open.bigmodel.cn/api/paas/v4"
 DEFAULT_IMAGE_MODEL = "cogview-3-flash"
 DEFAULT_IMAGE_SIZE = "1024x1024"
 IMAGE_TIMEOUT_SECONDS = 60
+
+# 2026-07-30 聊天发图：主对话模型（DeepSeek）不支持视觉，
+# 用 GLM-4V（免费 flash 版）把截图转成文字描述后注入对话。
+VISION_MODEL = "glm-4v-flash"
+VISION_TIMEOUT_SECONDS = 45
+VISION_PROMPT = (
+    "这是学生在编程学习时发来的截图。请仔细识别并用中文回答：\n"
+    "1. 如果包含代码、报错信息或控制台输出，请逐字转录全部文字（保持原格式，报错信息一字不漏）\n"
+    "2. 如果是网页/应用界面截图，请描述界面内容、布局和看起来异常的地方\n"
+    "3. 如果是设计图/草图，请描述其中的元素和意图\n"
+    "只输出识别结果，不要加建议或分析。"
+)
+
+
+async def describe_chat_image(image_bytes: bytes, mime_type: str = "image/png") -> Optional[str]:
+    """
+    调用 GLM-4V 识别聊天截图，返回文字描述（代码/报错会被逐字转录）。
+
+    失败时返回 None（不抛异常，前端降级为"图片识别不可用"提示）。
+    """
+    api_key = settings.glm_key
+    if not api_key:
+        logger.warning("glm_key 未配置，无法识别聊天图片")
+        return None
+
+    b64 = base64.b64encode(image_bytes).decode("ascii")
+    payload = {
+        "model": VISION_MODEL,
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{b64}"}},
+                    {"type": "text", "text": VISION_PROMPT},
+                ],
+            }
+        ],
+        "temperature": 0.1,
+    }
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {api_key}",
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=VISION_TIMEOUT_SECONDS) as client:
+            response = await client.post(
+                f"{GLM_IMAGE_BASE}/chat/completions",
+                json=payload,
+                headers=headers,
+            )
+            response.raise_for_status()
+            data = response.json()
+
+        choices = data.get("choices", [])
+        if not choices:
+            logger.warning("GLM-4V 返回空 choices: %s", str(data)[:200])
+            return None
+        content = (choices[0].get("message") or {}).get("content")
+        if not content or not str(content).strip():
+            logger.warning("GLM-4V 返回空内容")
+            return None
+        logger.info("聊天图片识别成功: %d 字节图片 → %d 字描述", len(image_bytes), len(str(content)))
+        return str(content).strip()
+
+    except httpx.HTTPError as e:
+        logger.error("GLM-4V API 调用失败: %s", e)
+        return None
+    except Exception as e:
+        logger.error("聊天图片识别异常: %s", e)
+        return None
 
 
 def _build_prompt(title: str, one_liner: str, subjects: Optional[list[str]] = None) -> str:

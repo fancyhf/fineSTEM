@@ -1,0 +1,196 @@
+{
+  "summary": {
+    "projectName": "fineSTEM",
+    "locale": "zh-CN",
+    "modelId": "agent-work-loop-v4",
+    "reportContractVersion": 25,
+    "overview": "项目具备分层 pytest 体系、详尽的提交信息与事故复盘文化，但核心对话链 900+ 行变更长期滞留在未提交工作区、项目规则要求的测试门禁没有任何机械执行点，且规范与验证知识分散在多个提供方目录并已出现分叉；交付可追溯性与变更验证覆盖是当前最大的缺口。会话观测面（1/5 来源根可用）不足以支撑任何行为与学习结论。",
+    "aiAgentPractice": {
+      "inspectedSurfaces": [
+        "Rules",
+        "Skills"
+      ],
+      "coverageRows": [
+        {
+          "surface": "Rules",
+          "scopes": [
+            "Project"
+          ],
+          "count": 2,
+          "paths": [
+            ".trae/rules/project_rules.md",
+            ".codebuddy/rules/fineSTEMRule.mdc"
+          ]
+        },
+        {
+          "surface": "Skills",
+          "scopes": [
+            "Project"
+          ],
+          "count": 3,
+          "paths": [
+            ".trae/skills/stem-pbl-guide/SKILL.md",
+            ".trae/skills/pptx/SKILL.md",
+            ".trae/skills/theme-factory/SKILL.md"
+          ]
+        },
+        {
+          "surface": "Custom Agents",
+          "scopes": [
+            "Project"
+          ],
+          "count": 0
+        }
+      ]
+    },
+    "assignmentSummaries": [],
+    "dimensions": [
+      {
+        "id": "task-understanding",
+        "label": "任务理解",
+        "score": 60,
+        "summary": "README 分区导航、50+ 架构/说明文档与成文项目规则提供了明确的任务上下文（Present）；但同一规范在两个提供方目录双份维护且已分叉，仓库中大量调试产物污染上下文面，权威来源不唯一。",
+        "findingRefs": [
+          "debug-artifacts-tracked-in-repo",
+          "project-rules-diverged-across-providers"
+        ]
+      },
+      {
+        "id": "controlled-execution",
+        "label": "可控执行",
+        "score": 65,
+        "summary": "工作区提供 dev:web/dev:backend 脚本、start_system.bat、.env.example 与 alembic 等项目自有启动路线（Present），但本窗口无任何被观察到的执行行为，无 doctor/reset 类健康检查路线。",
+        "findingRefs": []
+      },
+      {
+        "id": "change-validation",
+        "label": "改动验证",
+        "score": 52,
+        "summary": "后端 pytest 分层体系（134 个测试文件、markers 维护痕迹）已接入工作区脚本（Wired），但当前核心变更缺少对应的项目自有检查：新增后端工具仅靠未入库 smoke 脚本验证，70 个 tsx 组件零测试，回归依赖人工实测报告。测试实际通过情况 UNVERIFIED。",
+        "findingRefs": [
+          "new-tool-validation-not-in-regression",
+          "frontend-core-no-component-tests"
+        ]
+      },
+      {
+        "id": "reliable-delivery",
+        "label": "可靠交付",
+        "score": 45,
+        "summary": "核心链 900+ 行变更未提交，无修订绑定的验收决策；仓库内无 CI/pre-commit 等任何机械门禁（平台侧配置 UNVERIFIED）。2026-07-18 覆盖事故后补齐的 DB 热备与恢复防御仅有代码存在性证据（Present），运行时有效性未验证。",
+        "findingRefs": [
+          "uncommitted-core-changes-no-acceptance",
+          "quality-gates-declarative-only"
+        ]
+      },
+      {
+        "id": "learning-capture",
+        "label": "经验沉淀",
+        "score": 40,
+        "summary": "事故复盘报告与测试报告文档化显示学习捕获的意愿（Present）；但本窗口 1/5 会话来源根可用、候选 Episode 准入为零、2 条项目 Memory 未进入标题级复查，重复劳动、记忆价值与改进效果全部不可判定（Unobserved）。",
+        "findingRefs": [
+          "learning-observation-boundary-gap"
+        ]
+      }
+    ]
+  },
+  "findings": [
+    {
+      "id": "uncommitted-core-changes-no-acceptance",
+      "title": "核心对话链 900+ 行变更长期未提交，没有可追溯的验收与恢复点",
+      "severity": "High",
+      "reason": "事实：git diff 显示 12 个文件合计 +900/-85 行未提交，覆盖 apps/backend/app/services/tools.py（+141，含整类新增）、apps/frontend/src/pages/Create.tsx（+342）、useStreamingChat.ts（+103）、chat.py、image_provider.py 等核心链文件；最新提交为 2026-07-30，工作区持续脏。推断：无 commit 边界使行为变化无法追溯与回滚；仓库内有 2026-07-18 工作区代码被 AI 覆盖丢失的事故报告，同类事故再发时恢复点不明确。边界：这些变更是否已被人工验证 UNVERIFIED——仓库内只是没有可复核的验收证据。",
+      "expectedOutput": [
+        "核心链变更以带验证证据的逻辑提交入库，任何一次变更都有明确的回滚与追溯点。"
+      ],
+      "expectedArtifact": "Commit",
+      "aiFixPrompt": "/better-harness fix this issue\n\n把当前未提交的核心链变更拆分为可验证的逻辑提交，为每次提交绑定验证证据。\n\n## 步骤\n\n- 用 git diff 复核 12 个未提交文件，按后端工具、聊天 API、前端 Create 页面等逻辑边界拆分\n- 每个逻辑提交前运行对应检查：apps/backend 下运行 pytest（沿用 pytest.ini 的 markers 分层），前端运行现有 vitest 脚本\n- 提交信息记录变更目的与验证结果，沿用仓库现有的详尽提交信息风格\n\n## 验证\n\n- git status 显示核心链文件不再滞留工作区\n- 每个提交都能对应一次可复述的检查运行结果",
+      "dimensionRefs": [
+        "reliable-delivery"
+      ]
+    },
+    {
+      "id": "new-tool-validation-not-in-regression",
+      "title": "新增 ProjectCodeReaderTool 仅靠未入库的一次性 smoke 脚本验证",
+      "severity": "Medium",
+      "reason": "事实：tools.py 新增 ProjectCodeReaderTool 整类（+113 行），配套验证是未跟踪的 .dbg/smoke_reader_append.py；本窗口伴随测试仅 test_mcp_server.py +11 行，apps/backend/tests 中未检索到该工具的专属测试用例。推断：验证逻辑停留在一次性脚本，不进入回归集，下次改动无自动防回归信号。边界：是否存在间接覆盖 UNVERIFIED；smoke 脚本的实际覆盖面未逐行确认。",
+      "expectedOutput": [
+        "新工具的行为验证进入回归集，后续改动能自动获得防回归信号。"
+      ],
+      "expectedArtifact": "Test",
+      "aiFixPrompt": "/better-harness fix this issue\n\n把 .dbg/smoke_reader_append.py 中对 ProjectCodeReaderTool 的验证逻辑沉淀为 apps/backend/tests 下的 pytest 用例。\n\n## 步骤\n\n- 阅读 smoke 脚本确认其覆盖的行为路径\n- 在 apps/backend/tests 中新增针对该工具的测试，按 pytest.ini 的 markers 体系归类\n- 覆盖至少一条正常路径与一条命名失败路径\n\n## 验证\n\n- 在 apps/backend 下运行 pytest 选中新增用例并确认通过\n- 在 tests 目录检索 ProjectCodeReaderTool 能命中专属测试",
+      "dimensionRefs": [
+        "change-validation"
+      ]
+    },
+    {
+      "id": "frontend-core-no-component-tests",
+      "title": "前端核心页面反复大改但无组件级自动测试，回归依赖人工实测报告",
+      "severity": "Medium",
+      "reason": "事实：Create.tsx 本窗口两次大改并另有 +342 行未提交，70 个 tsx 组件测试数为 0，vitest 仅 4 个 hooks/lib 测试文件；验证依赖 manual-test-*.js 手动脚本与 .trae/documents/testing/reports 下的人工实测 md（07-30 新增 4 份，未跟踪）。推断：UI 核心路径的回归发现被推迟到人工环节，反馈慢且不可重复；07-18 事故后加入的前端恢复防御逻辑同样缺自动化守护。边界：lifecycle-journey.spec.ts 对新行为的覆盖广度未确认，vitest 实际通过情况 UNVERIFIED。",
+      "expectedOutput": [
+        "前端核心路径获得可重复的快反馈，回归发现不再完全依赖人工实测报告。"
+      ],
+      "expectedArtifact": "Test",
+      "aiFixPrompt": "/better-harness fix this issue\n\n为本窗口反复变更的前端核心路径补上最小的组件/hook 级自动测试。\n\n## 步骤\n\n- 从 Create.tsx 与 useStreamingChat.ts 的当前 diff 中识别本次新增的关键行为\n- 用项目现有 vitest 体系为这些行为各写一个聚焦测试，优先覆盖工作区恢复防御逻辑（applyWorkspaceRestore）\n- 把最近人工实测报告中反复检查的步骤转成可重复的断言\n\n## 验证\n\n- 运行前端 vitest 确认新增测试通过\n- 确认新增测试在不启动完整 E2E 的情况下即可复现关键回归",
+      "dimensionRefs": [
+        "change-validation"
+      ]
+    },
+    {
+      "id": "quality-gates-declarative-only",
+      "title": "项目规则要求的测试门禁没有任何机械执行点",
+      "severity": "Medium",
+      "reason": "事实：项目自有规则（.trae/rules/project_rules.md v1.0.0）成文要求测试门禁与 CI/CD，但仓库内无 .github/workflows、无 pre-commit/husky 等任何配置痕迹；lint 脚本声明 --max-warnings 0 却无执行点。推断：所有质量信号依赖开发者自觉，未提交大 diff、产物入库、3 项伴随漂移（public-api-docs / ui-story-snapshot / cli-help-docs）均无拦截点。边界：托管平台侧是否存在 CI/分支保护 UNVERIFIED——仅项目内静态不可见。",
+      "expectedOutput": [
+        "规则中声明的门禁至少有一个可被机械触发的执行点，质量信号不再完全依赖自觉。"
+      ],
+      "expectedArtifact": "Gate",
+      "aiFixPrompt": "/better-harness fix this issue\n\n为项目规则中已成文的测试门禁建立最小的机械执行点。\n\n## 步骤\n\n- 先确认托管平台侧是否已有 CI 或分支保护；若有则记录并对齐，不重复建设\n- 若无，则从最小闭环开始：一个在提交前运行 lint（沿用 --max-warnings 0）与后端快速 pytest 分层的本地钩子或工作流\n- 门禁范围与 .trae/rules/project_rules.md 中的既有约定保持一致，不新增规则\n\n## 验证\n\n- 制造一次故意的 lint 违规或测试失败，确认门禁能拦截\n- 确认正常提交路径不被过度阻塞",
+      "dimensionRefs": [
+        "reliable-delivery"
+      ]
+    },
+    {
+      "id": "debug-artifacts-tracked-in-repo",
+      "title": "调试产物与一次性脚本系统性入库，.gitignore 靠事后补救",
+      "severity": "Low",
+      "reason": "事实：.dbg/ 下 32 个已跟踪文件（pytest 输出快照、r2_* 回归日志、PNG 截图、10+ probe 脚本）、apps/backend 根的 chat_log.json 与 snake_game.html 等运行产物已入库，根 scripts/ 含 60+ 一次性 check/fix 脚本；本窗口出现两次 fix: .gitignore 提交（3c5e278、08b68d4）。推断：1429 个跟踪文件中大量非交付资产污染上下文导航与 diff 审阅面，卫生规则处于被动追赶状态。边界：哪些脚本仍被引用未逐一核实，不得整体判定为废弃。",
+      "expectedOutput": [
+        "调试产物有约定归属，上下文导航与 diff 审阅面不再被非交付资产稀释。"
+      ],
+      "expectedArtifact": "Runbook",
+      "aiFixPrompt": "/better-harness fix this issue\n\n为调试产物建立目录约定并做一次有据的清理，停止 .gitignore 被动补救。\n\n## 步骤\n\n- 先用 git ls-files 列出 .dbg/、scripts/ 与 apps/backend 根的可疑产物清单\n- 逐项核实引用关系后再处理：仍在用的脚本移入约定目录并在 README 标注用途，确认无引用的输出快照/截图从跟踪中移除（保留本地文件）\n- 在 .gitignore 中固化产物目录约定，而不是逐文件补条目\n\n## 验证\n\n- git status 在一次典型调试流程后不再出现待补 ignore 的产物\n- 清理提交中每个移除项都有引用核实记录",
+      "dimensionRefs": [
+        "task-understanding"
+      ]
+    },
+    {
+      "id": "project-rules-diverged-across-providers",
+      "title": "同一份项目规范在两个提供方目录双份维护且内容已分叉",
+      "severity": "Low",
+      "reason": "事实：.trae/rules/project_rules.md 与 .codebuddy/rules/fineSTEMRule.mdc 同源（同 v1.0.0、同创建时间、同章节结构），但抽查段落已不一致——Trae 版含\"语言与国际化（强制中文）\"小节，CodeBuddy 版对应位置缺失，且后者 updatedAt=2025-12-23 晚于前者。推断：无单一权威源使约束在不同 IDE 中生效内容不同，\"唯一规范参考\"的自我声明失效；当前提供方（Qoder）范围内项目资产为零，这些约束对 Qoder 会话不可达。边界：仅比对了前 60-80 行，分叉全量范围与方向未确认；Qoder 侧是否因此产生过返工无会话证据，提供方资产为零本身不构成缺陷。",
+      "expectedOutput": [
+        "项目规范只有一个权威源，各提供方生效的约束内容一致。"
+      ],
+      "expectedArtifact": "Rule",
+      "aiFixPrompt": "/better-harness fix this issue\n\n把双份维护的项目规范收敛为单一权威源。\n\n## 步骤\n\n- 全文 diff .trae/rules/project_rules.md 与 .codebuddy/rules/fineSTEMRule.mdc，确认分叉范围与方向\n- 选定一份为权威源，合并双方各自的有效修订，另一份改为指向权威源的引用或同步副本\n- 若希望约束对当前提供方生效，在项目根为其建立可见的规则入口引用同一权威源\n\n## 验证\n\n- 两个提供方目录中的规范内容一致或明确指向同一权威源\n- 版本号与修订时间在权威源上单点推进",
+      "dimensionRefs": [
+        "task-understanding"
+      ]
+    },
+    {
+      "id": "learning-observation-boundary-gap",
+      "title": "会话来源根大面积不可用，重复劳动与记忆价值无法评估",
+      "severity": "Low",
+      "reason": "事实：本窗口仅 1/5 已启用的会话来源根存在（警告码 disabled-source-root、missing-optional-root）；3 个入选会话产出 4 个 Task Episode 但候选准入为零，变更、验证、结果信号全部为 0；资产盘点计 2 条项目 Memory 但标题级完整性复查覆盖数为 0。推断：学习回路的观测边界不可用，重复工作流、验证习惯、Memory 检索价值在本提供方本窗口均无法建立结论——integrity findingCount=0 不能解读为健康。边界：缺证据不等于无活动；低信号成因（使用方式 vs 采集配置）不可区分，来源根被禁用可能是有意选择。",
+      "expectedOutput": [
+        "下次评审窗口能区分\"确无重复劳动\"与\"观测不到\"，Memory 覆盖状态可判定。"
+      ],
+      "expectedArtifact": "Report",
+      "aiFixPrompt": "/better-harness fix this issue\n\n恢复学习回路的观测边界，使下次评审能对重复劳动与记忆价值做出判定。\n\n## 步骤\n\n- 核对当前提供方的会话来源根配置，确认 disabled-source-root 与 missing-optional-root 是有意禁用还是配置遗漏\n- 若为遗漏则恢复来源根；若为有意禁用则在下次评审范围声明中记录该边界\n- 请求带标题元数据的 Memory 盘点复查，确认 2 条项目 Memory 进入标题级完整性覆盖\n\n## 验证\n\n- 重新运行 /better-harness 的会话事实采集，确认候选 Episode 准入不再恒为零或边界已被显式声明\n- Memory 完整性复查的 reviewedTitleCount 与盘点计数一致",
+      "dimensionRefs": [
+        "learning-capture"
+      ]
+    }
+  ]
+}

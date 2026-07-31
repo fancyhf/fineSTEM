@@ -2,7 +2,7 @@
 MCP server 工具暴露与协议测试（2026-07-22 测试体系重构）
 
 覆盖：
-- MCP server 暴露全部 15 个工具（原 12 + 新增 project_memory_store/recall + sop_state_sync）
+- MCP server 暴露全部 16 个工具（原 12 + project_memory_store/recall + sop_state_sync + project_code_reader）
 - 工具调用参数透传完整
 - 返回值结构符合 MCP 规范（content + isError）
 - 最关键：tool_result 的双层 JSON 结构（content[0].text 内层 JSON）
@@ -28,10 +28,10 @@ from app.mcp_server.server import (
 class TestMcpToolExposure:
     """MCP server 暴露的工具完整性。"""
 
-    def test_loads_all_15_tools(self):
-        """MCP server 应暴露全部 15 个工具（原 12 + 新增 3 个 SOP/Memory 工具）。"""
+    def test_loads_all_16_tools(self):
+        """MCP server 应暴露全部 16 个工具（原 15 + 2026-07-30 新增 project_code_reader）。"""
         tools = _load_tools()
-        assert len(tools) == 15, f"期望 15 个工具，实际 {len(tools)}"
+        assert len(tools) == 16, f"期望 16 个工具，实际 {len(tools)}"
 
     def test_expected_tool_names_present(self):
         tools = _load_tools()
@@ -39,6 +39,7 @@ class TestMcpToolExposure:
             "skill_state_reader", "ask_question", "skill_state_writer",
             "stage_advancer", "artifact_reader", "artifact_writer",
             "evidence_saver", "code_runner", "project_code_writer",
+            "project_code_reader",
             "resource_searcher", "project_creator", "achievement_card",
             "project_memory_store", "project_memory_recall", "sop_state_sync",
         }
@@ -49,7 +50,7 @@ class TestMcpToolExposure:
         tools = _load_tools()
         result = await _handle_tools_list({}, tools)
         assert "tools" in result
-        assert len(result["tools"]) == 15
+        assert len(result["tools"]) == 16
         # 每个 spec 必须有 name / description / inputSchema
         for spec in result["tools"]:
             assert "name" in spec

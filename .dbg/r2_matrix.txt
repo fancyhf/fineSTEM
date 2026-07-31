@@ -1,0 +1,17 @@
+﻿
+Running 3 tests using 1 worker
+
+[MATRIX:网页-英语助手] 消息长度 932, 围栏 0
+[MATRIX:网页-英语助手] 探查器: {}
+  ok 1 [chromium] › specs\lifecycle-journey.spec.ts:387:9 › 多场景矩阵 @ai @lifecycle @matrix › TC-DLG-MATRIX: 场景「网页-英语助手」跑到编码阶段 (5.1m)
+[EXPLORE:matrix-网页-计算器] ⚠️ duplicate_card: 同屏 3 张选项卡
+[MATRIX:网页-计算器] 消息长度 4130, 围栏 0
+[MATRIX:网页-计算器] 探查器: { duplicate_card: [33m1[39m }
+  ok 2 [chromium] › specs\lifecycle-journey.spec.ts:387:9 › 多场景矩阵 @ai @lifecycle @matrix › TC-DLG-MATRIX: 场景「网页-计算器」跑到编码阶段 (5.9m)
+[MATRIX:Python-数据分析] 消息长度 3697, 围栏 0
+[MATRIX:Python-数据分析] 探查器: {}
+  ok 3 [chromium] › specs\lifecycle-journey.spec.ts:387:9 › 多场景矩阵 @ai @lifecycle @matrix › TC-DLG-MATRIX: 场景「Python-数据分析」跑到编码阶段 (5.5m)
+
+  Slow test file: [chromium] › specs\lifecycle-journey.spec.ts (16.5m)
+  Consider running tests from slow files in parallel. See: https://playwright.dev/docs/test-parallel
+  3 passed (16.6m)

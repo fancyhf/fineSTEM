@@ -26,3 +26,128 @@ Running 21 tests using 1 worker
   ok 10 [chromium] › specs\lifecycle-journey.spec.ts:584:7 › 全 Q 独立复测 @ai @lifecycle @q-case › TC-DLG-Q010: 点选项卡后 AI 推进（识别[选择]格式） (49.4s)
 [Q011] 兜底卡片: 有
   ok 11 [chromium] › specs\lifecycle-journey.spec.ts:604:7 › 全 Q 独立复测 @ai @lifecycle @q-case › TC-DLG-Q011: AI 文字列短词选项时兜底 (36.5s)
+[Q012] 教学模式卡: 无（可能 Q-012 回归）
+  ok 12 [chromium] › specs\lifecycle-journey.spec.ts:615:7 › 全 Q 独立复测 @ai @lifecycle @q-case › TC-DLG-Q012: 编码阶段先选教学模式再写码 (6.9m)
+[Q013] 学生催促后 AI 直接给完整代码: false
+  ok 13 [chromium] › specs\lifecycle-journey.spec.ts:626:7 › 全 Q 独立复测 @ai @lifecycle @q-case › TC-DLG-Q013: 学生催"直接给代码"仍需先选模式 (6.6m)
+[Q014] workspace 状态: 200
+[Q014] ✅ 脏数据项目可正常打开
+  ok 14 [chromium] › specs\lifecycle-journey.spec.ts:642:7 › 全 Q 独立复测 @ai @lifecycle @q-case › TC-DLG-Q014Q015: 脏数据历史项目打开不报 500 (13.8s)
+[Q016] 刷新前后: 2 → 0
+  x  15 [chromium] › specs\lifecycle-journey.spec.ts:660:7 › 全 Q 独立复测 @ai @lifecycle @q-case › TC-DLG-Q016: 对话内容可靠落库可恢复 (56.9s)
+[Q017] 刷新后重复问已答: false
+  ok 16 [chromium] › specs\lifecycle-journey.spec.ts:676:7 › 全 Q 独立复测 @ai @lifecycle @q-case › TC-DLG-Q017: 刷新后 AI 不重复问已答 (1.8m)
+[Q018] 代码已生成，需人工/AI 把代码写入编辑器运行后验证修复按钮（Q-018）
+  ok 17 [chromium] › specs\lifecycle-journey.spec.ts:703:7 › 全 Q 独立复测 @ai @lifecycle @q-case › TC-DLG-Q018: 「修复错误」按钮可点击且无文本泄漏 (5.8m)
+[Q019] 编辑器可见: false
+[Q019] 编辑器代码长度: 0
+  x  18 [chromium] › specs\lifecycle-journey.spec.ts:718:7 › 全 Q 独立复测 @ai @lifecycle @q-case › TC-DLG-Q019: 生成代码后编辑器有代码 (7.0m)
+[Q020] 风格选择卡: 有
+  ok 19 [chromium] › specs\lifecycle-journey.spec.ts:738:7 › 全 Q 独立复测 @ai @lifecycle @q-case › TC-DLG-Q020: AI 文字问风格时渲染卡片 (5.7m)
+[Q021] 发文字后残留卡片: 0
+  ok 20 [chromium] › specs\lifecycle-journey.spec.ts:750:7 › 全 Q 独立复测 @ai @lifecycle @q-case › TC-DLG-Q021: 发文字消息时旧卡片清理 (44.1s)
+[Q022] 侧边栏含确认名: true
+  ok 21 [chromium] › specs\lifecycle-journey.spec.ts:768:7 › 全 Q 独立复测 @ai @lifecycle @q-case › TC-DLG-Q022: 对话确定项目名后侧边栏显示正确名字 (1.8m)
+
+
+  1) [chromium] › specs\lifecycle-journey.spec.ts:452:7 › 全 Q 独立复测 @ai @lifecycle @q-case › TC-DLG-Q003: 番茄钟功能介绍不误产生选项卡 
+
+    Error: 功能介绍不应误产生选项卡（Q-003）
+
+    [2mexpect([22m[31mreceived[39m[2m).[22mtoBe[2m([22m[32mexpected[39m[2m) // Object.is equality[22m
+
+    Expected: [32m0[39m
+    Received: [31m1[39m
+
+      457 |     const cardCount = await countQuestionCards(page);
+      458 |     console.log(`[Q003] 功能介绍后卡片数: ${cardCount}`);
+    > 459 |     pwExpect(cardCount, '功能介绍不应误产生选项卡（Q-003）').toBe(0);
+          |                                                ^
+      460 |   });
+      461 |
+      462 |   // ── Q-004 重复卡片 ──
+        at G:\mediaProjects\fineSTEM\apps\frontend\tests\specs\lifecycle-journey.spec.ts:459:48
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\lifecycle-journey-全-Q-独立复测-1e637--TC-DLG-Q003-番茄钟功能介绍不误产生选项卡-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\lifecycle-journey-全-Q-独立复测-1e637--TC-DLG-Q003-番茄钟功能介绍不误产生选项卡-chromium\error-context.md
+
+  2) [chromium] › specs\lifecycle-journey.spec.ts:532:7 › 全 Q 独立复测 @ai @lifecycle @q-case › TC-DLG-Q007: 每轮回复有明确下一步 
+
+    Error: 轮 3 无明确下一步（Q-007）
+
+    [2mexpect([22m[31mreceived[39m[2m).[22mtoBeTruthy[2m()[22m
+
+    Received: [31mfalse[39m
+
+      540 |       const hasNext = (await countQuestionCards(page)) > 0 || /(请选|请回答|请告诉|下一步|接下来|请选择|是否)/.test(msg);
+      541 |       console.log(`[Q007] 轮 ${i + 1} 有下一步: ${hasNext}`);
+    > 542 |       pwExpect(hasNext, `轮 ${i + 1} 无明确下一步（Q-007）`).toBeTruthy();
+          |                                                     ^
+      543 |       const card = await waitForQuestionCard(page, 3000).catch(() => null);
+      544 |       if (card) { await clickFirstOption(page); await page.waitForTimeout(2000); }
+      545 |       else { await sendMessage(page, '继续'); }
+        at G:\mediaProjects\fineSTEM\apps\frontend\tests\specs\lifecycle-journey.spec.ts:542:53
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\lifecycle-journey-全-Q-独立复测-e670d-case-TC-DLG-Q007-每轮回复有明确下一步-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\lifecycle-journey-全-Q-独立复测-e670d-case-TC-DLG-Q007-每轮回复有明确下一步-chromium\error-context.md
+
+  3) [chromium] › specs\lifecycle-journey.spec.ts:660:7 › 全 Q 独立复测 @ai @lifecycle @q-case › TC-DLG-Q016: 对话内容可靠落库可恢复 
+
+    Error: 刷新后对话丢失 2→0（Q-016）
+
+    [2mexpect([22m[31mreceived[39m[2m).[22mtoBeGreaterThanOrEqual[2m([22m[32mexpected[39m[2m)[22m
+
+    Expected: >= [32m1[39m
+    Received:    [31m0[39m
+
+      670 |     const after = await page.locator('[data-testid="message-assistant"]').count();
+      671 |     console.log(`[Q016] 刷新前后: ${before} → ${after}`);
+    > 672 |     pwExpect(after, `刷新后对话丢失 ${before}→${after}（Q-016）`).toBeGreaterThanOrEqual(before - 1);
+          |                                                          ^
+      673 |   });
+      674 |
+      675 |   // ── Q-017 刷新不失忆 ──
+        at G:\mediaProjects\fineSTEM\apps\frontend\tests\specs\lifecycle-journey.spec.ts:672:58
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\lifecycle-journey-全-Q-独立复测-ccc85-ase-TC-DLG-Q016-对话内容可靠落库可恢复-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\lifecycle-journey-全-Q-独立复测-ccc85-ase-TC-DLG-Q016-对话内容可靠落库可恢复-chromium\error-context.md
+
+  4) [chromium] › specs\lifecycle-journey.spec.ts:718:7 › 全 Q 独立复测 @ai @lifecycle @q-case › TC-DLG-Q019: 生成代码后编辑器有代码 
+
+    Error: 编辑器应有代码（Q-019）
+
+    [2mexpect([22m[31mreceived[39m[2m).[22mtoBeGreaterThan[2m([22m[32mexpected[39m[2m)[22m
+
+    Expected: > [32m10[39m
+    Received:   [31m0[39m
+
+      732 |     }
+      733 |     console.log(`[Q019] 编辑器代码长度: ${codeLen}`);
+    > 734 |     pwExpect(codeLen, '编辑器应有代码（Q-019）').toBeGreaterThan(10);
+          |                                         ^
+      735 |   });
+      736 |
+      737 |   // ── Q-020 风格/主题选择 ──
+        at G:\mediaProjects\fineSTEM\apps\frontend\tests\specs\lifecycle-journey.spec.ts:734:41
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\lifecycle-journey-全-Q-独立复测-1a765-ase-TC-DLG-Q019-生成代码后编辑器有代码-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\lifecycle-journey-全-Q-独立复测-1a765-ase-TC-DLG-Q019-生成代码后编辑器有代码-chromium\error-context.md
+
+  4 failed
+    [chromium] › specs\lifecycle-journey.spec.ts:452:7 › 全 Q 独立复测 @ai @lifecycle @q-case › TC-DLG-Q003: 番茄钟功能介绍不误产生选项卡 
+    [chromium] › specs\lifecycle-journey.spec.ts:532:7 › 全 Q 独立复测 @ai @lifecycle @q-case › TC-DLG-Q007: 每轮回复有明确下一步 
+    [chromium] › specs\lifecycle-journey.spec.ts:660:7 › 全 Q 独立复测 @ai @lifecycle @q-case › TC-DLG-Q016: 对话内容可靠落库可恢复 
+    [chromium] › specs\lifecycle-journey.spec.ts:718:7 › 全 Q 独立复测 @ai @lifecycle @q-case › TC-DLG-Q019: 生成代码后编辑器有代码 
+  17 passed (53.0m)
