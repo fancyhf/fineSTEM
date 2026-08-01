@@ -51,12 +51,24 @@ class TestStageOrderConstants:
             assert stage in STAGE_DISPLAY_NAMES, f"{stage} 缺少中文名"
 
     def test_artifact_mappings_consistent(self):
-        """ARTIFACT_FOR_STAGE / TO_BLOB_KEY / TO_FILENAME 三表键一致。"""
+        """ARTIFACT_FOR_STAGE / TO_BLOB_KEY / TO_FILENAME 三表键一致。
+
+        例外：跨阶段累加工件（如 explanation 讲解文档）刻意不入
+        ARTIFACT_FOR_STAGE，可在任意阶段写入、不受阶段门禁约束。
+        这类工件由 ARTIFACT_TO_STAGE 不收录来标识（与 artifact_stage_gate
+        的"未知工件放行"逻辑同源）。
+        """
         blob_keys = set(ARTIFACT_TO_BLOB_KEY.keys())
         filename_keys = set(ARTIFACT_TO_FILENAME.keys())
         assert blob_keys == filename_keys, "blob_key 和 filename 映射键不一致"
         artifacts_in_stage = {v for v in ARTIFACT_FOR_STAGE.values() if v is not None}
-        assert artifacts_in_stage == blob_keys, "FOR_STAGE 和 BLOB_KEY 键不一致"
+        gated = set(ARTIFACT_TO_STAGE.keys())  # 有阶段门禁的工件
+        ungated = blob_keys - gated            # 跨阶段工件（有意排除在门禁外）
+        assert artifacts_in_stage == gated, "FOR_STAGE 与反向映射 ARTIFACT_TO_STAGE 不一致"
+        assert ungated, "应至少有一个跨阶段工件或纯误配置"  # 防手滑漏建表
+        # 跨阶段工件必须显式登记：在 ARTIFACT_FOR_STAGE 中不应出现
+        assert ungated.isdisjoint(artifacts_in_stage), \
+            f"跨阶段工件不应进 FOR_STAGE: {ungated & artifacts_in_stage}"
 
     def test_artifact_to_stage_reverse_mapping(self):
         """ARTIFACT_TO_STAGE 是 ARTIFACT_FOR_STAGE 的反向映射。"""
@@ -133,9 +145,19 @@ class TestArtifactStageGate:
         assert allowed is True
 
     def test_each_artifact_has_gate(self):
-        """每个已知工件都有对应的门禁判定。"""
+        """每个已知工件都有对应的门禁判定。
+
+        有阶段门禁的工件：在所属阶段可写、前一阶段禁写。
+        跨阶段工件（不在 ARTIFACT_TO_STAGE，如 explanation）：任意阶段均放行。
+        """
         for artifact_name in ARTIFACT_TO_BLOB_KEY:
-            required_stage = ARTIFACT_TO_STAGE[artifact_name]
+            required_stage = ARTIFACT_TO_STAGE.get(artifact_name)
+            if not required_stage:
+                # 跨阶段工件：从头到尾任何阶段都应允许写入
+                for stage in STAGE_ORDER:
+                    allowed, _ = artifact_stage_gate(artifact_name, stage)
+                    assert allowed, f"跨阶段工件 {artifact_name} 在 {stage} 应放行"
+                continue
             req_idx = stage_index(required_stage)
             # 在 required_stage 写自己应该允许
             allowed, _ = artifact_stage_gate(artifact_name, required_stage)

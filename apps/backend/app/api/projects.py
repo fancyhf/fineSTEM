@@ -32,6 +32,7 @@ from app.schemas.projects import (
     StandardProjectStepData,
     ProjectCodeSave,
     ProjectChatSave,
+    ExplanationAppendRequest,
     ProjectWorkspaceData,
     ProjectWorkspaceResponse,
     FileEntry,
@@ -1146,6 +1147,35 @@ async def get_project_chat(
     }, message="获取成功")
 
 
+@router.post("/{project_id}/explanation", response_model=ApiResponse[dict])
+async def append_project_explanation(
+    project_id: str,
+    payload: ExplanationAppendRequest,
+    current_user: UserResponse = Depends(get_current_user),
+):
+    """
+    讲解文档追加（2026-07-31）：把一段 AI 讲解沉淀为带时间戳章节，
+    累加到 standard_step_data.explanation_content（同内容重复提交自动跳过）。
+    """
+    project = db.get_project(project_id)
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
+    if project.author_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权操作此项目")
+
+    from app.services.explanation_doc import append_explanation_section
+    result = append_explanation_section(
+        project_id, payload.content, topic=payload.topic, db=db,
+    )
+    if result.get("status") == "error":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=result.get("error") or "讲解文档写入失败",
+        )
+    message = "讲解已保存" if result["status"] == "appended" else "该段讲解已在文档中"
+    return ApiResponse(data=result, message=message)
+
+
 # ── 项目文档列表/内容接口（阶段工件浏览） ───────────────────────────
 
 # 阶段工件元数据：阶段标识 → (工件名, 显示名, blob_key, 文件名)
@@ -1158,6 +1188,8 @@ _ARTIFACT_META = [
     ("stage_06_plan",       "分步计划", "step_plan_content",   "05_step_plan.md"),
     ("stage_07_execute",    "开发日志", "dev_log_content",     "06_dev_log.md"),
     ("stage_08_review",     "验收评估", "evaluate_content",    "07_evaluation.md"),
+    # 讲解文档（2026-07-31）：跨阶段累加式工件，伪阶段键 explanation
+    ("explanation",         "讲解文档", "explanation_content", "08_code_explanation.md"),
 ]
 
 

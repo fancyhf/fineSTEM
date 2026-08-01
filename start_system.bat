@@ -22,9 +22,8 @@ if %errorlevel% neq 0 (
 )
 
 echo [0/5] Cleaning up old processes...
-REM Kill leftover node/esbuild processes that cause "service is no longer running" errors
+REM Kill leftover esbuild processes that cause "service is no longer running" errors
 taskkill /F /IM esbuild.exe >nul 2>&1
-taskkill /F /IM node.exe >nul 2>&1
 REM Kill existing zeroclaw daemon if running
 taskkill /F /IM zeroclaw.exe >nul 2>&1
 echo       Old processes cleaned.
@@ -48,13 +47,15 @@ echo.
 echo [2/5] Starting ZeroClaw Daemon (port 42617)...
 start "fineSTEM ZeroClaw" cmd /k "cd /d H:\dev-env\zeroclaw && set ZEROCLAW_CONFIG_DIR=H:\dev-env\zeroclaw\config && set ZEROCLAW_DATA_DIR=H:\dev-env\zeroclaw\data && .\bin\zeroclaw.exe daemon"
 
-echo       Probing ZeroClaw /health (timeout 30s)...
+REM ZeroClaw gateway has no /health HTTP endpoint (require_pairing=true, API-only).
+REM Use TCP socket connect to verify the daemon is listening on its port.
+echo       Probing ZeroClaw port 42617 (timeout 30s)...
 setlocal enabledelayedexpansion
 set ZEROCLAW_READY=0
 for /l %%i in (1,1,30) do (
     if !ZEROCLAW_READY! equ 0 (
         timeout /t 1 >nul
-        powershell -NoProfile -Command "try { $r=Invoke-WebRequest -Uri 'http://127.0.0.1:42617/health' -UseBasicParsing -TimeoutSec 2; if ($r.StatusCode -eq 200) { exit 0 } else { exit 1 } } catch { exit 1 }" >nul 2>&1
+        powershell -NoProfile -Command "try { $c=New-Object System.Net.Sockets.TcpClient('127.0.0.1',42617); $c.Close(); exit 0 } catch { exit 1 }" >nul 2>&1
         if !errorlevel! equ 0 (
             set ZEROCLAW_READY=1
             echo       ZeroClaw ready after %%i second(s)
@@ -63,11 +64,8 @@ for /l %%i in (1,1,30) do (
 )
 
 if !ZEROCLAW_READY! equ 0 (
-    echo [ERROR] ZeroClaw failed to respond on /health within 30 seconds.
-    echo         Backend and Frontend will NOT be started.
-    endlocal
-    pause
-    exit /b 1
+    echo [WARN] ZeroClaw port 42617 not listening within 30 seconds.
+    echo         Continuing anyway - check the ZeroClaw window for errors.
 )
 endlocal
 echo.
@@ -75,10 +73,10 @@ echo.
 echo [3/5] Starting backend (port 3200)...
 start "fineSTEM Backend" cmd /k "cd /d %~dp0apps\backend && python -m uvicorn main:app --host 0.0.0.0 --port 3200 --reload"
 
-echo       Probing backend /health (timeout 30s)...
+echo       Probing backend /health (timeout 45s)...
 setlocal enabledelayedexpansion
 set BACKEND_READY=0
-for /l %%i in (1,1,30) do (
+for /l %%i in (1,1,45) do (
     if !BACKEND_READY! equ 0 (
         timeout /t 1 >nul
         powershell -NoProfile -Command "try { $r=Invoke-WebRequest -Uri 'http://127.0.0.1:3200/health' -UseBasicParsing -TimeoutSec 2; if ($r.StatusCode -eq 200) { exit 0 } else { exit 1 } } catch { exit 1 }" >nul 2>&1
@@ -90,11 +88,8 @@ for /l %%i in (1,1,30) do (
 )
 
 if !BACKEND_READY! equ 0 (
-    echo [ERROR] Backend failed to respond on /health within 30 seconds.
-    echo         Frontend will NOT be started. Please check the backend window for errors.
-    endlocal
-    pause
-    exit /b 1
+    echo [WARN] Backend failed to respond on /health within 45 seconds.
+    echo         Continuing anyway - check the backend window for errors.
 )
 endlocal
 

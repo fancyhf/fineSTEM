@@ -210,6 +210,18 @@ function buildOutgoingMessage(
 ): string {
   const parts: string[] = [];
 
+  // 2026-07-31 Q-038：场景化指令注入。
+  // daemon 只读 config.toml 内嵌的 PBL 导向 system_prompt，不感知“问问题/解释代码/
+  // 写报告”等场景差异。后端 SCENE_SYSTEM_PROMPTS 的场景段落由 Create.tsx 通过
+  // context.scene_instructions 传入，这里注入消息文本最前部（daemon 一定会读），
+  // 并声明其优先级高于默认项目流程，让纯问答场景不再被强拉进 PBL 九步。
+  const sceneInstructions = context?.scene_instructions as string | undefined;
+  if (sceneInstructions && sceneInstructions.trim()) {
+    parts.push(
+      `<scene_instructions>\n本轮会话的场景要求（优先级高于默认项目流程，必须遵守）：\n${sceneInstructions.trim()}\n</scene_instructions>`,
+    );
+  }
+
   // 2026-07-30 Q-025 修复：注入近期对话历史。
   // 根因：此前 payload.messages（buildStreamHistory 构造）传进了 hook 却从未发送给 daemon，
   // AI 只靠 ZeroClaw session 记忆，而 session 不可靠（不回放上文）→ AI 失忆，记不住"已决定重写"
@@ -483,6 +495,30 @@ const AUTO_CONTINUE_CONFIG = {
   enableAutoContinue: true, // 是否启用自动续接
 };
 
+// ------------------------------------------------------------------
+// 2026-07-31 Q-038：活跃流中止能力。
+// 背景：此前 WS 意外关闭时 promise 永不 settle → Create.tsx 的 isLoading
+// 永久 true → 输入框死锁（用户反馈“卡死在对话框、重新写入也无反应”）。
+// 除修复 onclose 外，这里提供显式中止入口：停止按钮 / 新建项目时调用，
+// 立即关闭连接并以 aborted 错误 settle，解除 loading。
+// 模块级单例：同一时刻最多一条活跃流（Create 页串行发送）。
+// ------------------------------------------------------------------
+let activeAbort: (() => void) | null = null;
+
+/** 中止当前活跃的流式对话（若有）。返回是否真的中止了一条流。 */
+export function abortActiveStream(): boolean {
+  if (activeAbort) {
+    try { activeAbort(); } catch (e) { console.error('[useStreamingChat] abort failed', e); }
+    return true;
+  }
+  return false;
+}
+
+/** 判断错误是否来自用户主动中止（调用方据此静默处理，不当成失败报错）。 */
+export function isAbortError(err: unknown): boolean {
+  return Boolean(err && typeof err === 'object' && (err as { aborted?: boolean }).aborted === true);
+}
+
 export function useStreamingChat() {
   const stream = useCallback(async (
     payload: StreamPayload,
@@ -557,7 +593,7 @@ async function _doStreamWithAutoContinue(
     };
   });
 
-  return await new Promise<StreamResult>((resolve, reject) => {
+  return await new Promise<StreamResult>((resolveRaw, rejectRaw) => {
     let fullContent = accumulatedContent;  // 从累积内容开始
     let sessionContent = '';               // 本次会话的新内容
     let connectedOk = false;
@@ -565,6 +601,38 @@ async function _doStreamWithAutoContinue(
     let questionFired = false;  // ask_question 工具路径已渲染卡片时设 true，防止 done 帧重复渲染
     let receivedSessionStart = false;
     let finishReason: string | null = null;
+
+    // 2026-07-31 Q-038 死锁修复：settled 包装 + 意外关闭兜底。
+    // 根因：原 ws.onclose 只清计时器不 settle promise，且把唯一兜底的 totalTimeout
+    // 也清掉了 → WS 意外关闭（daemon 重启/网络闪断/浏览器挂起）时 promise 永久
+    // 挂起 → Create.tsx 的 finally 永远不执行 → isLoading 永久 true → 输入框死锁
+    // （用户反馈“卡死在对话框、哪怕从菜单重新写入也无反应”的直接根因）。
+    // settled 保证只 settle 一次；deliberateSettle 标记“即将由业务分支 settle”，
+    // 避免自动续接等路径主动 close 后被 onclose 兜底误 settle。
+    let settled = false;
+    let deliberateSettle = false;
+    const resolve = (value: StreamResult) => {
+      if (settled) return;
+      settled = true;
+      if (activeAbort === abortThisStream) activeAbort = null;
+      resolveRaw(value);
+    };
+    const reject = (err: Error) => {
+      if (settled) return;
+      settled = true;
+      if (activeAbort === abortThisStream) activeAbort = null;
+      rejectRaw(err);
+    };
+    // 显式中止（停止按钮 / 新建项目）：立即关连接并以 aborted 错误 settle
+    const abortThisStream = () => {
+      deliberateSettle = true;
+      const err = new Error('已停止本次回复') as Error & { aborted?: boolean };
+      err.aborted = true;
+      streamLogger.log('user_abort', { contentLength: fullContent.length });
+      try { ws.close(); } catch (e) { /* ignore */ }
+      reject(err);
+    };
+    activeAbort = abortThisStream;
 
     // 2026-07-30 Q-023 残留截断修复：totalTimeout 120s→300s 且随非终态帧重置。
     // 根因：原 120s 从握手后一次性计时，chunk 期间从不重置（clearTimeout 只在终态帧）。
@@ -575,11 +643,13 @@ async function _doStreamWithAutoContinue(
     const resetTotalTimeout = () => {
       clearTimeout(totalTimeout);
       totalTimeout = setTimeout(() => {
+        deliberateSettle = true;
         ws.close();
         reject(new Error('AI 响应超时，请稍后重试'));
       }, TOTAL_TIMEOUT_MS);
     };
     let totalTimeout = setTimeout(() => {
+      deliberateSettle = true;
       ws.close();
       reject(new Error('AI 响应超时，请稍后重试'));
     }, TOTAL_TIMEOUT_MS);
@@ -616,14 +686,22 @@ async function _doStreamWithAutoContinue(
           return;
         }
         idleFired = true;
+        deliberateSettle = true;
         console.warn('[useStreamingChat] chunk 空闲超时（90s 无新内容），判定流式疑似卡死，保留已收到的内容', {
           contentLength: fullContent.length,
           continueAttempt,
         });
         streamLogger.log('idle_timeout', { contentLength: fullContent.length, idleMs: IDLE_TIMEOUT_MS });
         try { ws.close(); } catch (e) { /* ignore */ }
-        // 保留已收到的内容并 resolve（不 reject 抛错，避免清空已生成内容）
-        resolve({ content: fullContent, sessionId, stalled: true });
+        // 2026-07-31 Q-038：有内容时保留内容走“继续生成”路径；完全无内容时
+        // reject 友好错误（此前 resolve 空内容 + stalled 会让用户看到空气泡+继续按钮，莫名其妙）
+        if (fullContent.trim().length > 0) {
+          resolve({ content: fullContent, sessionId, stalled: true });
+        } else {
+          const err = new Error('AI 长时间未响应，请重试。如果反复出现，请检查 AI 服务状态。') as Error & { isTimeoutError?: boolean };
+          err.isTimeoutError = true;
+          reject(err);
+        }
       }, IDLE_TIMEOUT_MS);
     }
     function clearIdleTimer() {
@@ -632,6 +710,7 @@ async function _doStreamWithAutoContinue(
 
     const handshakeTimeout = setTimeout(() => {
       if (!connectedOk) {
+        deliberateSettle = true;
         ws.close();
         reject(new Error('ZeroClaw 握手失败：等不到 connected 帧'));
       }
@@ -693,6 +772,11 @@ async function _doStreamWithAutoContinue(
             type: 'message',
             content: outgoing,
           }));
+          // 2026-07-31 Q-038 首帧超时收紧：发出消息后立即启动 idleTimer。
+          // 此前 idleTimer 只在收到首个 chunk 后才启动，首帧之前只有 300s 的
+          // totalTimeout 兜底 —— AI 完全不回复时用户要干等 5 分钟才见到错误。
+          // 现在首帧窗口也受 90s idle 约束，无响应时 90s 内就能给出友好提示。
+          resetIdleTimer();
           return;
         }
 
@@ -892,6 +976,7 @@ async function _doStreamWithAutoContinue(
         }
 
         if (type === 'done') {
+          deliberateSettle = true;  // Q-038：后续一定会由本分支 settle，onclose 兜底不要接管
           clearTimeout(totalTimeout);
           clearIdleTimer();  // Q-023 修复A：正常结束，清空闲计时器
           let content = typeof data.full_response === 'string' ? data.full_response : fullContent;
@@ -1095,6 +1180,7 @@ async function _doStreamWithAutoContinue(
         }
 
         if (type === 'aborted') {
+          deliberateSettle = true;
           clearTimeout(totalTimeout);
           clearIdleTimer();  // Q-023 修复A
           ws.close();
@@ -1103,6 +1189,7 @@ async function _doStreamWithAutoContinue(
         }
 
         if (type === 'error') {
+          deliberateSettle = true;
           clearTimeout(totalTimeout);
           clearIdleTimer();  // Q-023 修复 A
           const errMsg = typeof data.message === 'string' ? data.message : 'ZeroClaw 错误';
@@ -1174,6 +1261,21 @@ async function _doStreamWithAutoContinue(
         clearTimeout(totalTimeout);
         clearTimeout(handshakeTimeout);
         clearIdleTimer();  // Q-023 修复A
+        // 2026-07-31 Q-038 死锁修复：WS 意外关闭（daemon 重启/网络闪断）时必须
+        // settle promise，否则 Create.tsx 的 finally 永不执行、isLoading 永久 true。
+        // deliberateSettle=true 表示业务分支（done/error/续接/中止/超时）已经或
+        // 即将 settle，这里不接管；否则就是意外关闭，有内容保内容，无内容报友好错。
+        if (!settled && !deliberateSettle) {
+          streamLogger.log('ws_unexpected_close', { contentLength: fullContent.length, connectedOk });
+          if (fullContent.trim().length > 0) {
+            console.warn('[useStreamingChat] WS 意外关闭，保留已收到的内容走续接路径');
+            resolve({ content: fullContent, sessionId, stalled: true });
+          } else {
+            const err = new Error('与 AI 服务的连接意外断开，请重试') as Error & { isDaemonDown?: boolean };
+            err.isDaemonDown = !connectedOk;
+            reject(err);
+          }
+        }
       };
 
       ws.onerror = () => {

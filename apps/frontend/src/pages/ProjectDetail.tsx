@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
-import { ArrowLeft, Check, Download, FileText, Pencil, Sparkles, Trash2, Award, TrendingUp, Code, X, FolderOpen, Wand2 } from 'lucide-react';
+import { ArrowLeft, Check, Download, FileText, Pencil, Sparkles, Trash2, Award, TrendingUp, Code, X, FolderOpen, Wand2, BookOpen } from 'lucide-react';
 import { projectsApi, achievementCardsApi, documentsApi, capabilityTagsApi } from '../services/api';
 import { Project, ProjectProgress, AchievementCard } from '../types';
 import { ProjectStageBar } from '../components/ProjectStageBar';
@@ -34,6 +34,9 @@ export default function ProjectDetail() {
   const [searchParams] = useSearchParams();
   const referredFile = searchParams.get('file');
   const [workspaceFilename, setWorkspaceFilename] = useState<string | null>(null);
+  // 讲解回顾（2026-07-31）：讲解文档内容 + 查看弹窗
+  const [explanationDoc, setExplanationDoc] = useState<string | null>(null);
+  const [showExplanationModal, setShowExplanationModal] = useState(false);
   const [fileBannerDismissed, setFileBannerDismissed] = useState(
     () => sessionStorage.getItem('finestem_filedismiss') === referredFile
   );
@@ -104,6 +107,16 @@ export default function ProjectDetail() {
   useEffect(() => {
     if (!id) return;
     loadProjectData(id);
+  }, [id]);
+
+  // 加载讲解文档（无内容/失败都静默，不阻塞详情页主流程）
+  useEffect(() => {
+    if (!id) return;
+    projectsApi.getDocument(id, 'explanation').then((res) => {
+      if (res.data?.has_content && res.data.content) {
+        setExplanationDoc(res.data.content);
+      }
+    }).catch(() => { /* 讲解文档不存在时保持空态 */ });
   }, [id]);
 
   const handleDelete = async () => {
@@ -269,6 +282,12 @@ export default function ProjectDetail() {
       sessionStorage.setItem('finestem_restore_project', JSON.stringify(fallbackRestoreData));
     }
     navigate('/create');
+  };
+
+  // 「AI 讲解代码」：复用进入工作台的恢复链路，附加 pending_action 让工作台自动发讲解提示词
+  const handleExplainCode = async () => {
+    sessionStorage.setItem('finestem_pending_action', 'explain');
+    await handleEnterCodeEditor();
   };
 
   const getModeColor = (mode: string) => {
@@ -652,6 +671,40 @@ export default function ProjectDetail() {
 
             <EvidencePanel projectId={project.id} />
 
+            {/* 讲解回顾（2026-07-31）：AI 讲解沉淀的讲解文档 + 发起 AI 讲解 */}
+            <Card data-testid="explanation-recap-card">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <BookOpen className="h-4 w-4 text-teal-600" />
+                  讲解回顾
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {explanationDoc ? (
+                  <>
+                    <p data-testid="explanation-recap-summary" className="text-xs text-gray-500">
+                      已沉淀 {(explanationDoc.match(/^## /gm) || []).length} 段讲解，可随时回顾。
+                    </p>
+                    <div data-testid="explanation-recap-preview" className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-xs text-gray-600 whitespace-pre-wrap max-h-28 overflow-hidden">
+                      {explanationDoc.replace(/^#+\s*/gm, '').slice(0, 160)}…
+                    </div>
+                    <Button variant="secondary" className="w-full justify-start" data-testid="view-explanation-doc" onClick={() => setShowExplanationModal(true)}>
+                      <BookOpen className="mr-2 h-4 w-4" />
+                      查看讲解文档
+                    </Button>
+                  </>
+                ) : (
+                  <p data-testid="explanation-recap-empty" className="text-sm text-gray-500">
+                    还没有讲解记录。让 AI 讲解代码后，讲解要点会自动沉淀到这里。
+                  </p>
+                )}
+                <Button className="w-full justify-start bg-teal-600 hover:bg-teal-700" data-testid="project-explain-code" onClick={() => void handleExplainCode()}>
+                  <Sparkles className="mr-2 h-4 w-4" />
+                  AI 讲解代码
+                </Button>
+              </CardContent>
+            </Card>
+
             {/* 成果卡片预览 */}
             {achievement && (
               <Card>
@@ -693,6 +746,36 @@ export default function ProjectDetail() {
           </div>
         </div>
       </div>
+
+      {/* 讲解文档查看弹窗（渲染方式同 ProjectFilesPanel 文档查看） */}
+      {showExplanationModal && explanationDoc && (
+        <div
+          data-testid="explanation-doc-modal"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+          onClick={(e) => { if (e.target === e.currentTarget) setShowExplanationModal(false); }}
+        >
+          <div className="w-[80vw] h-[80vh] bg-white rounded-xl shadow-2xl flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-200">
+              <span className="text-sm font-medium text-gray-700 flex items-center gap-1.5">
+                <BookOpen className="h-4 w-4 text-teal-600" />
+                讲解文档
+              </span>
+              <button
+                data-testid="explanation-doc-modal-close"
+                onClick={() => setShowExplanationModal(false)}
+                className="px-3 py-1 text-xs text-gray-500 hover:bg-gray-200 rounded"
+              >
+                关闭
+              </button>
+            </div>
+            <div className="flex-1 overflow-auto p-4">
+              <pre data-testid="explanation-doc-modal-content" className="text-xs text-gray-700 whitespace-pre-wrap font-mono leading-relaxed">
+                {explanationDoc}
+              </pre>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

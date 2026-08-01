@@ -3,7 +3,8 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { MessageSquare, Code, Rocket, FileText, ChevronUp, Paperclip, Image as ImageIcon, FolderOpen, Plus, Sparkles, User, Zap, Play, Copy, Check, ArrowRight, BookOpen, PanelLeftClose, PanelLeftOpen, Terminal, Eye, Pencil, MoreHorizontal, Maximize2, PanelLeft, Loader2, X } from 'lucide-react';
 import { ContinueButton } from '../components/ContinueButton';
 import { Card } from '../components/ui/Card';
-import { CodeGeneratedEvent, useStreamingChat } from '../hooks/useStreamingChat';
+import { CodeGeneratedEvent, useStreamingChat, abortActiveStream, isAbortError } from '../hooks/useStreamingChat';
+import { getScenePrompt, prefetchScenePrompts, OUTPUT_VISIBILITY_RULE } from '../lib/scenePrompts';
 import { parseQuestionsFromText } from '../lib/questionParser';
 import { confirmAndShow } from '../lib/questionConfirm';
 import { MarkdownText } from '../components/MarkdownText';
@@ -323,11 +324,43 @@ const SCENE_ENTRIES = [
   { icon: FileText, label: '写报告', desc: '整理结果并生成文稿' },
 ];
 
-const CODEX_SUGGESTIONS = [
-  '直接给我一个可运行版本，并自动写入编辑器',
-  '把这段代码讲清楚，并指出还能怎么优化',
-  '帮我把一个想法整理成可执行的项目方案',
+// 2026-07-31 Q-038：纯问答类场景——不自动创建项目、不进入 PBL 九步流程。
+// 此前所有输入（含“问问题”场景）都汇入“先建项目→脑爆选题”统一管线，
+// 学生问个问题也被强建项目（用户实测截图：发“我想问一个 STEM 相关的问题”
+// 直接自动建项并跳到“2.脑暴选题”）。
+const QA_SCENES = ['问问题', '解释代码', '写报告'];
+
+// 2026-07-31 Q-038：欢迎页引导链接与场景对齐——每条建议带目标场景，
+// 点击后走对应场景提示词链路（此前无场景标签，全部落入默认建项目管线）。
+const CODEX_SUGGESTIONS: Array<{ text: string; scene: string }> = [
+  { text: '直接给我一个可运行版本，并自动写入编辑器', scene: '开始项目' },
+  { text: '把这段代码讲清楚，并指出还能怎么优化', scene: '解释代码' },
+  { text: '帮我把一个想法整理成可执行的项目方案', scene: '开始项目' },
 ];
+
+/**
+ * 2026-07-31 Q-038：从思考链中抢救正文。
+ * 现象：随意问模式下 AI 把对问题的实际回答写在 thinking 帧里，正文只输出一句
+ * “点一张卡片告诉我你的想法吧”+选项卡 → 学生看不到答案（用户实测截图）。
+ * 提示词层已注入输出可见性规则（治本），此函数是前端最后防线（兜底）：
+ * 当正文极短（<40 字）而思考文本较长（>120 字）时，过滤思考文本中的元叙述行
+ * （“我应该/让我/调用工具”等），把剩余实质内容提升为正文。返回 null 表示无需兜底。
+ */
+function salvageAnswerFromThinking(content: string, thinking: string): string | null {
+  const trimmedContent = (content || '').trim();
+  const trimmedThinking = (thinking || '').trim();
+  if (trimmedContent.length >= 40) return null;
+  if (trimmedThinking.length <= 120) return null;
+  // 过滤元叙述行：AI 的自我规划、工具调用打算等不适合展示给学生
+  const META_LINE = /(我应该|我需要|让我|我先|我要|接下来我|调用|工具|ask_question|project_creator|skill_state|首先分析|用户(想|问|说)|学生的意图|我来判断|规划一下)/;
+  const kept = trimmedThinking
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !META_LINE.test(line));
+  const salvaged = kept.join('\n\n').trim();
+  if (salvaged.length < 60) return null; // 过滤后剩太少，宁可不兜底
+  return trimmedContent ? `${salvaged}\n\n${trimmedContent}` : salvaged;
+}
 
 const TEACHING_MODES: Array<{
   key: 'guided' | 'demo' | 'hands_on' | 'lecture';
@@ -614,6 +647,8 @@ const MessageItem = React.memo(function MessageItem({
   onWriteCode,
   onRunCode,
   onOpenFile,
+  onSaveExplanation,
+  explanationState,
 }: {
   msg: Message;
   isCurrentQuestion: boolean;
@@ -621,6 +656,8 @@ const MessageItem = React.memo(function MessageItem({
   onWriteCode: (code: string, lang: string) => void;
   onRunCode: (code: string, lang: string) => void;
   onOpenFile?: (path: string) => void;
+  onSaveExplanation?: (msg: Message) => void;
+  explanationState?: 'saving' | 'saved' | 'duplicate';
 }) {
   return (
     <div data-testid={`message-${msg.role}`} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
@@ -662,6 +699,25 @@ const MessageItem = React.memo(function MessageItem({
             )}
             {msg.continueStatus === 'failed' && (
               <div className="mt-1.5 text-[11px] text-amber-600">自动续接未完成，可点击下方"继续生成"。</div>
+            )}
+            {/* 讲解沉淀（2026-07-31）：长讲解消息尾部「保存为讲解」，追加到讲解文档 */}
+            {projectId && onSaveExplanation && msg.content.length > 200 && (
+              <div className="mt-2">
+                <button
+                  data-testid="save-explanation"
+                  onClick={() => onSaveExplanation(msg)}
+                  disabled={!!explanationState}
+                  className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] border transition-colors ${
+                    explanationState === 'saved' || explanationState === 'duplicate'
+                      ? 'border-teal-200 bg-teal-50 text-teal-600'
+                      : 'border-gray-200 text-gray-400 hover:text-teal-600 hover:border-teal-300'
+                  }`}
+                  title="把这段讲解沉淀到项目的讲解文档，方便日后回顾"
+                >
+                  <BookOpen className="w-3 h-3" />
+                  {explanationState === 'saving' ? '保存中…' : explanationState === 'saved' ? '已保存 ✓' : explanationState === 'duplicate' ? '已在讲解文档中' : '保存为讲解'}
+                </button>
+              </div>
             )}
           </>
         ) : (
@@ -917,6 +973,9 @@ const [runResultBlobUrl, setRunResultBlobUrl] = useState<string | null>(null); /
   const [projectFiles, setProjectFiles] = useState<FileEntry[]>([]);
   const [activeFileName, setActiveFileName] = useState('main.py');
   const [showFilesPanel, setShowFilesPanel] = useState(false);
+  // 讲解文档沉淀（2026-07-31）：文档面板刷新信号 + 各消息「保存为讲解」状态
+  const [docsRefreshSignal, setDocsRefreshSignal] = useState(0);
+  const [explanationSaves, setExplanationSaves] = useState<Record<string, 'saving' | 'saved' | 'duplicate'>>({});
   const [runStatus, setRunStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [editorWidth, setEditorWidth] = useState(() => {
     const saved = localStorage.getItem('finestem_editor_width');
@@ -1365,6 +1424,44 @@ const [runResultBlobUrl, setRunResultBlobUrl] = useState<string | null>(null); /
 
   useEffect(() => { const q = searchParams.get('q'); if (q && messages.length === 0) handleSendRef.current?.(q); }, [messages.length, searchParams]);
 
+  // 「保存为讲解」：把 AI 讲解消息沉淀到讲解文档（后端累加追加 + 子串判重）
+  const handleSaveExplanation = useCallback(async (msg: Message) => {
+    const pid = projectContext.projectId;
+    if (!pid || pid.startsWith('local-')) return;
+    setExplanationSaves((prev) => ({ ...prev, [msg.id]: 'saving' }));
+    try {
+      const heading = msg.content.match(/^#{1,4}\s+(.+)$/m);
+      const topic = heading ? heading[1].trim() : undefined;
+      const res = await projectsApi.appendExplanation(pid, { content: msg.content, topic });
+      const status = res.data?.status === 'duplicate' ? 'duplicate' : 'saved';
+      setExplanationSaves((prev) => ({ ...prev, [msg.id]: status }));
+      if (status === 'saved') setDocsRefreshSignal((n) => n + 1);
+    } catch (error) {
+      console.error('[explanation] 保存讲解失败:', error);
+      setExplanationSaves((prev) => { const next = { ...prev }; delete next[msg.id]; return next; });
+    }
+  }, [projectContext.projectId]);
+
+  // 「AI 讲解」：把当前编辑器代码发进聊天流让 AI 讲解（解释代码场景，AI 会按提示词沉淀讲解文档）
+  const handleExplainEditorCode = useCallback(() => {
+    const raw = editorCode || '';
+    if (!raw.trim()) return;
+    const code = raw.length > 6000 ? raw.slice(0, 6000) + '\n…（代码过长已截断）' : raw;
+    setShowChatHistory(true);
+    handleSendRef.current?.(
+      `请讲解下面这段 ${editorLanguage} 代码：先说它做什么，再逐段拆解怎么做的，最后讲为什么这样设计、有什么可以优化。\n\n\`\`\`${editorLanguage}\n${code}\n\`\`\``,
+      '解释代码',
+    );
+  }, [editorCode, editorLanguage]);
+
+  // 详情页「AI 讲解代码」承接：工作区恢复完成后自动对当前代码发讲解提示词（一次性消费）
+  useEffect(() => {
+    if (!_restoreDone || !projectContext.projectId) return;
+    if (sessionStorage.getItem('finestem_pending_action') !== 'explain') return;
+    sessionStorage.removeItem('finestem_pending_action');
+    setTimeout(() => { handleExplainEditorCode(); }, 600);
+  }, [_restoreDone, projectContext.projectId, handleExplainEditorCode]);
+
   /** 处理 URL 中的 file 参数：自动在代码编辑器中打开指定文件 */
   useEffect(() => {
     const fileParam = searchParams.get('file');
@@ -1662,6 +1759,9 @@ const [runResultBlobUrl, setRunResultBlobUrl] = useState<string | null>(null); /
   }, []);
 
   const handleStartNewProject = useCallback(() => {
+    // 2026-07-31 Q-038：先中止活跃流——此前重开新项目不管旧流，旧流回调会继续
+    // 污染新会话消息列表，isLoading 也可能残留 true 导致输入框继续锁死。
+    abortActiveStream();
     projectCreatingRef.current = false;
     // 主动新建项目：清掉 F5 恢复用的活跃项目 ID，避免刷新后又回到旧项目
     sessionStorage.removeItem('finestem_active_project_id');
@@ -1677,6 +1777,7 @@ const [runResultBlobUrl, setRunResultBlobUrl] = useState<string | null>(null); /
     setMessages([]);
     setInputValue('');
     setIsLoading(false);
+    isLoadingRef.current = false;
     setActiveScene('开始项目');
     setShowChatHistory(false);
     clearQuestionFlow();
@@ -1692,6 +1793,10 @@ const [runResultBlobUrl, setRunResultBlobUrl] = useState<string | null>(null); /
   // 2026-07-20 修复：使用 isLoadingRef 同步控制加载状态，避免 React 异步状态更新导致的竞态条件
   // 2026-07-23 修复：多卡场景下逐张记录答案，全部回答完才统一发送一条消息（而非每张卡各发一条）
   const isLoadingRef = useRef(false);
+  // 2026-07-31 Q-038：loading 期间发送被拦截的可见提示条（此前静默丢弃，用户以为卡死）
+  const [sendBlockedHint, setSendBlockedHint] = useState(false);
+  // 2026-07-31 Q-038：进入创建页即预拉后端场景提示词（带 30 分钟缓存），避免首条消息阻塞等待
+  useEffect(() => { void prefetchScenePrompts(); }, []);
   // 记录多卡场景下已回答但尚未提交的答案 { questionId → { title, labels, ids, customText } }
   const collectedAnswersRef = useRef<Map<string, { title: string; labels: string[]; ids: string[]; customText?: string }>>(new Map());
   // 2026-07-23 Q-005 修复：持久记录学生已回答的所有信息（title → labels），注入 context 防止 AI 重复问
@@ -2384,7 +2489,15 @@ const handleSend = async (
       // 当 handleQuestionAnswer 调用时，isLoadingRef 已被同步设为 false，这里不会误拦截
       if (!message || (isLoading && !isLoadingRef.current === false)) {
         // 允许在 isLoadingRef 已经被重置为 false 时继续执行
-        if (isLoadingRef.current) return;
+        if (isLoadingRef.current) {
+          // 2026-07-31 Q-038：loading 期间输入不再被静默丢弃——给出可见提示。
+          // 此前直接 return，配合 promise 挂起 bug 表现为“卡死、重新写入也无反应”。
+          if (message) {
+            setSendBlockedHint(true);
+            window.setTimeout(() => setSendBlockedHint(false), 3000);
+          }
+          return;
+        }
       }
       
       // 保存最后一条消息用于续接
@@ -2408,6 +2521,14 @@ const handleSend = async (
       }
     const directCodingIntent = hasDirectCodingIntent(message);
     const requestedOutputLanguage = inferRequestedOutputLanguage(message);
+    // 2026-07-31 Q-038 场景门禁：问问题/解释代码/写报告是纯问答场景，绝不自动建项目；
+    // 无场景直接打字时，只有消息带项目/编码意图才建项目（“什么是二进制”这类纯提问不建）。
+    const effectiveScene = sceneOverride || activeScene || '';
+    const isQaScene = QA_SCENES.includes(effectiveScene);
+    const looksLikeProjectIntent = directCodingIntent
+      || /项目|做一个|做个|制作|开发|搭建|帮我(写|做|建)|设计.{0,8}(游戏|网页|网站|程序|应用|作品|方案)/.test(message)
+      || isSelectionReply; // 选项卡回答是项目引导流程的延续
+    const shouldBootstrapProject = !isQaScene && (effectiveScene === '开始项目' || looksLikeProjectIntent);
     const historyMessages = buildStreamHistory(messages);
     type StreamedProjectInfo = { project_id: string; project_name: string; current_stage?: string };
     const streamedProjectState: { current?: StreamedProjectInfo } = {};
@@ -2434,6 +2555,21 @@ const handleSend = async (
       user_id: user?.id,
       ...(requestOverrides?.context || {}),
     };
+
+    // 2026-07-31 Q-038：把后端场景化系统提示词接入 WS 主链路。
+    // daemon 只读 config.toml 的 PBL 提示词，场景差异全靠消息文本注入
+    // （buildOutgoingMessage 会把 scene_instructions 包成 <scene_instructions> 块）。
+    // 输出可见性规则每轮都注入——修复“AI 把回答写在思考区、正文只剩引导语”。
+    // “开始项目”与 daemon 默认 PBL 提示词一致，不重复注入场景段，省 token。
+    {
+      const sceneInstructionParts: string[] = [];
+      if (effectiveScene && effectiveScene !== '开始项目') {
+        const scenePromptText = await getScenePrompt(effectiveScene);
+        if (scenePromptText) sceneInstructionParts.push(scenePromptText);
+      }
+      sceneInstructionParts.push(OUTPUT_VISIBILITY_RULE);
+      effectiveContext.scene_instructions = sceneInstructionParts.join('\n\n');
+    }
 
     // 2026-07-23 Q-005 修复：注入已收集的学生回答（具体值），防止 AI 重复问
     // 用 studentProfileRef（title → labels）注入具体答案，让 AI 直接读到"年级=初中"等
@@ -2475,10 +2611,11 @@ const handleSend = async (
       if (used >= 5) { setShowRegisterPrompt(true); return; }
     }
 
-    // Q-024 修复扩展：对所有登录用户首次发消息时都通过 API 创建项目，
-    // 确保项目归属正确（用户拥有），防止 WS project_creator 用错误 author_id 创建。
-    // 原来只在 directCodingIntent 时创建，导致普通消息走 WS 创建 → 403。
-    if (!effectiveProjectId && user) {
+    // Q-024 修复扩展：登录用户需要项目时通过 API 创建，确保归属正确（防 WS
+    // project_creator 用错误 author_id 创建 → autosave 403）。
+    // 2026-07-31 Q-038：不再无条件创建——仅在场景/意图判定需要项目时创建，
+    // 纯问答（问问题/解释代码/写报告/无项目意图的直接提问）不建项目。
+    if (!effectiveProjectId && user && shouldBootstrapProject) {
       const bootstrapName = message.length > 20 ? `${message.slice(0, 20)}...` : message;
       const bootstrapProject = await createProjectViaAPI(bootstrapName, 'standard');
       if (bootstrapProject?.id) {
@@ -2549,6 +2686,9 @@ setIsLoading(true);
 isLoadingRef.current = true; // 同步更新 ref
 let rawAssistantContent = '';
     let assistantContent = '';
+    // 2026-07-31 Q-038：本轮 thinking 帧的本地累积（salvageAnswerFromThinking 兜底用；
+    // 不读 messages state，避免闭包陈旧值）
+    let thinkingAccum = '';
     // 追踪 content_update 事件是否可能导致内容丢失
     let receivedContentUpdate = false;
     // 保存 content_update 之前累积的最大可见内容，防止被清空
@@ -2846,6 +2986,7 @@ let rawAssistantContent = '';
           onThinking: (chunk) => {
             // 收集思考链到当前 assistant 消息的 thinking 字段，单独渲染、不污染正文
             if (!chunk) return;
+            thinkingAccum += chunk; // Q-038：本地同步累积，供流末 salvage 兜底
             setMessages(prev => {
               const updated = [...prev];
               const lastIdx = updated.length - 1;
@@ -2922,6 +3063,18 @@ let rawAssistantContent = '';
       if (receivedContentUpdate && assistantContent.length === 0 && maxVisibleContent.length > 0) {
         console.warn('[handleSend] 最终内容为空但存在历史可见内容，恢复历史内容');
         assistantContent = maxVisibleContent;
+      }
+      // 2026-07-31 Q-038：thinking 抢救兜底——AI 把实际回答写在思考区、正文只剩一句
+      // 引导语时（用户实测截图），过滤元叙述后把思考内容提升为正文。提示词层已治本，
+      // 这里是前端最后防线。
+      {
+        const salvaged = salvageAnswerFromThinking(assistantContent, thinkingAccum);
+        if (salvaged) {
+          console.info('[handleSend] Q-038 salvage：正文过短而思考区有实质内容，提升为正文', {
+            contentLen: assistantContent.length, thinkingLen: thinkingAccum.length,
+          });
+          assistantContent = salvaged;
+        }
       }
       setMessages(prev => {
         const updated = [...prev];
@@ -3098,7 +3251,8 @@ let rawAssistantContent = '';
         || (typeof effectiveContext.current_stage === 'string' ? effectiveContext.current_stage : '')
         || projectContext.currentStage
         || 'stage_01_brainstorm';
-      if (!resolvedProjectId && !projectCreatingRef.current && (message.includes('项目') || message.includes('创建') || message.includes('新建'))) {
+      // 2026-07-31 Q-038：纯问答场景不走关键词兜底建项目（“我想问一个项目相关的问题”不建项）
+      if (!isQaScene && !resolvedProjectId && !projectCreatingRef.current && (message.includes('项目') || message.includes('创建') || message.includes('新建'))) {
         const fallbackName = message.length > 30 ? message.slice(0, 30) + '...' : message;
         fallbackProject = await ensureProjectCreated(fallbackName);
       }
@@ -3138,6 +3292,19 @@ let rawAssistantContent = '';
     } catch (error) {
       // 2026-07-30 节流修复：异常退出也要把已收到的 token 刷到 UI，保留部分内容
       forceFlush();
+      // 2026-07-31 Q-038：用户主动停止（停止按钮/切换新项目）不是错误——保留已收到内容，
+      // 空气泡补一句说明即可，不显示“请求失败”吓人文案。
+      if (isAbortError(error)) {
+        setMessages((prev) => {
+          const copy = [...prev];
+          const last = copy[copy.length - 1];
+          if (last && last.role === 'assistant' && !last.content.trim()) {
+            last.content = '⏹️ 已停止本次回复。';
+          }
+          return copy;
+        });
+        return;
+      }
       if (!user) {
         const used = Number(localStorage.getItem('anonymous_chat_count') || '0');
         const next = used + 1;
@@ -3148,7 +3315,9 @@ let rawAssistantContent = '';
       const isDaemonDown = (error as Error & { isDaemonDown?: boolean }).isDaemonDown === true;
 
       // R8 修复：daemon 不可用时给学生友好提示，不显示"继续生成"按钮（点了也没用）
-      const isTimeoutError = !isDaemonDown && (errMsg.includes('超时') || errMsg.includes('timeout') || errMsg.includes('aborted'));
+      // 2026-07-31 Q-038：useStreamingChat 空内容超时会带 isTimeoutError 标志，优先识别
+      const isTimeoutFlagged = (error as Error & { isTimeoutError?: boolean }).isTimeoutError === true;
+      const isTimeoutError = !isDaemonDown && (isTimeoutFlagged || errMsg.includes('超时') || errMsg.includes('timeout') || errMsg.includes('aborted'));
       const isConnectionError = !isDaemonDown && (errMsg.includes('连接') || errMsg.includes('connection') || errMsg.includes('closed'));
 
       // 2026-07-30 截断治理二期：Invalid JSON（工具调用参数被 token 上限截断）自动重试耗尽后
@@ -3166,7 +3335,10 @@ let rawAssistantContent = '';
           } else if (isToolJsonError) {
             last.content = '⚠️ AI 这次写的代码太长，传输时被截断了（已自动重试仍未成功）。请点击下方"继续生成"，AI 会改用分块方式重写。';
           } else if (isTimeoutError || isConnectionError) {
-            last.content = `${assistantContent}\n\n[输出被截断，请点击下方"继续生成"按钮]`;
+            // 2026-07-31 Q-038：一个字都没收到时不再谎称“输出被截断”（此前误导用户狂点继续）
+            last.content = assistantContent.trim().length > 0
+              ? `${assistantContent}\n\n[输出被截断，请点击下方"继续生成"按钮]`
+              : '⏳ AI 没有及时响应（可能服务繁忙或网络波动）。请稍等片刻，重新发送你的问题试试。';
           } else {
             last.content = `请求失败：${errMsg}`;
           }
@@ -3175,11 +3347,15 @@ let rawAssistantContent = '';
       });
 
       // 超时/连接错误/工具 JSON 截断：显示继续按钮（daemon 挂了不显示，点了也没用）
-      if (isTimeoutError || isConnectionError || isToolJsonError) {
+      // 2026-07-31 Q-038：无任何内容时超时/连接错误不显示继续按钮（没有可续接的上文）
+      if (isToolJsonError || ((isTimeoutError || isConnectionError) && assistantContent.trim().length > 0)) {
         setShowContinueButton(true);
       }
     } finally {
       setIsLoading(false);
+      // 2026-07-31 Q-038：ref 同步复位——此前只复位 state，异常路径下 ref 残留 true，
+      // handleSend 守卫会永久拦截后续输入（“卡死、重新写入也无反应”的另一半根因）。
+      isLoadingRef.current = false;
       setIsContinuing(false);
       // 2026-07-28 对话丢失修复：每轮流式回复结束后强制保存对话。
       // 这是最高频、最可靠的保存时机。延迟一拍让 React 先把本轮 setMessages
@@ -3703,6 +3879,8 @@ let rawAssistantContent = '';
                         onWriteCode={handleWriteCodeToEditor}
                         onRunCode={handleRunCode}
                         onOpenFile={openFileFromChatLink}
+                        onSaveExplanation={renderProjectId ? handleSaveExplanation : undefined}
+                        explanationState={explanationSaves[msg.id]}
                       />
                     );
                   });
@@ -3713,6 +3891,13 @@ let rawAssistantContent = '';
                       <div className="w-1.5 h-1.5 bg-teal-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
                       <div className="w-1.5 h-1.5 bg-teal-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
                       <div className="w-1.5 h-1.5 bg-teal-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                      {/* 2026-07-31 Q-038：随时可停——此前流异常时用户只能干等（输入框锁死） */}
+                      <button
+                        data-testid="stop-stream-inline"
+                        onClick={() => abortActiveStream()}
+                        className="ml-1 text-[11px] text-gray-400 hover:text-red-500 transition-colors"
+                        title="停止本次回复"
+                      >停止</button>
                     </div>
                   </div>
                 )}
@@ -3761,9 +3946,9 @@ let rawAssistantContent = '';
               </div>
               <div className="flex flex-wrap justify-center gap-2 max-w-lg">
                 {CODEX_SUGGESTIONS.map((suggestion, idx) => (
-                  <button key={idx} onClick={() => handleSend(suggestion)} disabled={isLoading}
+                  <button key={idx} onClick={() => { setActiveScene(suggestion.scene); handleSend(suggestion.text, suggestion.scene); }} disabled={isLoading}
                     className="text-left text-sm text-gray-500 hover:text-gray-700 hover:bg-white hover:shadow-sm px-3 py-2 rounded-lg transition-colors leading-relaxed line-clamp-2 border border-transparent">
-                    {suggestion}
+                    {suggestion.text}
                   </button>
                 ))}
               </div>
@@ -3813,6 +3998,12 @@ let rawAssistantContent = '';
                       </button>
                     </div>
                   ))}
+                </div>
+              )}
+              {/* 2026-07-31 Q-038：loading 期间发送被拦截的可见提示（此前静默丢弃，用户以为卡死） */}
+              {sendBlockedHint && (
+                <div data-testid="send-blocked-hint" className="px-3 pt-2 text-[11px] text-amber-600">
+                  AI 正在回复中，请等待完成或点“停止”后再发送。
                 </div>
               )}
               <textarea ref={textareaRef} data-testid="chat-input" value={inputValue} onChange={(e) => setInputValue(e.target.value)} onKeyDown={handleKeyDown}
@@ -3877,10 +4068,18 @@ let rawAssistantContent = '';
                 </div>
                 <div className="flex items-center gap-2">
                   {!user && <span className="text-[10px] text-amber-600">匿名剩余 {5 - Number(localStorage.getItem('anonymous_chat_count') || '0')} 次</span>}
+                  {/* 2026-07-31 Q-038：loading 时发送按钮变停止按钮，随时可中止卡住的流 */}
+                  {isLoading ? (
+                    <button data-testid="stop-button" onClick={() => abortActiveStream()} title="停止本次回复"
+                      className="p-1 bg-gray-900 hover:bg-red-600 text-white rounded-lg transition-colors">
+                      <X className="w-4 h-4" />
+                    </button>
+                  ) : (
                   <button data-testid="send-button" onClick={() => submitChatInput()} disabled={(!inputValue.trim() && pendingImages.length === 0 && pendingFiles.length === 0 && !showChatHistory) || isAnalyzingImages}
                     className="p-1 bg-gray-900 hover:bg-gray-800 disabled:bg-gray-200 text-white rounded-lg transition-colors">
                     {isAnalyzingImages ? <Loader2 className="w-4 h-4 animate-spin" /> : <ChevronUp className="w-4 h-4" />}
                   </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -3902,6 +4101,7 @@ let rawAssistantContent = '';
             onSelectFile={handleSelectFile}
             onExportZip={handleExportZip}
             onClose={() => setShowFilesPanel(false)}
+            refreshSignal={docsRefreshSignal}
           />
         </div>
       )}
@@ -3967,6 +4167,16 @@ let rawAssistantContent = '';
                   ) : (
                     <><Play className="w-3 h-3" /> 运行</>
                   )}
+                </button>
+                {/* AI 讲解当前代码（2026-07-31 讲解文档） */}
+                <button
+                  data-testid="explain-code"
+                  onClick={handleExplainEditorCode}
+                  disabled={isLoading || !editorCode.trim()}
+                  className="flex items-center gap-1 px-2 py-1 bg-teal-600 hover:bg-teal-700 disabled:bg-teal-300 text-white rounded text-xs font-medium transition-colors"
+                  title="让 AI 讲解当前代码，讲解要点会沉淀到讲解文档"
+                >
+                  <BookOpen className="w-3 h-3" /> AI 讲解
                 </button>
                 {editorTab === 'preview' && previewHtml && (
                   <button

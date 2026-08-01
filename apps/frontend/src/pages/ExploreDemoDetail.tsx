@@ -22,10 +22,12 @@ export default function ExploreDemoDetail() {
   const [pendingAction, setPendingAction] = useState<'fork' | 'save' | null>(null);
   const [breakdown, setBreakdown] = useState<string>('');
   const [forkTemplate, setForkTemplate] = useState<ForkTemplate | null>(null);
-  const [activeTab, setActiveTab] = useState<'experience' | 'breakdown' | 'code'>('experience');
+  const [activeTab, setActiveTab] = useState<'experience' | 'breakdown' | 'explanation' | 'code'>('experience');
   const [selectedTemplateFile, setSelectedTemplateFile] = useState<string>('');
   const [currentScreenshot, setCurrentScreenshot] = useState(0);
   const [codeCopied, setCodeCopied] = useState(false);
+  // 讲解页签（2026-07-31）：登录用户从本 Demo fork 的项目若已沉淀讲解文档，展示「我的讲解回顾」
+  const [myExplanation, setMyExplanation] = useState<{ projectId: string; content: string } | null>(null);
 
   // code_url/download_url 可能指向 fork-template JSON 接口，直接新窗口打开会显示裸 JSON，需过滤
   const isExternalResourceUrl = (url?: string | null) =>
@@ -115,7 +117,7 @@ export default function ExploreDemoDetail() {
     const params = new URLSearchParams(location.search);
     const tab = params.get('tab');
     const action = params.get('action');
-    if (tab === 'breakdown' || tab === 'code' || tab === 'experience') {
+    if (tab === 'breakdown' || tab === 'code' || tab === 'experience' || tab === 'explanation') {
       setActiveTab(tab);
     }
     if (action === 'save' && user && demo) {
@@ -207,6 +209,26 @@ export default function ExploreDemoDetail() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 注册弹窗回调只消费 pendingAction
   }, [user, pendingAction]);
+
+  // 登录用户：找从本 Demo fork 的最新项目，取其讲解文档作「我的讲解回顾」（失败静默）
+  useEffect(() => {
+    if (!user || !demo) { setMyExplanation(null); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await projectsApi.list({ page: 1, page_size: 50 });
+        const mine = (res.data?.items || [])
+          .filter((p) => p.from_demo_id === demo.id)
+          .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+        if (!mine.length) return;
+        const docRes = await projectsApi.getDocument(mine[0].id, 'explanation');
+        if (!cancelled && docRes.data?.has_content && docRes.data.content) {
+          setMyExplanation({ projectId: mine[0].id, content: docRes.data.content });
+        }
+      } catch { /* 无讲解文档/接口失败保持空态 */ }
+    })();
+    return () => { cancelled = true; };
+  }, [user, demo]);
 
   if (loading) {
     return (
@@ -347,6 +369,14 @@ export default function ExploreDemoDetail() {
                     </Button>
                     <Button
                       size="sm"
+                      variant={activeTab === 'explanation' ? 'primary' : 'secondary'}
+                      onClick={() => setActiveTab('explanation')}
+                      data-testid="demo-tab-explanation"
+                    >
+                      讲解
+                    </Button>
+                    <Button
+                      size="sm"
                       variant={activeTab === 'code' ? 'primary' : 'secondary'}
                       onClick={() => setActiveTab('code')}
                     >
@@ -435,6 +465,34 @@ export default function ExploreDemoDetail() {
                               ))}
                             </ul>
                           </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {activeTab === 'explanation' && (
+                    <div data-testid="demo-explanation-panel" className="p-4 bg-gray-50 border rounded-lg space-y-4">
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2">讲解文档</h3>
+                        {demo.explanation_doc ? (
+                          <pre data-testid="demo-explanation-content" className="text-sm text-gray-700 whitespace-pre-wrap font-sans">{demo.explanation_doc}</pre>
+                        ) : (
+                          <p data-testid="demo-explanation-empty" className="text-sm text-gray-600">当前 Demo 暂无讲解文档。可点「我也做一个」创建项目后，在工作台让 AI 讲解代码。</p>
+                        )}
+                      </div>
+                      {myExplanation && (
+                        <div data-testid="demo-my-explanation" className="pt-3 border-t border-gray-200 space-y-2">
+                          <h4 className="text-base font-semibold text-gray-900">我的讲解回顾</h4>
+                          <p className="text-xs text-gray-500">来自你从本 Demo 创建的项目，由 AI 讲解沉淀而成。</p>
+                          <pre data-testid="demo-my-explanation-content" className="text-sm text-gray-700 whitespace-pre-wrap font-sans max-h-80 overflow-auto rounded-md border border-teal-100 bg-teal-50/40 p-3">{myExplanation.content}</pre>
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            data-testid="demo-my-explanation-goto"
+                            onClick={() => navigate(`/research/projects/${myExplanation.projectId}`)}
+                          >
+                            去该项目继续讲解
+                          </Button>
                         </div>
                       )}
                     </div>

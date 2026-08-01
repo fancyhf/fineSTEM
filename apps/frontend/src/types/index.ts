@@ -76,6 +76,7 @@ export interface Demo {
   screenshots?: string[];
   demo_video_url?: string;
   project_breakdown?: string;
+  explanation_doc?: string;
   minimal_replica?: string;
   code_url?: string;
   download_url?: string;

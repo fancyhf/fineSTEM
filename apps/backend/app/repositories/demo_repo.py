@@ -28,6 +28,22 @@ SEED_DEMOS: list[dict[str, object]] = [
             "技术要点：Flask 路由与模板渲染、JSON 数据持久化、SiliconFlow API 图像生成。\n"
             "扩展方向：诗词背诵测验、社区分享、语音朗读。"
         ),
+        "explanation_doc": (
+            "## 🎯 核心原理 —— 这个应用本质是什么？\n\n"
+            "一个「数据驱动渲染」的卡片应用：诗词存在一个数组里，页面上看到的每张卡片都是由数据生成的 HTML。\n"
+            "数据流向：`data 数组 → render() 生成卡片 HTML → 用户操作（搜索/收藏）→ 修改数据 → 重新 render()`。\n\n"
+            "## 🎨 设计思路\n\n"
+            "1. **数据结构**：每首诗是一个对象 `{id, title, author, content, cat, fav}`，`fav` 记录收藏状态。\n"
+            "2. **布局**：`display:grid` + `auto-fill/minmax` 实现自适应卡片墙，窗口变窄自动换行。\n"
+            "3. **交互闭环**：所有操作最终都回到「改数据 → 重渲染」，不直接改 DOM。\n\n"
+            "## 🔍 关键代码拆解\n\n"
+            "**渲染函数**：`render(list)` 用模板字符串把数组 `map` 成卡片 HTML，一次性写入 `innerHTML——`这就是最简单的「视图=函数(数据)」。\n\n"
+            "**搜索过滤**：`filter(q)` 用 `Array.filter` 在标题/作者/正文三个字段里做 `includes` 匹配，先统一 `toLowerCase()` 实现忽略大小写。\n\n"
+            "**收藏切换**：`toggleFav(id)` 用 `find` 定位到那首诗，取反 `fav` 后重新过滤渲染；`event.stopPropagation()` 防止点星星时触发卡片点击。\n\n"
+            "## ✅ 结果验证\n\n"
+            "- 搜索「李白」→ 只剩《静夜思》；清空搜索 → 四张卡片全部回来\n"
+            "- 点星星 → ☆ 变 ★，再点取消；搜索状态下收藏不丢失筛选结果"
+        ),
         "minimal_replica": {
             "entry_file": "index.html",
             "files": {
@@ -54,6 +70,22 @@ SEED_DEMOS: list[dict[str, object]] = [
             "技术要点：Streamlit 交互式界面、pandas 数据处理、matplotlib 图表渲染。\n"
             "扩展方向：多视频对比分析、情感分析、时间轴关键词分布。"
         ),
+        "explanation_doc": (
+            "## 🎯 核心原理 —— 词频统计怎么做？\n\n"
+            "本质是一条文本处理流水线：`原始文本 → 切分出词语 → 计数器累加 → 排序取 Top N → 可视化`。\n"
+            "每一步都是独立的、可单独测试的小函数——这就是数据处理类项目的通用套路。\n\n"
+            "## 🎨 设计思路\n\n"
+            "1. **分词**：网页版用正则 `[\\u4e00-\\u9fff]{2,}` 把连续 2 字以上的中文串当作「词」；完整版换成 jieba 分词，其他环节不变。\n"
+            "2. **计数**：用对象当字典 `freq[w] = (freq[w]||0) + 1`，一行实现「没见过就初始化为 0，见过就 +1」。\n"
+            "3. **可视化**：条形图用 div 宽度模拟，`宽度 = 词频/最大词频 × 300px`，归一化后最长条永远撑满。\n\n"
+            "## 🔍 关键代码拆解\n\n"
+            "**排序取 Top20**：`Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,20)` —— 字典转成 `[词, 次数]` 数组才能排序，降序后切前 20 个。\n\n"
+            "**统计卡片**：总字符数、不同词数、高频词数三个指标分别来自 `text.length`、`Object.keys(freq).length`、`sorted.length`——同一份数据的三个视角。\n\n"
+            "**空输入防御**：先 `text.trim()` 判空并提示，再进入分析——任何处理用户输入的功能都要先想「输入为空/非法怎么办」。\n\n"
+            "## ✅ 结果验证\n\n"
+            "- 粘一段字幕点「分析」→ 出现三张统计卡 + 最多 20 条降序条形图\n"
+            "- 空输入点「分析」→ 红色提示「请先输入文本」，不报错"
+        ),
         "minimal_replica": {
             "entry_file": "index.html",
             "files": {
@@ -79,6 +111,21 @@ SEED_DEMOS: list[dict[str, object]] = [
             "核心模块：任务添加（标题/描述/截止日期/重要性/紧急度）、优先级评分算法、任务完成与删除、LocalStorage 持久化。\n"
             "技术要点：优先级评分 = 重要性权重 + 紧急度权重 + 截止日期加成、CSS 优先级色标、响应式布局。\n"
             "扩展方向：AI 智能建议、任务分类标签、数据统计面板。"
+        ),
+        "explanation_doc": (
+            "## 🎯 核心原理 —— 「智能」在哪？\n\n"
+            "智能 = 一个打分函数。每个任务按「重要性 + 紧急度 + 截止日期」算出一个分数，列表按分数降序——这就是最简单的「规则引擎」，也是推荐系统的雏形。\n\n"
+            "## 🎨 设计思路\n\n"
+            "1. **评分公式**：`score = 重要性×10 + 紧急度×10 + 截止日期加成`（≤1 天 +50，≤3 天 +30，≤7 天 +10）——权重是可调的「产品决策」。\n"
+            "2. **数据持久化**：每次增删改都 `localStorage.setItem`，刷新不丢——前端最轻的「数据库」。\n"
+            "3. **完成任务沉底**：排序先比 `completed` 再比分数，已完成的永远在未完成之后。\n\n"
+            "## 🔍 关键代码拆解\n\n"
+            "**打分函数**：`score(t)` 用查表 `{high:3, medium:2, low:1}` 把档位转数字；截止日期用 `(deadline - now) / 864e5` 算剩余天数（864e5 = 一天的毫秒数）。\n\n"
+            "**排序渲染**：`[...tasks].sort(...)` 先拷贝再排序，不破坏原数组顺序；每次操作后统一走 `render()` 重画全表。\n\n"
+            "**状态切换**：`toggle(id)` 用 `find` 定位任务取反 `completed`；`del(id)` 用 `filter` 生成不含该任务的新数组——「改」用 find，「删」用 filter。\n\n"
+            "## ✅ 结果验证\n\n"
+            "- 加一个任务 → 自动按分数插入正确位置，色标（红/橙/绿）与分数档位一致\n"
+            "- 刷新页面 → 任务还在（LocalStorage 生效）；勾选完成 → 沉到列表尾部"
         ),
         "minimal_replica": {
             "entry_file": "index.html",
@@ -114,6 +161,7 @@ def _to_schema(model: DemoModel) -> Demo:
         screenshots=json_loads(model.screenshots, []),
         demo_video_url=model.demo_video_url,
         project_breakdown=model.project_breakdown,
+        explanation_doc=model.explanation_doc,
         minimal_replica=model.minimal_replica,
         code_url=model.code_url,
         download_url=model.download_url,
@@ -148,6 +196,19 @@ class DemoRepo(BaseRepository):
         for item in SEED_DEMOS:
             demo_id = str(item["id"])
             if demo_id in existing_ids:
+                # 回填：已存在的 system 种子行若缺讲解文档则补写（2026-07-31 新增列）
+                seed_doc = str(item.get("explanation_doc", "")) or None
+                if seed_doc:
+                    existing_model = self.db.get(DemoModel, demo_id)
+                    if (
+                        existing_model
+                        and existing_model.created_by == "system"
+                        and not existing_model.explanation_doc
+                    ):
+                        existing_model.explanation_doc = seed_doc
+                        existing_model.updated_at = now
+                        existing_model.updated_by = "system"
+                        inserted = True
                 continue
             model = DemoModel(
                 id=demo_id,
@@ -163,6 +224,7 @@ class DemoRepo(BaseRepository):
                 screenshots=json_dumps(item.get("screenshots", []), default="[]"),
                 demo_video_url=str(item.get("demo_video_url", "")) or None,
                 project_breakdown=str(item.get("project_breakdown", "")) or None,
+                explanation_doc=str(item.get("explanation_doc", "")) or None,
                 minimal_replica=json_dumps(item.get("minimal_replica", {}), default="{}"),
                 code_url=f"/api/v1/demos/{item['id']}/fork-template",
                 download_url=f"/api/v1/demos/{item['id']}/fork-template",
@@ -237,6 +299,7 @@ class DemoRepo(BaseRepository):
             screenshots=json_dumps(demo.screenshots, default="[]"),
             demo_video_url=demo.demo_video_url,
             project_breakdown=demo.project_breakdown,
+            explanation_doc=demo.explanation_doc,
             minimal_replica=demo.minimal_replica,
             code_url=demo.code_url,
             download_url=demo.download_url,

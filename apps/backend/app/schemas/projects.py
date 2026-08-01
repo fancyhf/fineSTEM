@@ -284,6 +284,14 @@ class ProjectChatSave(BaseModel):
     messages: List[Dict[str, Any]] = Field(..., description="聊天消息列表")
 
 
+class ExplanationAppendRequest(BaseModel):
+    """
+    讲解文档追加请求（2026-07-31）：把一段 AI 讲解沉淀为带时间戳章节
+    """
+    content: str = Field(..., min_length=1, description="讲解内容（markdown）")
+    topic: Optional[str] = Field(default=None, description="讲解主题（缺省从内容首标题推导）")
+
+
 class ProjectUpgradeRequest(BaseModel):
     """
     轻项目升级为标准研学请求

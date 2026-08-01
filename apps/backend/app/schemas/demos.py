@@ -27,6 +27,7 @@ class DemoBase(BaseModel):
     screenshots: List[str] = Field(default_factory=list, description="截图文件路径列表")
     demo_video_url: Optional[str] = Field(None, description="关键流程录屏")
     project_breakdown: Optional[str] = Field(None, description="项目拆解说明（Markdown）")
+    explanation_doc: Optional[str] = Field(None, description="讲解文档（Markdown，原理/设计/关键代码拆解）")
     minimal_replica: Optional[str] = Field(None, description="最小可复刻代码路径")
     code_url: str = Field(..., description="代码浏览地址")
     download_url: str = Field(..., description="项目包下载地址")
@@ -56,6 +57,7 @@ class DemoUpdate(BaseModel):
     screenshots: Optional[List[str]] = None
     demo_video_url: Optional[str] = None
     project_breakdown: Optional[str] = None
+    explanation_doc: Optional[str] = None
     minimal_replica: Optional[str] = None
     code_url: Optional[str] = None
     download_url: Optional[str] = None

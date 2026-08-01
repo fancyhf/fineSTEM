@@ -52,6 +52,7 @@ class DemoModel(AuditMixin, Base):
     screenshots: Mapped[str] = mapped_column(Text, default="[]")
     demo_video_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     project_breakdown: Mapped[str | None] = mapped_column(Text, nullable=True)
+    explanation_doc: Mapped[str | None] = mapped_column(Text, nullable=True)
     minimal_replica: Mapped[str | None] = mapped_column(Text, nullable=True)
     code_url: Mapped[str] = mapped_column(String(500))
     download_url: Mapped[str] = mapped_column(String(500))

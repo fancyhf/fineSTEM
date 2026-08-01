@@ -644,14 +644,23 @@ class ArtifactWriterTool(BaseTool):
     """生成/更新工件文档"""
 
     name = "artifact_writer"
-    description = "生成或更新项目工件文档，如开题报告、技术报告、开发日志、代码文件等"
+    description = (
+        "生成或更新项目工件文档，如开题报告、技术报告、开发日志、代码文件等。"
+        "完成一次成体系的代码/原理讲解后，用 artifact_name=explanation 沉淀讲解要点（默认追加，不会覆盖已有讲解）"
+    )
     parameters_schema = {
         "type": "object",
         "properties": {
             "project_id": {"type": "string", "description": "项目 ID（必填）"},
-            "artifact_name": {"type": "string", "description": "工件规范名（必填），只能是：brainstorm/project_brief/constraints/track_plan/design/step_plan/dev_log/evaluate。验收/评估报告必须用 evaluate（不是 evaluation）。"},
-            "content": {"type": "string", "description": "文档内容（必填）"},
+            "artifact_name": {"type": "string", "description": "工件规范名（必填），只能是：brainstorm/project_brief/constraints/track_plan/design/step_plan/dev_log/evaluate/explanation。验收/评估报告必须用 evaluate（不是 evaluation）；讲解沉淀用 explanation（默认追加到讲解文档，不覆盖）。"},
+            "content": {"type": "string", "description": "文档内容（必填）。explanation 时为本次讲解的精炼要点（非聊天原文）"},
             "artifact_type": {"type": "string", "enum": ["document", "code", "report"], "description": "工件类型"},
+            "mode": {
+                "type": "string",
+                "enum": ["replace", "append"],
+                "description": "写入模式，仅对 explanation 生效：append=追加带时间戳章节（explanation 默认）；replace=整篇覆盖。其他工件始终整篇覆盖。",
+            },
+            "topic": {"type": "string", "description": "讲解主题（可选，仅 explanation append 时用作章节标题）"},
         },
         "required": ["project_id", "artifact_name", "content"],
     }
@@ -675,6 +684,17 @@ class ArtifactWriterTool(BaseTool):
         state = db.get_skill_state(project_id)
         if not state:
             return ToolResult(False, error=f"未找到项目 {project_id}")
+
+        # 讲解文档（2026-07-31）：累加式工件，默认 append（防 AI 误覆盖已累加的
+        # 讲解历史），显式 mode=replace 才整篇覆盖；无阶段门禁。
+        if artifact_name == "explanation" and params.get("mode") != "replace":
+            from app.services.explanation_doc import append_explanation_section
+            result = append_explanation_section(
+                project_id, content, topic=params.get("topic"), db=db,
+            )
+            if result.get("status") in ("appended", "duplicate"):
+                return ToolResult(True, data=result)
+            return ToolResult(False, error=result.get("error") or "讲解文档写入失败", data=result)
 
         # 2026-07-22 阶段门禁：写入某工件时，当前阶段必须 >= 该工件所属阶段。
         # 防止 AI 在 stage_01 脑爆阶段就写 stage_08 的 evaluate 工件（越权写后续工件）。

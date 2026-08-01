@@ -331,6 +331,9 @@ export const projectsApi = {
     api.get<ProjectDocument[]>(`/projects/${id}/documents`),
   getDocument: (id: string, stage: string) =>
     api.get<ProjectDocumentDetail>(`/projects/${id}/documents/${stage}`),
+  // 讲解文档沉淀（累加式追加，status: appended | duplicate）
+  appendExplanation: (id: string, data: { content: string; topic?: string }) =>
+    api.post<{ status: string; content_length: number; topic?: string }>(`/projects/${id}/explanation`, data),
 };
 
 // 成就卡片 API
@@ -440,6 +443,9 @@ export const agentApi = {
     return `${API_BASE_URL}/agent/stream?${query.toString()}`;
   },
   metrics: () => api.get<Record<string, number>>('/agent/metrics'),
+  // 2026-07-31 Q-038：后端场景化系统提示词（问问题/解释代码/开始项目/写报告等），
+  // 前端拿到后注入 WS 直连 daemon 的消息文本，让两条链路共享同一套场景提示词
+  scenePrompts: () => api.get<Record<string, string>>('/agent/scene-prompts'),
 };
 
 // Chat API（Q-003 修复：问题卡片二次确认）

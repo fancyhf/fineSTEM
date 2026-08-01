@@ -51,6 +51,8 @@ ARTIFACT_TO_BLOB_KEY: dict[str, str] = {
     "step_plan": "step_plan_content",
     "dev_log": "dev_log_content",
     "evaluate": "evaluate_content",
+    # 讲解文档（2026-07-31）：跨阶段累加式工件，不入 ARTIFACT_FOR_STAGE（无阶段门禁）
+    "explanation": "explanation_content",
 }
 
 # ── 工件名 → 落盘文件名 ───────────────────────────────────────────
@@ -63,6 +65,7 @@ ARTIFACT_TO_FILENAME: dict[str, str] = {
     "step_plan": "05_step_plan.md",
     "dev_log": "06_dev_log.md",
     "evaluate": "07_evaluation.md",
+    "explanation": "08_code_explanation.md",
 }
 
 # ── 工件名别名 → 规范名（Q-028，2026-07-31）──────────────────────
@@ -75,6 +78,10 @@ ARTIFACT_NAME_ALIASES: dict[str, str] = {
     "brief": "project_brief",
     "track": "track_plan",
     "devlog": "dev_log",
+    # 讲解文档别名（AI 常用 lecture/explain 指代讲解沉淀）
+    "lecture": "explanation",
+    "explain": "explanation",
+    "code_explanation": "explanation",
 }
 
 

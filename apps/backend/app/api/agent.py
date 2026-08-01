@@ -19,6 +19,7 @@ from app.schemas.common import ApiResponse
 from app.services.feature_flags import feature_flag_service
 from app.services.observability import agent_observability_service
 from app.services.orchestrator import agent_orchestrator_service
+from app.services.providers.zeroclaw_provider import SCENE_SYSTEM_PROMPTS
 from app.repositories.runtime_db import db
 
 router = APIRouter(prefix="/agent", tags=["Agent"])
@@ -137,6 +138,20 @@ async def ws_chat(websocket: WebSocket):
                 )
     except WebSocketDisconnect:
         return
+
+
+@router.get("/scene-prompts", response_model=ApiResponse[dict])
+async def scene_prompts():
+    """
+    场景化系统提示词（2026-07-31 Q-038）。
+
+    背景：前端主聊天链路是 WS 直连 ZeroClaw daemon，daemon 只读 config.toml 内嵌的
+    PBL 导向 system_prompt，完全不感知“问问题/解释代码/写报告”等场景差异。
+    后端早已定义好 SCENE_SYSTEM_PROMPTS 却只在 REST 编排链路生效。
+    此接口把场景提示词暴露给前端，由前端注入 WS 消息的 <scene_instructions> 块，
+    保证两条链路单一来源（本文件）。无需鉴权：匿名用户也可对话，提示词非敏感。
+    """
+    return ApiResponse(data=dict(SCENE_SYSTEM_PROMPTS), message="成功")
 
 
 @router.get("/metrics", response_model=ApiResponse[dict])

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { FileText, FileCode, Download, Folder, ChevronRight, ChevronDown, Loader2, Package, X, MessageSquare, Code2 } from 'lucide-react';
+import { FileText, FileCode, Download, Folder, ChevronRight, ChevronDown, Loader2, Package, X, MessageSquare, Code2, BookOpen } from 'lucide-react';
 import { projectsApi } from '../services/api';
 import { ProjectDocument, FileEntry } from '../types';
 
@@ -22,6 +22,8 @@ interface ProjectFilesPanelProps {
   onSelectFile: (file: FileEntry) => void;
   onExportZip: () => void;
   onClose?: () => void;
+  /** 讲解沉淀（2026-07-31）：父组件 bump 该信号触发文档列表刷新 */
+  refreshSignal?: number;
 }
 
 /**
@@ -41,6 +43,7 @@ export const ProjectFilesPanel: React.FC<ProjectFilesPanelProps> = ({
   onSelectFile,
   onExportZip,
   onClose,
+  refreshSignal = 0,
 }) => {
   const [documents, setDocuments] = useState<ProjectDocument[]>([]);
   const [loadingDocs, setLoadingDocs] = useState(false);
@@ -150,7 +153,7 @@ export const ProjectFilesPanel: React.FC<ProjectFilesPanelProps> = ({
     if (projectId) {
       loadDocuments();
     }
-  }, [projectId, loadDocuments]);
+  }, [projectId, loadDocuments, refreshSignal]);
 
   // 查看文档内容
   const handleViewDoc = useCallback(async (stage: string, name: string) => {
@@ -363,7 +366,12 @@ export const ProjectFilesPanel: React.FC<ProjectFilesPanelProps> = ({
                       doc.has_content ? 'text-gray-600 hover:bg-gray-100 cursor-pointer' : 'text-gray-300 cursor-not-allowed'
                     }`}
                   >
-                    <FileText className={`w-3 h-3 ${doc.has_content ? 'text-green-500' : 'text-gray-300'}`} />
+                    {/* 讲解文档用 BookOpen 图标区分于阶段文档 */}
+                    {doc.stage === 'explanation' ? (
+                      <BookOpen className={`w-3 h-3 ${doc.has_content ? 'text-teal-500' : 'text-gray-300'}`} />
+                    ) : (
+                      <FileText className={`w-3 h-3 ${doc.has_content ? 'text-green-500' : 'text-gray-300'}`} />
+                    )}
                     <span className="truncate">{doc.name}</span>
                     {doc.has_content && <span className="text-[9px] text-gray-400 ml-auto">✓</span>}
                   </button>
