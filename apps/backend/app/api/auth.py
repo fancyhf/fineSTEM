@@ -346,3 +346,28 @@ async def change_password(
     db.update_user(current_user.id, {"password": hashed_password})
 
     return ApiResponse(data=None, message="密码修改成功")
+
+
+@router.get("/users", response_model=ApiResponse[list[UserResponse]])
+async def list_users(
+    admin: UserResponse = Depends(require_admin),
+):
+    """
+    获取所有用户列表（仅管理员）
+    """
+    users = db.list_all_users()
+    return ApiResponse(
+        data=[
+            UserResponse(
+                id=u.id,
+                name=u.name,
+                email=u.email,
+                role=u.role,
+                level=u.level,
+                capability_tags=u.capability_tags,
+                created_at=u.created_at,
+            )
+            for u in users
+        ],
+        message="获取成功",
+    )

@@ -241,6 +241,8 @@ export const authApi = {
   getMe: () => api.get<UserResponse>('/auth/me'),
   updateMe: (data: UserUpdate) => api.patch<UserResponse>('/auth/me', data),
   changePassword: (data: ChangePasswordRequest) => api.post<null>('/auth/change-password', data),
+  /** 获取所有用户列表（仅管理员） */
+  listUsers: () => api.get<UserResponse[]>('/auth/users'),
 };
 
 // Demo API
@@ -334,6 +336,71 @@ export const projectsApi = {
   // 讲解文档沉淀（累加式追加，status: appended | duplicate）
   appendExplanation: (id: string, data: { content: string; topic?: string }) =>
     api.post<{ status: string; content_length: number; topic?: string }>(`/projects/${id}/explanation`, data),
+  
+  // ========== 项目精选管理（管理员用）==========
+  /** 更新项目精选状态（管理员） */
+  updateFeatured: (id: string, data: {
+    is_featured_demo?: boolean;
+    featured_demo_sort_order?: number;
+    is_featured_work?: boolean;
+    featured_work_sort_order?: number;
+  }) => api.patch<Project>(`/projects/${id}/featured`, data),
+  
+  /** 更新项目可见性 */
+  updateVisibility: (id: string, visibility: 'private' | 'link' | 'public') =>
+    api.patch<Project>(`/projects/${id}/visibility`, { visibility }),
+  
+  /** 管理员获取项目列表（用于精选管理） */
+  listForAdmin: (params?: {
+    page?: number;
+    page_size?: number;
+    visibility?: string;
+    is_featured_demo?: boolean;
+    is_featured_work?: boolean;
+    author_id?: string;
+    search?: string;
+  }) => {
+    const query = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) query.append(key, String(value));
+      });
+    }
+    return api.get<PaginationResult<Project>>(`/projects/admin/featured${query.toString() ? `?${query.toString()}` : ''}`);
+  },
+  
+  /** 获取首页精选 Demo 项目列表（公开） */
+  listFeaturedDemos: (params?: { page?: number; page_size?: number }) => {
+    const query = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value) query.append(key, String(value));
+      });
+    }
+    return api.get<PaginationResult<Project>>(`/projects/featured/demos${query.toString() ? `?${query.toString()}` : ''}`);
+  },
+  
+  /** 获取首页精选作品项目列表（公开） */
+  listFeaturedWorks: (params?: { page?: number; page_size?: number }) => {
+    const query = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value) query.append(key, String(value));
+      });
+    }
+    return api.get<PaginationResult<Project>>(`/projects/featured/works${query.toString() ? `?${query.toString()}` : ''}`);
+  },
+  
+  /** 获取公开项目列表（灵感墙，公开） */
+  listPublic: (params?: { page?: number; page_size?: number }) => {
+    const query = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value) query.append(key, String(value));
+      });
+    }
+    return api.get<PaginationResult<Project>>(`/projects/public/inspiration${query.toString() ? `?${query.toString()}` : ''}`);
+  },
 };
 
 // 成就卡片 API

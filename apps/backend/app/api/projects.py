@@ -36,13 +36,15 @@ from app.schemas.projects import (
     ProjectWorkspaceData,
     ProjectWorkspaceResponse,
     FileEntry,
+    ProjectFeaturedUpdate,
+    ProjectVisibilityUpdate,
 )
 from app.schemas.evidence import Evidence
 from app.schemas.achievements import AchievementCard
 from app.schemas.common import ApiResponse, PaginationResult
 from app.schemas.auth import UserResponse
 from app.repositories.runtime_db import db
-from app.api.auth import get_current_user
+from app.api.auth import get_current_user, require_admin
 from app.services.document_service import document_service
 from app.services.pbl_engine import advance_with_gate, save_artifact
 from app.services.stage08_sync import build_stage08_payload, merge_stage08_into_standard_data
@@ -2360,3 +2362,205 @@ async def delete_project(
         )
     
     return ApiResponse(data=None, message="删除成功")
+
+
+# =============================================================================
+# 项目精选管理（管理员用）
+# =============================================================================
+
+@router.patch("/{project_id}/featured", response_model=ApiResponse[Project])
+async def update_project_featured(
+    project_id: str,
+    payload: ProjectFeaturedUpdate,
+    admin: UserResponse = Depends(require_admin),
+):
+    """
+    管理员设置/取消项目精选状态（精选 Demo 或精选作品）
+    """
+    project = db.get_project(project_id)
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="项目不存在",
+        )
+    
+    update_data: Dict[str, Any] = {}
+    now = utc_now()
+    
+    if payload.is_featured_demo is not None:
+        update_data["is_featured_demo"] = payload.is_featured_demo
+        update_data["featured_demo_at"] = now if payload.is_featured_demo else None
+    if payload.featured_demo_sort_order is not None:
+        update_data["featured_demo_sort_order"] = payload.featured_demo_sort_order
+    if payload.is_featured_work is not None:
+        update_data["is_featured_work"] = payload.is_featured_work
+        update_data["featured_work_at"] = now if payload.is_featured_work else None
+    if payload.featured_work_sort_order is not None:
+        update_data["featured_work_sort_order"] = payload.featured_work_sort_order
+    
+    if not update_data:
+        return ApiResponse(data=project, message="无更新内容")
+    
+    updated = db.update_project(project_id, update_data)
+    if not updated:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="更新失败",
+        )
+    
+    return ApiResponse(data=updated, message="精选状态更新成功")
+
+
+@router.patch("/{project_id}/visibility", response_model=ApiResponse[Project])
+async def update_project_visibility(
+    project_id: str,
+    payload: ProjectVisibilityUpdate,
+    current_user: UserResponse = Depends(get_current_user),
+):
+    """
+    更新项目可见性（private/link/public）
+    项目作者或管理员可操作
+    """
+    project = db.get_project(project_id)
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="项目不存在",
+        )
+    
+    # 只有作者或管理员可以修改
+    if project.author_id != current_user.id and current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="无权修改此项目的可见性",
+        )
+    
+    updated = db.update_project(project_id, {"visibility": payload.visibility})
+    if not updated:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="更新失败",
+        )
+    
+    return ApiResponse(data=updated, message="可见性更新成功")
+
+
+@router.get("/admin/featured", response_model=ApiResponse[PaginationResult[Project]])
+async def list_projects_for_admin(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    visibility: Optional[str] = Query(None, description="筛选可见性: private/link/public"),
+    is_featured_demo: Optional[bool] = Query(None, description="筛选精选 Demo"),
+    is_featured_work: Optional[bool] = Query(None, description="筛选精选作品"),
+    author_id: Optional[str] = Query(None, description="按作者筛选"),
+    search: Optional[str] = Query(None, description="项目名称搜索"),
+    admin: UserResponse = Depends(require_admin),
+):
+    """
+    管理员获取项目列表（用于精选管理）
+    支持分页、筛选、搜索
+    """
+    skip = (page - 1) * page_size
+    
+    # 构建筛选条件
+    filters: Dict[str, Any] = {}
+    if visibility:
+        filters["visibility"] = visibility
+    if is_featured_demo is not None:
+        filters["is_featured_demo"] = is_featured_demo
+    if is_featured_work is not None:
+        filters["is_featured_work"] = is_featured_work
+    if author_id:
+        filters["author_id"] = author_id
+    if search:
+        filters["search"] = search
+    
+    projects = db.list_projects_for_admin(skip=skip, limit=page_size, filters=filters)
+    total = db.count_projects_for_admin(filters=filters)
+    total_pages = (total + page_size - 1) // page_size
+    
+    return ApiResponse(
+        data=PaginationResult(
+            items=projects,
+            total=total,
+            page=page,
+            page_size=page_size,
+            total_pages=total_pages,
+        ),
+        message="获取成功",
+    )
+
+
+@router.get("/featured/demos", response_model=ApiResponse[PaginationResult[Project]])
+async def list_featured_demos(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(4, ge=1, le=20),
+):
+    """
+    获取首页精选 Demo 项目列表（公开接口，无需登录）
+    """
+    skip = (page - 1) * page_size
+    projects = db.list_featured_demos(skip=skip, limit=page_size)
+    total = db.count_featured_demos()
+    total_pages = (total + page_size - 1) // page_size
+    
+    return ApiResponse(
+        data=PaginationResult(
+            items=projects,
+            total=total,
+            page=page,
+            page_size=page_size,
+            total_pages=total_pages,
+        ),
+        message="获取成功",
+    )
+
+
+@router.get("/featured/works", response_model=ApiResponse[PaginationResult[Project]])
+async def list_featured_works(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(4, ge=1, le=20),
+):
+    """
+    获取首页精选作品项目列表（公开接口，无需登录）
+    """
+    skip = (page - 1) * page_size
+    projects = db.list_featured_works(skip=skip, limit=page_size)
+    total = db.count_featured_works()
+    total_pages = (total + page_size - 1) // page_size
+    
+    return ApiResponse(
+        data=PaginationResult(
+            items=projects,
+            total=total,
+            page=page,
+            page_size=page_size,
+            total_pages=total_pages,
+        ),
+        message="获取成功",
+    )
+
+
+@router.get("/public/inspiration", response_model=ApiResponse[PaginationResult[Project]])
+async def list_public_projects(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(4, ge=1, le=20),
+):
+    """
+    获取公开项目列表（灵感墙，公开接口，无需登录）
+    """
+    skip = (page - 1) * page_size
+    projects = db.list_public_projects(skip=skip, limit=page_size)
+    total = db.count_public_projects()
+    total_pages = (total + page_size - 1) // page_size
+    
+    return ApiResponse(
+        data=PaginationResult(
+            items=projects,
+            total=total,
+            page=page,
+            page_size=page_size,
+            total_pages=total_pages,
+        ),
+        message="获取成功",
+    )

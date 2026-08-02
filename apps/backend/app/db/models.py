@@ -71,6 +71,18 @@ class ProjectModel(AuditMixin, Base):
     current_stage: Mapped[str] = mapped_column(String(64), default="stage_01_brainstorm")
     from_demo_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     initial_data: Mapped[str] = mapped_column(Text, default="{}")
+    
+    # 首页精选相关字段
+    is_featured_demo: Mapped[bool] = mapped_column(Boolean, default=False)
+    featured_demo_sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    featured_demo_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    
+    is_featured_work: Mapped[bool] = mapped_column(Boolean, default=False)
+    featured_work_sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    featured_work_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    
+    # 可见性：private（私有）、link（链接分享）、public（公开/灵感墙）
+    visibility: Mapped[str] = mapped_column(String(32), default="private")
 
 
 class SkillStateModel(AuditMixin, Base):

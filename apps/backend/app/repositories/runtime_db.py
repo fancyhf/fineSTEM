@@ -56,6 +56,10 @@ class RepositoryBackedDB:
             session.commit()
             return result
 
+    def list_all_users(self):
+        with self._session() as session:
+            return UserRepo(session).list_all_users()
+
     def get_demo(self, demo_id: str):
         with self._session() as session:
             return DemoRepo(session).get_demo(demo_id)
@@ -114,6 +118,40 @@ class RepositoryBackedDB:
             result = repo.delete_project(project_id, deleted_by)
             session.commit()
             return result
+
+    # ========== 项目精选管理 ==========
+
+    def list_projects_for_admin(self, skip=0, limit=20, filters=None):
+        with self._session() as session:
+            return ProjectRepo(session).list_projects_for_admin(skip=skip, limit=limit, filters=filters)
+
+    def count_projects_for_admin(self, filters=None):
+        with self._session() as session:
+            return ProjectRepo(session).count_projects_for_admin(filters=filters)
+
+    def list_featured_demos(self, skip=0, limit=4):
+        with self._session() as session:
+            return ProjectRepo(session).list_featured_demos(skip=skip, limit=limit)
+
+    def count_featured_demos(self):
+        with self._session() as session:
+            return ProjectRepo(session).count_featured_demos()
+
+    def list_featured_works(self, skip=0, limit=4):
+        with self._session() as session:
+            return ProjectRepo(session).list_featured_works(skip=skip, limit=limit)
+
+    def count_featured_works(self):
+        with self._session() as session:
+            return ProjectRepo(session).count_featured_works()
+
+    def list_public_projects(self, skip=0, limit=4):
+        with self._session() as session:
+            return ProjectRepo(session).list_public_projects(skip=skip, limit=limit)
+
+    def count_public_projects(self):
+        with self._session() as session:
+            return ProjectRepo(session).count_public_projects()
 
     def get_skill_state(self, project_id: str):
         with self._session() as session:

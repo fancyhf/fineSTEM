@@ -85,6 +85,9 @@ def _normalize_initial_data(raw: object) -> dict:
 
 
 def _to_project(model: ProjectModel) -> Project:
+    # 获取 visibility，如果不存在则默认为 private
+    visibility = getattr(model, "visibility", "private")
+    
     return Project(
         id=model.id,
         author_id=model.author_id,
@@ -102,6 +105,19 @@ def _to_project(model: ProjectModel) -> Project:
         deleted_at=model.deleted_at,
         deleted_by=model.deleted_by,
         is_deleted=model.is_deleted,
+        # 兼容字段
+        is_published=visibility == "public",
+        is_public=visibility == "public",
+        view_count=0,  # 暂不支持，后续可添加字段
+        like_count=0,  # 暂不支持，后续可添加字段
+        # 可见性和精选相关字段
+        visibility=visibility,
+        is_featured_demo=getattr(model, "is_featured_demo", False),
+        featured_demo_sort_order=getattr(model, "featured_demo_sort_order", 0),
+        featured_demo_at=model.featured_demo_at if hasattr(model, "featured_demo_at") else None,
+        is_featured_work=getattr(model, "is_featured_work", False),
+        featured_work_sort_order=getattr(model, "featured_work_sort_order", 0),
+        featured_work_at=model.featured_work_at if hasattr(model, "featured_work_at") else None,
     )
 
 
@@ -469,3 +485,133 @@ class ProjectRepo(BaseRepository):
             row.updated_at = utc_now()
         self.db.commit()
         return normalized
+
+    # ========== 项目精选管理 ==========
+
+    def list_projects_for_admin(
+        self,
+        skip: int = 0,
+        limit: int = 20,
+        filters: dict | None = None,
+    ) -> list[Project]:
+        """管理员获取项目列表，支持筛选"""
+        query = self.db.query(ProjectModel).filter(ProjectModel.is_deleted.is_(False))
+        
+        if filters:
+            if filters.get("visibility"):
+                query = query.filter(ProjectModel.visibility == filters["visibility"])
+            if filters.get("is_featured_demo") is not None:
+                query = query.filter(ProjectModel.is_featured_demo.is_(filters["is_featured_demo"]))
+            if filters.get("is_featured_work") is not None:
+                query = query.filter(ProjectModel.is_featured_work.is_(filters["is_featured_work"]))
+            if filters.get("author_id"):
+                query = query.filter(ProjectModel.author_id == filters["author_id"])
+            if filters.get("search"):
+                search_term = f"%{filters['search']}%"
+                query = query.filter(ProjectModel.name.ilike(search_term))
+        
+        rows = query.order_by(ProjectModel.updated_at.desc()).offset(skip).limit(limit).all()
+        return [_to_project(item) for item in rows]
+
+    def count_projects_for_admin(self, filters: dict | None = None) -> int:
+        """管理员获取项目总数，支持筛选"""
+        query = self.db.query(ProjectModel).filter(ProjectModel.is_deleted.is_(False))
+        
+        if filters:
+            if filters.get("visibility"):
+                query = query.filter(ProjectModel.visibility == filters["visibility"])
+            if filters.get("is_featured_demo") is not None:
+                query = query.filter(ProjectModel.is_featured_demo.is_(filters["is_featured_demo"]))
+            if filters.get("is_featured_work") is not None:
+                query = query.filter(ProjectModel.is_featured_work.is_(filters["is_featured_work"]))
+            if filters.get("author_id"):
+                query = query.filter(ProjectModel.author_id == filters["author_id"])
+            if filters.get("search"):
+                search_term = f"%{filters['search']}%"
+                query = query.filter(ProjectModel.name.ilike(search_term))
+        
+        return query.count()
+
+    def list_featured_demos(self, skip: int = 0, limit: int = 4) -> list[Project]:
+        """获取精选 Demo 项目列表"""
+        rows = (
+            self.db.query(ProjectModel)
+            .filter(
+                ProjectModel.is_deleted.is_(False),
+                ProjectModel.is_featured_demo.is_(True),
+            )
+            .order_by(
+                ProjectModel.featured_demo_sort_order.desc(),
+                ProjectModel.featured_demo_at.desc(),
+            )
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
+        return [_to_project(item) for item in rows]
+
+    def count_featured_demos(self) -> int:
+        """获取精选 Demo 项目总数"""
+        return (
+            self.db.query(ProjectModel)
+            .filter(
+                ProjectModel.is_deleted.is_(False),
+                ProjectModel.is_featured_demo.is_(True),
+            )
+            .count()
+        )
+
+    def list_featured_works(self, skip: int = 0, limit: int = 4) -> list[Project]:
+        """获取精选作品项目列表"""
+        rows = (
+            self.db.query(ProjectModel)
+            .filter(
+                ProjectModel.is_deleted.is_(False),
+                ProjectModel.is_featured_work.is_(True),
+            )
+            .order_by(
+                ProjectModel.featured_work_sort_order.desc(),
+                ProjectModel.featured_work_at.desc(),
+            )
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
+        return [_to_project(item) for item in rows]
+
+    def count_featured_works(self) -> int:
+        """获取精选作品项目总数"""
+        return (
+            self.db.query(ProjectModel)
+            .filter(
+                ProjectModel.is_deleted.is_(False),
+                ProjectModel.is_featured_work.is_(True),
+            )
+            .count()
+        )
+
+    def list_public_projects(self, skip: int = 0, limit: int = 4) -> list[Project]:
+        """获取公开项目列表（灵感墙）"""
+        rows = (
+            self.db.query(ProjectModel)
+            .filter(
+                ProjectModel.is_deleted.is_(False),
+                ProjectModel.visibility == "public",
+            )
+            .order_by(ProjectModel.updated_at.desc())
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
+        return [_to_project(item) for item in rows]
+
+    def count_public_projects(self) -> int:
+        """获取公开项目总数"""
+        return (
+            self.db.query(ProjectModel)
+            .filter(
+                ProjectModel.is_deleted.is_(False),
+                ProjectModel.visibility == "public",
+            )
+            .count()
+        )

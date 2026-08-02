@@ -136,6 +136,18 @@ export interface Project extends ProjectBase {
   deleted_at?: string;
   created_by: string;
   updated_by?: string;
+  
+  // 可见性和精选相关字段
+  visibility: 'private' | 'link' | 'public';
+  is_featured_demo: boolean;
+  featured_demo_sort_order: number;
+  featured_demo_at?: string;
+  is_featured_work: boolean;
+  featured_work_sort_order: number;
+  featured_work_at?: string;
+  
+  // 关联数据（前端展示用）
+  author_name?: string;
 }
 
 export interface ProjectCreate extends ProjectBase {}

@@ -370,7 +370,43 @@ class Project(ProjectBase, AuditFields):
     current_stage: str = Field(default='stage_01_brainstorm', description="当前阶段")
     skill_state: Optional[SkillState] = Field(None, description="SKILL_STATE")
     
+    # 兼容字段（保留以兼容旧代码，实际使用 visibility）
+    is_published: bool = Field(default=False, description="是否已发布（兼容字段）")
+    is_public: bool = Field(default=False, description="是否公开（兼容字段，建议用 visibility='public'）")
+    view_count: int = Field(default=0, description="浏览次数")
+    like_count: int = Field(default=0, description="点赞次数")
+    
+    # 可见性：private（私有）、link（链接分享）、public（公开/灵感墙）
+    visibility: Literal['private', 'link', 'public'] = Field(default='private', description="项目可见性")
+    
+    # 精选 Demo 相关
+    is_featured_demo: bool = Field(default=False, description="是否作为精选 Demo 展示在首页")
+    featured_demo_sort_order: int = Field(default=0, description="精选 Demo 排序权重")
+    featured_demo_at: Optional[datetime] = Field(None, description="设为精选 Demo 的时间")
+    
+    # 精选作品相关
+    is_featured_work: bool = Field(default=False, description="是否作为精选作品展示在首页")
+    featured_work_sort_order: int = Field(default=0, description="精选作品排序权重")
+    featured_work_at: Optional[datetime] = Field(None, description="设为精选作品的时间")
+    
     model_config = ConfigDict(from_attributes=True)
+
+
+class ProjectFeaturedUpdate(BaseModel):
+    """
+    项目精选状态更新请求（管理员用）
+    """
+    is_featured_demo: Optional[bool] = Field(None, description="是否设为精选 Demo")
+    featured_demo_sort_order: Optional[int] = Field(None, description="精选 Demo 排序权重")
+    is_featured_work: Optional[bool] = Field(None, description="是否设为精选作品")
+    featured_work_sort_order: Optional[int] = Field(None, description="精选作品排序权重")
+
+
+class ProjectVisibilityUpdate(BaseModel):
+    """
+    项目可见性更新请求
+    """
+    visibility: Literal['private', 'link', 'public'] = Field(..., description="可见性：private/link/public")
 
 
 # =============================================================================

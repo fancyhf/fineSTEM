@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
-import { ArrowLeft, Check, Download, FileText, Pencil, Sparkles, Trash2, Award, TrendingUp, Code, X, FolderOpen, Wand2, BookOpen } from 'lucide-react';
+import { ArrowLeft, Check, Download, FileText, Pencil, Sparkles, Trash2, Award, TrendingUp, Code, X, FolderOpen, Wand2, BookOpen, Star, Eye, EyeOff } from 'lucide-react';
 import { projectsApi, achievementCardsApi, documentsApi, capabilityTagsApi } from '../services/api';
 import { Project, ProjectProgress, AchievementCard } from '../types';
 import { ProjectStageBar } from '../components/ProjectStageBar';
@@ -14,10 +14,15 @@ import { CoverPicker } from '../components/CoverPicker';
 import { EvidencePanel } from '../components/EvidencePanel';
 import { CapabilityRadarChart } from '../components/CapabilityRadarChart';
 import { GrowthTimeline } from '../components/GrowthTimeline';
+import { useAuth } from '../contexts/AuthContext';
+import { showToast } from '../services/toast';
 
 export default function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
+  
   const [project, setProject] = useState<Project | null>(null);
   const [progress, setProgress] = useState<ProjectProgress | null>(null);
   const [achievement, setAchievement] = useState<AchievementCard | null>(null);
@@ -40,6 +45,8 @@ export default function ProjectDetail() {
   const [fileBannerDismissed, setFileBannerDismissed] = useState(
     () => sessionStorage.getItem('finestem_filedismiss') === referredFile
   );
+  // 精选状态操作 loading
+  const [featuredLoading, setFeaturedLoading] = useState<string>('');
 
   // 当从聊天页带着 ?file= 参数跳入时，取 workspace 确认是否就是当前编辑的代码文件
   useEffect(() => {
@@ -290,6 +297,68 @@ export default function ProjectDetail() {
     await handleEnterCodeEditor();
   };
 
+  // ========== 精选管理操作（仅管理员）==========
+  
+  /** 切换精选 Demo 状态 */
+  const handleToggleFeaturedDemo = async () => {
+    if (!project?.id || !isAdmin) return;
+    setFeaturedLoading('demo');
+    try {
+      const newValue = !project.is_featured_demo;
+      await projectsApi.updateFeatured(project.id, { 
+        is_featured_demo: newValue,
+        featured_demo_sort_order: newValue ? 10 : 0 
+      });
+      setProject({ ...project, is_featured_demo: newValue });
+      showToast('success', newValue ? '已选入精选 Demo' : '已撤回精选 Demo');
+    } catch (err) {
+      showToast('error', '操作失败，请重试');
+    } finally {
+      setFeaturedLoading('');
+    }
+  };
+
+  /** 切换精选作品状态 */
+  const handleToggleFeaturedWork = async () => {
+    if (!project?.id || !isAdmin) return;
+    setFeaturedLoading('work');
+    try {
+      const newValue = !project.is_featured_work;
+      await projectsApi.updateFeatured(project.id, { 
+        is_featured_work: newValue,
+        featured_work_sort_order: newValue ? 10 : 0 
+      });
+      setProject({ ...project, is_featured_work: newValue });
+      showToast('success', newValue ? '已选入精选作品' : '已撤回精选作品');
+    } catch (err) {
+      showToast('error', '操作失败，请重试');
+    } finally {
+      setFeaturedLoading('');
+    }
+  };
+
+  /** 切换灵感墙（公开）状态 */
+  const handleToggleVisibility = async () => {
+    if (!project?.id) return;
+    // 只有作者或管理员可以操作
+    const canModify = isAdmin || project.author_id === user?.id;
+    if (!canModify) {
+      showToast('error', '无权操作');
+      return;
+    }
+    setFeaturedLoading('visibility');
+    try {
+      const newVisibility = project.visibility === 'public' ? 'private' : 'public';
+      await projectsApi.updateVisibility(project.id, newVisibility);
+      setProject({ ...project, visibility: newVisibility });
+      showToast('success', newVisibility === 'public' ? '已发布到灵感墙' : '已从灵感墙撤回');
+    } catch (err) {
+      showToast('error', '操作失败，请重试');
+    } finally {
+      setFeaturedLoading('');
+    }
+  };
+
   const getModeColor = (mode: string) => {
     return mode === 'light' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800';
   };
@@ -491,7 +560,9 @@ export default function ProjectDetail() {
 
         {/* 主要内容区域 */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2">
+          {/* 左侧主区域 */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* 项目流程步骤 */}
             {project.mode === 'light' && progress ? (
               <LightProjectSteps
                 progress={progress}
@@ -523,8 +594,139 @@ export default function ProjectDetail() {
                 </CardContent>
               </Card>
             )}
+
+            {/* 导出与文档（从右侧边栏移下来） */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Download className="h-4 w-4" />
+                  导出与文档
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <Button
+                    variant="secondary"
+                    className="justify-center"
+                    onClick={() => void handleExportProject('pdf')}
+                    disabled={!!downloading}
+                  >
+                    <FileText className="mr-2 h-4 w-4" />
+                    结题PDF
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    className="justify-center"
+                    onClick={() => void handleExportProject('docx')}
+                    disabled={!!downloading}
+                  >
+                    <FileText className="mr-2 h-4 w-4" />
+                    结题DOCX
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    className="justify-center"
+                    onClick={() => void handleGenerateDocument('proposal', 'docx')}
+                    disabled={!!downloading}
+                  >
+                    <FileText className="mr-2 h-4 w-4" />
+                    开题DOCX
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    className="justify-center"
+                    onClick={() => void handleGenerateDocument('technical', 'docx')}
+                    disabled={!!downloading}
+                  >
+                    <FileText className="mr-2 h-4 w-4" />
+                    技术DOCX
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* 能力标签与成长（从右侧边栏移下来） */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4" />
+                  能力标签与成长
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex flex-wrap gap-2">
+                  {capabilityTags.length ? capabilityTags.map((tag) => (
+                    <Badge key={tag} variant="outline">{tag}</Badge>
+                  )) : <span className="text-sm text-gray-500">暂无标签，点击"推荐能力标签"生成</span>}
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <CapabilityRadarChart tags={capabilityTags} />
+                  <GrowthTimeline progress={progress} />
+                </div>
+                <Button
+                  variant="secondary"
+                  className="w-full"
+                  onClick={() => void handleRecommendTags()}
+                >
+                  <Sparkles className="mr-2 h-4 w-4" />
+                  推荐能力标签
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* 证据面板（从右侧边栏移下来） */}
+            <EvidencePanel projectId={project.id} />
+
+            {/* 讲解回顾（从右侧边栏移下来） */}
+            <Card data-testid="explanation-recap-card">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <BookOpen className="h-4 w-4 text-teal-600" />
+                  讲解回顾
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {explanationDoc ? (
+                  <>
+                    <p data-testid="explanation-recap-summary" className="text-xs text-gray-500">
+                      已沉淀 {(explanationDoc.match(/^## /gm) || []).length} 段讲解，可随时回顾。
+                    </p>
+                    <div data-testid="explanation-recap-preview" className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-xs text-gray-600 whitespace-pre-wrap max-h-28 overflow-hidden">
+                      {explanationDoc.replace(/^#+\s*/gm, '').slice(0, 160)}…
+                    </div>
+                    <div className="flex gap-2">
+                      <Button variant="secondary" className="flex-1 justify-center" data-testid="view-explanation-doc" onClick={() => setShowExplanationModal(true)}>
+                        <BookOpen className="mr-2 h-4 w-4" />
+                        查看讲解
+                      </Button>
+                      <Button 
+                        variant="secondary" 
+                        className="flex-1 justify-center"
+                        onClick={handleEnterCodeEditor}
+                      >
+                        <Code className="mr-2 h-4 w-4" />
+                        继续学习
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-center py-4">
+                    <p className="text-sm text-gray-500 mb-3">暂无讲解记录</p>
+                    <Button 
+                      variant="secondary"
+                      className="w-full justify-center"
+                      onClick={handleEnterCodeEditor}
+                    >
+                      <Code className="mr-2 h-4 w-4" />
+                      进入工作台学习
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </div>
 
+          {/* 右侧边栏 - 只保留核心操作 */}
           <div className="space-y-6">
             {/* 快速操作 */}
             <Card>
@@ -606,104 +808,88 @@ export default function ProjectDetail() {
                     <Download className="mr-2 h-4 w-4" />
                     导出项目ZIP
                   </Button>
-                  <Button
-                    variant="secondary"
-                    className="w-full justify-start"
-                    onClick={() => void handleExportProject('pdf')}
-                    disabled={!!downloading}
-                  >
-                    <FileText className="mr-2 h-4 w-4" />
-                    导出结题PDF
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    className="w-full justify-start"
-                    onClick={() => void handleExportProject('docx')}
-                    disabled={!!downloading}
-                  >
-                    <FileText className="mr-2 h-4 w-4" />
-                    导出结题DOCX
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    className="w-full justify-start"
-                    onClick={() => void handleGenerateDocument('proposal', 'docx')}
-                    disabled={!!downloading}
-                  >
-                    <FileText className="mr-2 h-4 w-4" />
-                    生成开题DOCX
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    className="w-full justify-start"
-                    onClick={() => void handleGenerateDocument('technical', 'docx')}
-                    disabled={!!downloading}
-                  >
-                    <FileText className="mr-2 h-4 w-4" />
-                    生成技术DOCX
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    className="w-full justify-start"
-                    onClick={() => void handleRecommendTags()}
-                  >
-                    <Sparkles className="mr-2 h-4 w-4" />
-                    推荐能力标签
-                  </Button>
                 </div>
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">能力标签</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex flex-wrap gap-2">
-                  {capabilityTags.length ? capabilityTags.map((tag) => (
-                    <Badge key={tag} variant="outline">{tag}</Badge>
-                  )) : <span className="text-sm text-gray-500">暂无标签，点击“推荐能力标签”生成</span>}
-                </div>
-                <CapabilityRadarChart tags={capabilityTags} />
-                <GrowthTimeline progress={progress} />
-              </CardContent>
-            </Card>
-
-            <EvidencePanel projectId={project.id} />
-
-            {/* 讲解回顾（2026-07-31）：AI 讲解沉淀的讲解文档 + 发起 AI 讲解 */}
-            <Card data-testid="explanation-recap-card">
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <BookOpen className="h-4 w-4 text-teal-600" />
-                  讲解回顾
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {explanationDoc ? (
-                  <>
-                    <p data-testid="explanation-recap-summary" className="text-xs text-gray-500">
-                      已沉淀 {(explanationDoc.match(/^## /gm) || []).length} 段讲解，可随时回顾。
-                    </p>
-                    <div data-testid="explanation-recap-preview" className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-xs text-gray-600 whitespace-pre-wrap max-h-28 overflow-hidden">
-                      {explanationDoc.replace(/^#+\s*/gm, '').slice(0, 160)}…
-                    </div>
-                    <Button variant="secondary" className="w-full justify-start" data-testid="view-explanation-doc" onClick={() => setShowExplanationModal(true)}>
-                      <BookOpen className="mr-2 h-4 w-4" />
-                      查看讲解文档
+            {/* 精选管理（仅管理员可见） */}
+            {isAdmin && project && (
+              <Card className="border-purple-200">
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2 text-purple-700">
+                    <Star className="h-4 w-4" />
+                    精选管理
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <Button
+                      variant={project.is_featured_demo ? 'primary' : 'secondary'}
+                      className={`w-full justify-start ${project.is_featured_demo ? 'bg-amber-500 hover:bg-amber-600' : ''}`}
+                      onClick={handleToggleFeaturedDemo}
+                      disabled={featuredLoading === 'demo'}
+                    >
+                      {featuredLoading === 'demo' ? (
+                        <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                      ) : (
+                        <Star className={`mr-2 h-4 w-4 ${project.is_featured_demo ? 'fill-white' : ''}`} />
+                      )}
+                      {project.is_featured_demo ? '已选入精选 Demo' : '选入精选 Demo'}
                     </Button>
-                  </>
-                ) : (
-                  <p data-testid="explanation-recap-empty" className="text-sm text-gray-500">
-                    还没有讲解记录。让 AI 讲解代码后，讲解要点会自动沉淀到这里。
-                  </p>
-                )}
-                <Button className="w-full justify-start bg-teal-600 hover:bg-teal-700" data-testid="project-explain-code" onClick={() => void handleExplainCode()}>
-                  <Sparkles className="mr-2 h-4 w-4" />
-                  AI 讲解代码
-                </Button>
-              </CardContent>
-            </Card>
+                    <Button
+                      variant={project.is_featured_work ? 'primary' : 'secondary'}
+                      className={`w-full justify-start ${project.is_featured_work ? 'bg-purple-600 hover:bg-purple-700' : ''}`}
+                      onClick={handleToggleFeaturedWork}
+                      disabled={featuredLoading === 'work'}
+                    >
+                      {featuredLoading === 'work' ? (
+                        <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                      ) : (
+                        <Award className="mr-2 h-4 w-4" />
+                      )}
+                      {project.is_featured_work ? '已选入精选作品' : '选入精选作品'}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* 灵感墙发布（作者或管理员可见） */}
+            {project && (isAdmin || project.author_id === user?.id) && (
+              <Card className={project.visibility === 'public' ? 'border-teal-200' : ''}>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Eye className="h-4 w-4 text-teal-600" />
+                    灵感墙
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600">当前状态:</span>
+                      <Badge variant={project.visibility === 'public' ? 'success' : 'default'}>
+                        {project.visibility === 'public' ? '已公开' : project.visibility === 'link' ? '链接分享' : '私有'}
+                      </Badge>
+                    </div>
+                    <Button
+                      variant={project.visibility === 'public' ? 'error' : 'success'}
+                      className="w-full justify-start"
+                      onClick={handleToggleVisibility}
+                      disabled={featuredLoading === 'visibility'}
+                    >
+                      {featuredLoading === 'visibility' ? (
+                        <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                      ) : project.visibility === 'public' ? (
+                        <EyeOff className="mr-2 h-4 w-4" />
+                      ) : (
+                        <Eye className="mr-2 h-4 w-4" />
+                      )}
+                      {project.visibility === 'public' ? '从灵感墙撤回' : '发布到灵感墙'}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* 成果卡片预览 */}
             {achievement && (

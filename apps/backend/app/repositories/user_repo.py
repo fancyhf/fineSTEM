@@ -74,3 +74,8 @@ class UserRepo(BaseRepository):
         self.db.commit()
         self.db.refresh(model)
         return _to_schema(model)
+
+    def list_all_users(self) -> list[User]:
+        """获取所有未删除的用户列表"""
+        models = self.db.query(UserModel).filter(UserModel.is_deleted.is_(False)).all()
+        return [_to_schema(m) for m in models]
