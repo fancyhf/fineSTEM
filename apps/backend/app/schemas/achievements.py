@@ -53,6 +53,7 @@ class AchievementCard(AchievementCardBase, AuditFields, PublishFields, FeatureFi
     id: str = Field(default="", description="档案卡 ID")
     project_id: str = Field(description="所属项目 ID")
     author_id: str = Field(description="作者 ID")
+    author_username: Optional[str] = Field(None, description="作者用户名（管理页面显示用，非落库字段）")
     share_token: Optional[str] = Field(None, description="私有分享令牌")
 
     model_config = ConfigDict(from_attributes=True)

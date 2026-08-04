@@ -81,9 +81,14 @@ export interface Demo {
   code_url?: string;
   download_url?: string;
   fork_template_id?: string;
+  // 2026-08-03：收录来源项目（admin 把合格 project 收录为 demo 时写入）
+  source_project_id?: string;
   content_url?: string;
   tags: string[];
   is_published: boolean;
+  // 2026-08-03：后端 PublishFields 实际返回的是 is_public（非 is_published）
+  is_public?: boolean;
+  submitted_at?: string;
   view_count: number;
   created_at: string;
   updated_at: string;
@@ -110,6 +115,69 @@ export interface DemoListQuery {
   subject?: string;
   tech_stack?: string;
   search?: string;
+}
+
+// 2026-08-03：admin 把项目收录为 Demo 的表单数据（demo 独有字段）。
+// name/description/screenshots 由后端从 project + 成果卡映射，这里只传 demo 独有字段。
+export interface DemoCreateFromProject {
+  difficulty: 'beginner' | 'intermediate' | 'advanced';
+  subjects: string[];
+  grade_range: string;
+  code_url: string;
+  download_url: string;
+  tech_stack?: string[];
+  tags?: string[];
+  display_mode?: 'iframe' | 'static';
+  iframe_url?: string;
+  demo_video_url?: string;
+  project_breakdown?: string;
+  explanation_doc?: string;
+  minimal_replica?: { entry_file?: string; files?: Record<string, string> } | null;
+  is_public?: boolean;
+}
+
+// 项目 → Demo 预填充数据（后端从 project/成果卡/skill_state/workspace 自动提取）
+export interface DemoPrefill {
+  name: string;
+  description: string;
+  screenshots: string[];
+  difficulty: 'beginner' | 'intermediate' | 'advanced';
+  subjects: string[];
+  grade_range: string;
+  tech_stack: string[];
+  tags: string[];
+  display_mode: 'iframe' | 'static';
+  iframe_url?: string | null;
+  code_url: string;
+  download_url: string;
+  project_breakdown?: string | null;
+  explanation_doc?: string | null;
+  minimal_replica?: { entry_file?: string; files?: Record<string, string> } | null;
+  is_public: boolean;
+  // 额外诊断信息
+  source_track?: string | null;
+  has_workspace_code: boolean;
+}
+
+// Demo 编辑（全字段可选）
+export interface DemoUpdate {
+  name?: string;
+  description?: string;
+  tech_stack?: string[];
+  difficulty?: 'beginner' | 'intermediate' | 'advanced';
+  subjects?: string[];
+  grade_range?: string;
+  tags?: string[];
+  display_mode?: 'iframe' | 'static';
+  iframe_url?: string;
+  screenshots?: string[];
+  demo_video_url?: string;
+  project_breakdown?: string;
+  explanation_doc?: string;
+  minimal_replica?: { entry_file?: string; files?: Record<string, string> } | null;
+  code_url?: string;
+  download_url?: string;
+  source_project_id?: string;
 }
 
 // 项目类型
@@ -145,6 +213,11 @@ export interface Project extends ProjectBase {
   is_featured_work: boolean;
   featured_work_sort_order: number;
   featured_work_at?: string;
+  
+  // 关联成果档案卡摘要（精选管理/首页 Demo 展示用）
+  achievement_card_id?: string;
+  achievement_card_is_public?: boolean;
+  achievement_card_is_featured?: boolean;
   
   // 关联数据（前端展示用）
   author_name?: string;
@@ -308,6 +381,7 @@ export interface AchievementCard {
   id: string;
   project_id: string;
   author_id: string;
+  author_username?: string; // 作者显示名（管理页面 JOIN 返回，非落库字段）
   title: string;
   one_liner: string;
   problem_solved: string;

@@ -297,38 +297,31 @@ export default function ProjectDetail() {
     await handleEnterCodeEditor();
   };
 
-  // ========== 精选管理操作（仅管理员）==========
-  
-  /** 切换精选 Demo 状态 */
-  const handleToggleFeaturedDemo = async () => {
-    if (!project?.id || !isAdmin) return;
-    setFeaturedLoading('demo');
-    try {
-      const newValue = !project.is_featured_demo;
-      await projectsApi.updateFeatured(project.id, { 
-        is_featured_demo: newValue,
-        featured_demo_sort_order: newValue ? 10 : 0 
-      });
-      setProject({ ...project, is_featured_demo: newValue });
-      showToast('success', newValue ? '已选入精选 Demo' : '已撤回精选 Demo');
-    } catch (err) {
-      showToast('error', '操作失败，请重试');
-    } finally {
-      setFeaturedLoading('');
-    }
-  };
+  // ========== 精选管理操作（仅管理员/作者）==========
+  // 数据源统一说明（2026-08-04）：
+  //   - 精选作品、灵感墙均以 achievement_cards 为唯一真相源。
+  //   - 精选 Demo 的管理已迁移至「精选管理页」的 demos 表收录流程，
+  //     不再在项目详情页提供直接入口（避免与 demos 表脱节）。
 
-  /** 切换精选作品状态 */
+  /** 切换精选作品状态（管理员）：作用于 achievement_cards.is_featured */
   const handleToggleFeaturedWork = async () => {
-    if (!project?.id || !isAdmin) return;
+    if (!isAdmin || !achievement?.id) {
+      showToast('error', '请先生成成果档案卡');
+      return;
+    }
+    if (!achievement.is_public) {
+      showToast('error', '仅可精选已发布到灵感墙的档案卡');
+      return;
+    }
     setFeaturedLoading('work');
     try {
-      const newValue = !project.is_featured_work;
-      await projectsApi.updateFeatured(project.id, { 
-        is_featured_work: newValue,
-        featured_work_sort_order: newValue ? 10 : 0 
-      });
-      setProject({ ...project, is_featured_work: newValue });
+      const newValue = !achievement.is_featured;
+      const res = await achievementCardsApi.setFeatured(achievement.id, newValue, newValue ? 10 : 0);
+      if (res.data) {
+        setAchievement(res.data);
+      } else {
+        setAchievement({ ...achievement, is_featured: newValue });
+      }
       showToast('success', newValue ? '已选入精选作品' : '已撤回精选作品');
     } catch (err) {
       showToast('error', '操作失败，请重试');
@@ -337,21 +330,30 @@ export default function ProjectDetail() {
     }
   };
 
-  /** 切换灵感墙（公开）状态 */
+  /** 切换灵感墙（公开）状态：作用于 achievement_cards.is_public */
   const handleToggleVisibility = async () => {
-    if (!project?.id) return;
+    if (!achievement?.id) {
+      showToast('error', '请先生成成果档案卡');
+      return;
+    }
     // 只有作者或管理员可以操作
-    const canModify = isAdmin || project.author_id === user?.id;
+    const canModify = isAdmin || achievement.author_id === user?.id;
     if (!canModify) {
       showToast('error', '无权操作');
       return;
     }
     setFeaturedLoading('visibility');
     try {
-      const newVisibility = project.visibility === 'public' ? 'private' : 'public';
-      await projectsApi.updateVisibility(project.id, newVisibility);
-      setProject({ ...project, visibility: newVisibility });
-      showToast('success', newVisibility === 'public' ? '已发布到灵感墙' : '已从灵感墙撤回');
+      const willPublish = !achievement.is_public;
+      const res = willPublish
+        ? await achievementCardsApi.submitPublic(achievement.id)
+        : await achievementCardsApi.withdrawPublic(achievement.id);
+      if (res.data) {
+        setAchievement(res.data);
+      } else {
+        setAchievement({ ...achievement, is_public: willPublish });
+      }
+      showToast('success', willPublish ? '已发布到灵感墙' : '已从灵感墙撤回');
     } catch (err) {
       showToast('error', '操作失败，请重试');
     } finally {
@@ -812,7 +814,7 @@ export default function ProjectDetail() {
               </CardContent>
             </Card>
 
-            {/* 精选管理（仅管理员可见） */}
+            {/* 精选管理（仅管理员可见，且需已有档案卡） */}
             {isAdmin && project && (
               <Card className="border-purple-200">
                 <CardHeader>
@@ -823,40 +825,40 @@ export default function ProjectDetail() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
+                    {!achievement && (
+                      <div className="text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-md px-3 py-2">
+                        需先生成成果档案卡，并发布到灵感墙后才可精选。
+                      </div>
+                    )}
+                    {achievement && !achievement.is_public && (
+                      <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                        仅可精选已发布到灵感墙的档案卡。
+                      </div>
+                    )}
+                    <div className="text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-md px-3 py-2">
+                      精选 Demo 管理已迁移至「精选管理页」，请在管理页中收录本项目为 Demo。
+                    </div>
                     <Button
-                      variant={project.is_featured_demo ? 'primary' : 'secondary'}
-                      className={`w-full justify-start ${project.is_featured_demo ? 'bg-amber-500 hover:bg-amber-600' : ''}`}
-                      onClick={handleToggleFeaturedDemo}
-                      disabled={featuredLoading === 'demo'}
-                    >
-                      {featuredLoading === 'demo' ? (
-                        <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
-                      ) : (
-                        <Star className={`mr-2 h-4 w-4 ${project.is_featured_demo ? 'fill-white' : ''}`} />
-                      )}
-                      {project.is_featured_demo ? '已选入精选 Demo' : '选入精选 Demo'}
-                    </Button>
-                    <Button
-                      variant={project.is_featured_work ? 'primary' : 'secondary'}
-                      className={`w-full justify-start ${project.is_featured_work ? 'bg-purple-600 hover:bg-purple-700' : ''}`}
+                      variant={achievement?.is_featured ? 'primary' : 'secondary'}
+                      className={`w-full justify-start ${achievement?.is_featured ? 'bg-purple-600 hover:bg-purple-700' : ''}`}
                       onClick={handleToggleFeaturedWork}
-                      disabled={featuredLoading === 'work'}
+                      disabled={!achievement || !achievement.is_public || featuredLoading === 'work'}
                     >
                       {featuredLoading === 'work' ? (
                         <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
                       ) : (
                         <Award className="mr-2 h-4 w-4" />
                       )}
-                      {project.is_featured_work ? '已选入精选作品' : '选入精选作品'}
+                      {achievement?.is_featured ? '已选入精选作品' : '选入精选作品'}
                     </Button>
                   </div>
                 </CardContent>
               </Card>
             )}
 
-            {/* 灵感墙发布（作者或管理员可见） */}
-            {project && (isAdmin || project.author_id === user?.id) && (
-              <Card className={project.visibility === 'public' ? 'border-teal-200' : ''}>
+            {/* 灵感墙发布（作者或管理员可见，需已有档案卡） */}
+            {project && achievement && (isAdmin || achievement.author_id === user?.id) && (
+              <Card className={achievement.is_public ? 'border-teal-200' : ''}>
                 <CardHeader>
                   <CardTitle className="text-lg flex items-center gap-2">
                     <Eye className="h-4 w-4 text-teal-600" />
@@ -867,24 +869,24 @@ export default function ProjectDetail() {
                   <div className="space-y-3">
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-gray-600">当前状态:</span>
-                      <Badge variant={project.visibility === 'public' ? 'success' : 'default'}>
-                        {project.visibility === 'public' ? '已公开' : project.visibility === 'link' ? '链接分享' : '私有'}
+                      <Badge variant={achievement.is_public ? 'success' : 'default'}>
+                        {achievement.is_public ? '已发布' : '未发布'}
                       </Badge>
                     </div>
                     <Button
-                      variant={project.visibility === 'public' ? 'error' : 'success'}
+                      variant={achievement.is_public ? 'error' : 'success'}
                       className="w-full justify-start"
                       onClick={handleToggleVisibility}
                       disabled={featuredLoading === 'visibility'}
                     >
                       {featuredLoading === 'visibility' ? (
                         <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
-                      ) : project.visibility === 'public' ? (
+                      ) : achievement.is_public ? (
                         <EyeOff className="mr-2 h-4 w-4" />
                       ) : (
                         <Eye className="mr-2 h-4 w-4" />
                       )}
-                      {project.visibility === 'public' ? '从灵感墙撤回' : '发布到灵感墙'}
+                      {achievement.is_public ? '从灵感墙撤回' : '发布到灵感墙'}
                     </Button>
                   </div>
                 </CardContent>

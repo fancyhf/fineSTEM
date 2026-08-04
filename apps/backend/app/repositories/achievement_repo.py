@@ -4,17 +4,18 @@ import secrets
 import uuid
 
 from app.core.time_utils import utc_now
-from app.db.models import AchievementCardModel
+from app.db.models import AchievementCardModel, UserModel
 from app.repositories.base import BaseRepository
 from app.repositories.utils import json_dumps, json_loads
 from app.schemas.achievements import AchievementCard
 
 
-def _to_schema(model: AchievementCardModel) -> AchievementCard:
+def _to_schema(model: AchievementCardModel, author_username: str | None = None) -> AchievementCard:
     return AchievementCard(
         id=model.id,
         project_id=model.project_id,
         author_id=model.author_id,
+        author_username=author_username,
         title=model.title,
         one_liner=model.one_liner,
         problem_solved=model.problem_solved,
@@ -110,25 +111,58 @@ class AchievementRepo(BaseRepository):
         limit: int = 20,
         capability_tag: str | None = None,
         mode: str | None = None,
+        author_id: str | None = None,
+        keyword: str | None = None,
+        author_username: str | None = None,
     ) -> list[AchievementCard]:
-        rows = (
-            self.db.query(AchievementCardModel)
+        query = (
+            self.db.query(AchievementCardModel, UserModel.name)
+            .outerjoin(UserModel, UserModel.id == AchievementCardModel.author_id)
             .filter(AchievementCardModel.is_deleted.is_(False), AchievementCardModel.is_public.is_(True))
             .order_by(AchievementCardModel.updated_at.desc())
-            .all()
         )
+        if author_id:
+            query = query.filter(AchievementCardModel.author_id == author_id)
+        if keyword:
+            kw = f"%{keyword.strip()}%"
+            query = query.filter(
+                (AchievementCardModel.title.ilike(kw))
+                | (AchievementCardModel.one_liner.ilike(kw))
+            )
+        if author_username:
+            query = query.filter(UserModel.name.ilike(f"%{author_username.strip()}%"))
+        pairs = query.all()
+        # 内存过滤 capability_tag / project_mode（保持原逻辑）
         if capability_tag:
-            rows = [item for item in rows if capability_tag in json_loads(item.capability_tags, [])]
+            pairs = [(m, u) for (m, u) in pairs if capability_tag in json_loads(m.capability_tags, [])]
         if mode:
-            rows = [item for item in rows if item.project_mode == mode]
-        return [_to_schema(item) for item in rows[skip : skip + limit]]
+            pairs = [(m, u) for (m, u) in pairs if m.project_mode == mode]
+        return [_to_schema(m, author_username=u) for (m, u) in pairs[skip : skip + limit]]
 
-    def count_public_achievement_cards(self, capability_tag: str | None = None, mode: str | None = None) -> int:
-        return len(self.list_public_achievement_cards(0, 100000, capability_tag=capability_tag, mode=mode))
+    def count_public_achievement_cards(
+        self,
+        capability_tag: str | None = None,
+        mode: str | None = None,
+        author_id: str | None = None,
+        keyword: str | None = None,
+        author_username: str | None = None,
+    ) -> int:
+        return len(
+            self.list_public_achievement_cards(
+                0,
+                100000,
+                capability_tag=capability_tag,
+                mode=mode,
+                author_id=author_id,
+                keyword=keyword,
+                author_username=author_username,
+            )
+        )
 
     def list_featured_cards(self, skip: int = 0, limit: int = 20) -> list[AchievementCard]:
-        rows = (
-            self.db.query(AchievementCardModel)
+        pairs = (
+            self.db.query(AchievementCardModel, UserModel.name)
+            .outerjoin(UserModel, UserModel.id == AchievementCardModel.author_id)
             .filter(
                 AchievementCardModel.is_deleted.is_(False),
                 AchievementCardModel.is_public.is_(True),
@@ -142,7 +176,7 @@ class AchievementRepo(BaseRepository):
             .limit(limit)
             .all()
         )
-        return [_to_schema(item) for item in rows]
+        return [_to_schema(m, author_username=u) for (m, u) in pairs]
 
     def count_featured_cards(self) -> int:
         return (

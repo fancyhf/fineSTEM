@@ -9,6 +9,9 @@ import {
   Demo,
   ForkTemplate,
   DemoListQuery,
+  DemoCreateFromProject,
+  DemoPrefill,
+  DemoUpdate,
   Project,
   ProjectCreate,
   ProjectUpdate,
@@ -265,6 +268,31 @@ export const demosApi = {
     api.get<{ demo_id: string; project_breakdown: string; minimal_replica?: string }>(`/demos/${id}/breakdown`),
   getForkTemplate: (id: string) =>
     api.get<ForkTemplate>(`/demos/${id}/fork-template`),
+  // ========== Demo 管理（管理员）==========
+  /** 收录预填充：从项目已有数据自动提取 demo 字段建议值 */
+  getPrefill: (projectId: string) =>
+    api.get<DemoPrefill>(`/demos/from-project/${projectId}/prefill`),
+  /** 把合格项目收录为 Demo（在 demos 表新建一条记录） */
+  createFromProject: (projectId: string, data: DemoCreateFromProject) =>
+    api.post<Demo>(`/demos/from-project/${projectId}`, data),
+  /** 编辑 Demo（全字段可选更新） */
+  update: (id: string, data: DemoUpdate) =>
+    api.patch<Demo>(`/demos/${id}`, data),
+  /** 删除 Demo（软删除） */
+  remove: (id: string) => api.delete<void>(`/demos/${id}`),
+  /** 上架/下架 Demo（切换 is_public） */
+  togglePublic: (id: string, isPublic: boolean) =>
+    api.post<Demo>(`/demos/${id}/toggle-public`, { is_public: isPublic }),
+  /** 管理页查询（is_public=false 查草稿；默认只查公开） */
+  listForAdmin: (params?: { page?: number; page_size?: number; is_public?: boolean; search?: string }) => {
+    const query = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) query.append(key, String(value));
+      });
+    }
+    return api.get<PaginationResult<Demo>>(`/demos${query.toString() ? `?${query.toString()}` : ''}`);
+  },
 };
 
 // Project API
@@ -358,7 +386,11 @@ export const projectsApi = {
     is_featured_demo?: boolean;
     is_featured_work?: boolean;
     author_id?: string;
+    /** 按作者姓名模糊匹配（ILIKE）。与 author_id 同时提供时优先使用 author_id */
+    author_name?: string;
     search?: string;
+    /** 仅返回已完成阶段9（评估展示，stage_08_evaluate）的项目（精选管理"全部项目"页签使用） */
+    completed_only?: boolean;
   }) => {
     const query = new URLSearchParams();
     if (params) {
@@ -425,15 +457,26 @@ export const achievementCardsApi = {
     api.post<AchievementCard>(`/achievement-cards/${id}/submit-public`, data),
   withdrawPublic: (id: string) =>
     api.post<AchievementCard>(`/achievement-cards/${id}/withdraw-public`, {}),
+  /** 管理员强制从灵感墙下架（同时清除精选，用于管理员判定不合规内容） */
+  adminWithdraw: (id: string) =>
+    api.post<AchievementCard>(`/achievement-cards/${id}/admin-withdraw`, {}),
   forkProjectFromCard: (id: string) =>
     api.post<Project>(`/achievement-cards/${id}/fork-project`, {}),
   recommendations: (id: string) =>
     api.get<AchievementRecommendation[]>(`/achievement-cards/${id}/recommendations`),
-  listPublic: (params?: { page?: number; page_size?: number; capability_tag?: string; project_mode?: string; sort_by?: string }) => {
+  /** 自动同步能力标签（拉取项目标签 + 兜底推荐，写入成果卡） */
+  syncCapabilityTags: (id: string) =>
+    api.post<AchievementCard>(`/achievement-cards/${id}/sync-capability-tags`, {}),
+  listPublic: (params?: { page?: number; page_size?: number; capability_tag?: string; project_mode?: string; sort_by?: string; mine?: boolean; author_id?: string; keyword?: string; author_username?: string }) => {
     const query = new URLSearchParams();
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
-        if (value) query.append(key, String(value));
+        if (value === undefined || value === null || value === '') return;
+        if (typeof value === 'boolean') {
+          if (value) query.append(key, 'true');
+          return;
+        }
+        query.append(key, String(value));
       });
     }
     return api.get<PaginationResult<AchievementCard>>(`/achievement-cards/inspiration-wall${query.toString() ? `?${query.toString()}` : ''}`);

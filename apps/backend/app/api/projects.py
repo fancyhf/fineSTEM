@@ -828,7 +828,7 @@ async def get_project(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="项目不存在",
         )
-    if project.author_id != current_user.id:
+    if project.author_id != current_user.id and current_user.role != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="无权查看此项目",
@@ -2368,6 +2368,50 @@ async def delete_project(
 # 项目精选管理（管理员用）
 # =============================================================================
 
+def _validate_demo_ready(project) -> List[str]:
+    """
+    校验项目是否满足 Demo 上线要求，返回缺失字段列表（空表示通过）。
+
+    校验项：
+    - name：项目名非空
+    - description：项目简介非空
+    - mode：项目模式（light/standard）合法
+    - achievement_card：关联成果卡存在且已公开或含拆解内容
+    - screenshots：成果卡截图非空
+    - capability_tags：成果卡能力标签非空
+    - one_liner：成果卡一句话介绍非空
+    """
+    missing: List[str] = []
+
+    name = getattr(project, "name", None) or ""
+    description = getattr(project, "description", None) or ""
+    mode = getattr(project, "mode", None) or ""
+
+    if not name.strip():
+        missing.append("name")
+    if not description.strip():
+        missing.append("description")
+    if mode not in ("light", "standard"):
+        missing.append("mode")
+
+    project_id = getattr(project, "id", None)
+    card = db.get_achievement_card_by_project(project_id) if project_id else None
+    if card is None:
+        missing.append("achievement_card")
+    else:
+        one_liner = getattr(card, "one_liner", None) or ""
+        screenshots = getattr(card, "screenshots", None) or []
+        capability_tags = getattr(card, "capability_tags", None) or []
+        if not one_liner.strip():
+            missing.append("one_liner")
+        if not screenshots:
+            missing.append("screenshots")
+        if not capability_tags:
+            missing.append("capability_tags")
+
+    return missing
+
+
 @router.patch("/{project_id}/featured", response_model=ApiResponse[Project])
 async def update_project_featured(
     project_id: str,
@@ -2376,6 +2420,12 @@ async def update_project_featured(
 ):
     """
     管理员设置/取消项目精选状态（精选 Demo 或精选作品）
+
+    Demo 上线字段校验：
+    当请求将项目设为 Demo（is_featured_demo=true）时，必须校验项目具备 Demo
+    展示所需的全部字段。若缺失则返回 422，并在 details.missing_fields 中列出
+    待补齐项，前端据此提示 admin 去项目详情完善后再上线。
+    取消 Demo（is_featured_demo=false）不触发校验，可随时下架。
     """
     project = db.get_project(project_id)
     if not project:
@@ -2383,7 +2433,20 @@ async def update_project_featured(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="项目不存在",
         )
-    
+
+    # ---- Demo 上线字段校验（仅在设为 Demo 时执行）----
+    if payload.is_featured_demo is True:
+        missing_fields = _validate_demo_ready(project)
+        if missing_fields:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={
+                    "code": "DEMO_FIELDS_INCOMPLETE",
+                    "message": "项目未达到 Demo 上线要求，请补齐必要字段",
+                    "details": {"missing_fields": missing_fields},
+                },
+            )
+
     update_data: Dict[str, Any] = {}
     now = utc_now()
     
@@ -2452,13 +2515,20 @@ async def list_projects_for_admin(
     visibility: Optional[str] = Query(None, description="筛选可见性: private/link/public"),
     is_featured_demo: Optional[bool] = Query(None, description="筛选精选 Demo"),
     is_featured_work: Optional[bool] = Query(None, description="筛选精选作品"),
-    author_id: Optional[str] = Query(None, description="按作者筛选"),
+    author_id: Optional[str] = Query(None, description="按作者 ID 精确筛选"),
+    author_name: Optional[str] = Query(None, description="按作者姓名模糊筛选（ILIKE）"),
     search: Optional[str] = Query(None, description="项目名称搜索"),
+    completed_only: Optional[bool] = Query(None, description="仅展示已完成阶段9（评估展示）的项目"),
     admin: UserResponse = Depends(require_admin),
 ):
     """
     管理员获取项目列表（用于精选管理）
-    支持分页、筛选、搜索
+    支持分页、按可见性/精选状态/作者 ID/作者姓名/项目名过滤。
+
+    参数说明：
+    - author_id 与 author_name 同时提供时优先使用 author_id 精确匹配。
+    - completed_only=true 时仅返回已完成阶段9（评估展示，current_stage=stage_08_evaluate）的项目，
+      用于"精选管理-全部项目"页签排除仍在开发中的项目。
     """
     skip = (page - 1) * page_size
     
@@ -2472,8 +2542,12 @@ async def list_projects_for_admin(
         filters["is_featured_work"] = is_featured_work
     if author_id:
         filters["author_id"] = author_id
+    if author_name:
+        filters["author_name"] = author_name
     if search:
         filters["search"] = search
+    if completed_only:
+        filters["completed_only"] = True
     
     projects = db.list_projects_for_admin(skip=skip, limit=page_size, filters=filters)
     total = db.count_projects_for_admin(filters=filters)

@@ -64,13 +64,13 @@ class RepositoryBackedDB:
         with self._session() as session:
             return DemoRepo(session).get_demo(demo_id)
 
-    def list_demos(self, skip=0, limit=100, subject=None, difficulty=None, tech_stack=None, search=None):
+    def list_demos(self, skip=0, limit=100, subject=None, difficulty=None, tech_stack=None, search=None, is_public=None):
         with self._session() as session:
-            return DemoRepo(session).list_demos(skip=skip, limit=limit, subject=subject, difficulty=difficulty, tech_stack=tech_stack, search=search)
+            return DemoRepo(session).list_demos(skip=skip, limit=limit, subject=subject, difficulty=difficulty, tech_stack=tech_stack, search=search, is_public=is_public)
 
-    def count_demos(self, subject=None, difficulty=None, tech_stack=None, search=None):
+    def count_demos(self, subject=None, difficulty=None, tech_stack=None, search=None, is_public=None):
         with self._session() as session:
-            return DemoRepo(session).count_demos(subject=subject, difficulty=difficulty, tech_stack=tech_stack, search=search)
+            return DemoRepo(session).count_demos(subject=subject, difficulty=difficulty, tech_stack=tech_stack, search=search, is_public=is_public)
 
     def create_demo(self, demo):
         with self._session() as session:
@@ -85,6 +85,24 @@ class RepositoryBackedDB:
             result = repo.update_demo(demo_id, demo_data)
             session.commit()
             return result
+
+    def soft_delete_demo(self, demo_id: str, deleted_by: str | None = None):
+        with self._session() as session:
+            repo = DemoRepo(session)
+            result = repo.soft_delete_demo(demo_id, deleted_by=deleted_by)
+            session.commit()
+            return result
+
+    def set_demo_public(self, demo_id: str, is_public: bool):
+        with self._session() as session:
+            repo = DemoRepo(session)
+            result = repo.set_demo_public(demo_id, is_public)
+            session.commit()
+            return result
+
+    def get_demo_by_source_project(self, project_id: str):
+        with self._session() as session:
+            return DemoRepo(session).get_demo_by_source_project(project_id)
 
     def get_project(self, project_id: str):
         with self._session() as session:
@@ -201,13 +219,27 @@ class RepositoryBackedDB:
         with self._session() as session:
             return AchievementRepo(session).get_achievement_card_by_share_token(token)
 
-    def list_public_achievement_cards(self, skip=0, limit=100, capability_tag=None, project_mode=None):
+    def list_public_achievement_cards(self, skip=0, limit=100, capability_tag=None, project_mode=None, author_id=None, keyword=None, author_username=None):
         with self._session() as session:
-            return AchievementRepo(session).list_public_achievement_cards(skip=skip, limit=limit, capability_tag=capability_tag, mode=project_mode)
+            return AchievementRepo(session).list_public_achievement_cards(
+                skip=skip,
+                limit=limit,
+                capability_tag=capability_tag,
+                mode=project_mode,
+                author_id=author_id,
+                keyword=keyword,
+                author_username=author_username,
+            )
 
-    def count_public_achievement_cards(self, capability_tag=None, project_mode=None):
+    def count_public_achievement_cards(self, capability_tag=None, project_mode=None, author_id=None, keyword=None, author_username=None):
         with self._session() as session:
-            return AchievementRepo(session).count_public_achievement_cards(capability_tag=capability_tag, mode=project_mode)
+            return AchievementRepo(session).count_public_achievement_cards(
+                capability_tag=capability_tag,
+                mode=project_mode,
+                author_id=author_id,
+                keyword=keyword,
+                author_username=author_username,
+            )
 
     def list_featured_cards(self, skip=0, limit=20):
         with self._session() as session:

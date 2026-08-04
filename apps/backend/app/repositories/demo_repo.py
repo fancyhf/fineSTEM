@@ -166,6 +166,7 @@ def _to_schema(model: DemoModel) -> Demo:
         code_url=model.code_url,
         download_url=model.download_url,
         fork_template_id=model.fork_template_id or f"fork-{model.id}",
+        source_project_id=getattr(model, "source_project_id", None),
         is_public=model.is_public,
         submitted_at=model.submitted_at,
         created_at=model.created_at,
@@ -259,9 +260,15 @@ class DemoRepo(BaseRepository):
         difficulty: str | None = None,
         tech_stack: str | None = None,
         search: str | None = None,
+        is_public: bool | None = None,
     ) -> list[Demo]:
         self._ensure_seed_demos()
         rows = self.db.query(DemoModel).filter(DemoModel.is_deleted.is_(False)).all()
+        # is_public 过滤：True 仅显示已公开；False 仅显示未公开；None 全部返回（供内部/管理场景使用）
+        if is_public is True:
+            rows = [item for item in rows if bool(item.is_public)]
+        elif is_public is False:
+            rows = [item for item in rows if not bool(item.is_public)]
         if subject:
             rows = [item for item in rows if subject in json_loads(item.subjects, [])]
         if difficulty:
@@ -280,9 +287,20 @@ class DemoRepo(BaseRepository):
         difficulty: str | None = None,
         tech_stack: str | None = None,
         search: str | None = None,
+        is_public: bool | None = None,
     ) -> int:
         self._ensure_seed_demos()
-        return len(self.list_demos(0, 100000, subject=subject, difficulty=difficulty, tech_stack=tech_stack, search=search))
+        return len(
+            self.list_demos(
+                0,
+                100000,
+                subject=subject,
+                difficulty=difficulty,
+                tech_stack=tech_stack,
+                search=search,
+                is_public=is_public,
+            )
+        )
 
     def create_demo(self, demo: Demo) -> Demo:
         model = DemoModel(
@@ -304,6 +322,7 @@ class DemoRepo(BaseRepository):
             code_url=demo.code_url,
             download_url=demo.download_url,
             fork_template_id=demo.fork_template_id,
+            source_project_id=getattr(demo, "source_project_id", None),
             is_public=demo.is_public,
             submitted_at=demo.submitted_at,
             created_at=demo.created_at,
@@ -325,12 +344,18 @@ class DemoRepo(BaseRepository):
         if not model or model.is_deleted:
             return None
 
+        # list_fields：存储为 JSON 字符串的列表字段
+        # json_fields：存储为 JSON 字符串的对象字段（minimal_replica 之前被遗漏，
+        # 直接 setattr 存了 dict 对象，读取时 json_loads 会失败 —— 此处修复）
         list_fields = {"tech_stack", "subjects", "tags", "screenshots"}
+        json_fields = {"minimal_replica"}
         for key, value in demo_data.items():
             if value is None or not hasattr(model, key):
                 continue
             if key in list_fields:
                 setattr(model, key, json_dumps(value, default="[]"))
+            elif key in json_fields:
+                setattr(model, key, json_dumps(value, default="{}"))
             else:
                 setattr(model, key, value)
 
@@ -338,3 +363,55 @@ class DemoRepo(BaseRepository):
         self.db.commit()
         self.db.refresh(model)
         return _to_schema(model)
+
+    def soft_delete_demo(self, demo_id: str, deleted_by: str | None = None) -> Demo | None:
+        """
+        软删除 demo（标记 is_deleted）。admin 在精选管理页删除 demo 时调用。
+        注意：仅删除 admin 收录的 demo（created_by != 'system'），
+        种子 demo 由 _ensure_seed_demos 自行管理，不应被这里误删。
+        """
+        self._ensure_seed_demos()
+        model = self.db.get(DemoModel, demo_id)
+        if not model or model.is_deleted:
+            return None
+        now = utc_now()
+        model.is_deleted = True
+        model.deleted_at = now
+        model.deleted_by = deleted_by
+        model.updated_at = now
+        self.db.commit()
+        self.db.refresh(model)
+        return _to_schema(model)
+
+    def set_demo_public(self, demo_id: str, is_public: bool) -> Demo | None:
+        """
+        切换 demo 的公开状态（上架/下架首页展示）。
+        上架时刷新 submitted_at；下架时清空。
+        """
+        self._ensure_seed_demos()
+        model = self.db.get(DemoModel, demo_id)
+        if not model or model.is_deleted:
+            return None
+        model.is_public = bool(is_public)
+        model.submitted_at = utc_now() if is_public else None
+        model.updated_at = utc_now()
+        self.db.commit()
+        self.db.refresh(model)
+        return _to_schema(model)
+
+    def get_demo_by_source_project(self, project_id: str) -> Demo | None:
+        """
+        按 source_project_id 查询：判断某 project 是否已被收录为 demo。
+        返回最新的未删除记录（不区分公开状态）。
+        """
+        self._ensure_seed_demos()
+        model = (
+            self.db.query(DemoModel)
+            .filter(
+                DemoModel.source_project_id == project_id,
+                DemoModel.is_deleted.is_(False),
+            )
+            .order_by(DemoModel.created_at.desc())
+            .first()
+        )
+        return _to_schema(model) if model else None

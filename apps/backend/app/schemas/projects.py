@@ -389,6 +389,11 @@ class Project(ProjectBase, AuditFields):
     featured_work_sort_order: int = Field(default=0, description="精选作品排序权重")
     featured_work_at: Optional[datetime] = Field(None, description="设为精选作品的时间")
     
+    # 关联成果档案卡摘要（精选管理/首页 Demo 展示使用，可选字段）
+    achievement_card_id: Optional[str] = Field(None, description="关联成果档案卡 ID")
+    achievement_card_is_public: Optional[bool] = Field(None, description="关联成果卡是否已发布到灵感墙")
+    achievement_card_is_featured: Optional[bool] = Field(None, description="关联成果卡是否精选（精品项目）")
+    
     model_config = ConfigDict(from_attributes=True)
 
 

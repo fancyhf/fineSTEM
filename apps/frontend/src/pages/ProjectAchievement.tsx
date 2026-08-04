@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { achievementCardsApi, projectsApi } from '../services/api';
-import { AchievementCard, AchievementRecommendation, Project } from '../types';
+import { AchievementCard, AchievementCardUpdate, AchievementRecommendation, Project } from '../types';
 import { AchievementCardView } from '../components/AchievementCardView';
 import { CoverPicker } from '../components/CoverPicker';
 import { MarkdownText } from '../components/MarkdownText';
 import { Button } from '../components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
-import { ArrowLeft, Share2, Copy, ExternalLink, Globe, EyeOff, FileText, Save, Wand2 } from 'lucide-react';
+import { Input } from '../components/ui/Input';
+import { ArrowLeft, Share2, Copy, ExternalLink, Globe, EyeOff, FileText, Save, Wand2, Plus, X, Pencil, Check } from 'lucide-react';
 
 /**
  * 后端返回的 share_url 是相对路径（如 /share/xxx），<a href> 会自动基于当前 origin 解析，
@@ -40,6 +41,59 @@ export default function ProjectAchievement() {
   // AI 草稿状态（从 Markdown 文件解析的结构化数据）
   const [draft, setDraft] = useState<Record<string, unknown> | null>(null);
   const [savingDraft, setSavingDraft] = useState(false);
+  // 成果卡内联编辑状态（2026-08-04：已保存的卡支持编辑标签/字段）
+  const [editingField, setEditingField] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState('');
+  const [newTag, setNewTag] = useState('');
+  const [cardSaving, setCardSaving] = useState(false);
+  const [syncingTags, setSyncingTags] = useState(false);
+
+  /** 保存成果卡字段（通用 PATCH） */
+  const saveCardField = async (field: keyof AchievementCard, value: unknown) => {
+    if (!achievement) return;
+    setCardSaving(true);
+    try {
+      const res = await achievementCardsApi.update(achievement.id, { [field]: value } as AchievementCardUpdate);
+      if (res.data) setAchievement(res.data);
+    } catch {
+      // ignore
+    } finally {
+      setCardSaving(false);
+      setEditingField(null);
+    }
+  };
+
+  /** 添加能力标签 */
+  const addTag = (tag: string) => {
+    if (!achievement) return;
+    const t = tag.trim();
+    if (!t) return;
+    if ((achievement.capability_tags || []).includes(t)) return;
+    saveCardField('capability_tags', [...(achievement.capability_tags || []), t]);
+    setNewTag('');
+  };
+
+  /** 删除能力标签 */
+  const removeTag = (tag: string) => {
+    if (!achievement) return;
+    saveCardField('capability_tags', (achievement.capability_tags || []).filter((t) => t !== tag));
+  };
+
+  /** 自动同步能力标签（拉取项目标签 + 兜底推荐） */
+  const handleSyncTags = async () => {
+    if (!achievement) return;
+    setSyncingTags(true);
+    try {
+      const res = await achievementCardsApi.syncCapabilityTags(achievement.id);
+      if (res.data) {
+        setAchievement(res.data);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setSyncingTags(false);
+    }
+  };
 
   const loadAchievement = async () => {
     if (!projectId) return;
@@ -373,6 +427,124 @@ export default function ProjectAchievement() {
 
         <AchievementCardView achievement={achievement} />
 
+        {/* 成果卡信息编辑（2026-08-04：已保存的卡支持内联编辑能力标签和关键字段） */}
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              成果卡信息
+              {cardSaving && <span className="text-xs text-gray-400 font-normal">保存中...</span>}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* 能力标签：增删 + 自动同步 */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-sm font-medium text-gray-700">能力标签</label>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="!text-xs"
+                  disabled={syncingTags}
+                  onClick={handleSyncTags}
+                >
+                  <Wand2 className="w-3.5 h-3.5 mr-1" />
+                  {syncingTags ? '同步中...' : '自动同步能力标签'}
+                </Button>
+              </div>
+              <div className="flex flex-wrap gap-2 items-center">
+                {(achievement.capability_tags || []).map((tag) => (
+                  <span
+                    key={tag}
+                    className="inline-flex items-center gap-1 px-2 py-1 bg-purple-50 text-purple-700 rounded-full text-xs"
+                  >
+                    {tag}
+                    <button
+                      onClick={() => removeTag(tag)}
+                      className="text-purple-400 hover:text-purple-600"
+                      title="移除标签"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                ))}
+                <div className="inline-flex items-center gap-1">
+                  <Input
+                    value={newTag}
+                    onChange={(e) => setNewTag(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTag(newTag); } }}
+                    placeholder="添加标签"
+                    className="!h-8 !text-xs !w-28"
+                  />
+                  {newTag.trim() && (
+                    <button
+                      onClick={() => addTag(newTag)}
+                      className="p-1 text-purple-600 hover:text-purple-800"
+                      title="添加"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
+              <p className="text-xs text-gray-400 mt-2">
+                能力标签用于 Demo 收录校验和首页展示。点"自动同步"可从项目能力标签 + 智能推荐补全。
+              </p>
+            </div>
+
+            {/* 一句话介绍 */}
+            <EditableField
+              label="一句话介绍"
+              value={achievement.one_liner}
+              fieldKey="one_liner"
+              editingField={editingField}
+              editValue={editValue}
+              onStartEdit={(field, val) => { setEditingField(field); setEditValue(val); }}
+              onChange={setEditValue}
+              onSave={(field) => saveCardField(field as keyof AchievementCard, editValue)}
+              onCancel={() => setEditingField(null)}
+            />
+            {/* 我解决了什么问题 */}
+            <EditableField
+              label="我解决了什么问题"
+              value={achievement.problem_solved}
+              fieldKey="problem_solved"
+              editingField={editingField}
+              editValue={editValue}
+              onStartEdit={(field, val) => { setEditingField(field); setEditValue(val); }}
+              onChange={setEditValue}
+              onSave={(field) => saveCardField(field as keyof AchievementCard, editValue)}
+              onCancel={() => setEditingField(null)}
+              multiline
+            />
+            {/* 我用了什么方法 */}
+            <EditableField
+              label="我用了什么方法"
+              value={achievement.method_used}
+              fieldKey="method_used"
+              editingField={editingField}
+              editValue={editValue}
+              onStartEdit={(field, val) => { setEditingField(field); setEditValue(val); }}
+              onChange={setEditValue}
+              onSave={(field) => saveCardField(field as keyof AchievementCard, editValue)}
+              onCancel={() => setEditingField(null)}
+              multiline
+            />
+            {/* 反思 */}
+            <EditableField
+              label="我的反思"
+              value={achievement.reflection}
+              fieldKey="reflection"
+              editingField={editingField}
+              editValue={editValue}
+              onStartEdit={(field, val) => { setEditingField(field); setEditValue(val); }}
+              onChange={setEditValue}
+              onSave={(field) => saveCardField(field as keyof AchievementCard, editValue)}
+              onCancel={() => setEditingField(null)}
+              multiline
+            />
+          </CardContent>
+        </Card>
+
         <Card className="mt-6">
           <CardHeader>
             <CardTitle className="text-lg">封面图</CardTitle>
@@ -632,6 +804,70 @@ function AchievementCreateForm({
           </CardContent>
         </Card>
       </div>
+    </div>
+  );
+}
+
+// 成果卡字段内联编辑组件
+function EditableField({
+  label,
+  value,
+  fieldKey,
+  editingField,
+  editValue,
+  onStartEdit,
+  onChange,
+  onSave,
+  onCancel,
+  multiline = false,
+}: {
+  label: string;
+  value: string;
+  fieldKey: string;
+  editingField: string | null;
+  editValue: string;
+  onStartEdit: (field: string, value: string) => void;
+  onChange: (value: string) => void;
+  onSave: (field: string) => void;
+  onCancel: () => void;
+  multiline?: boolean;
+}) {
+  const isEditing = editingField === fieldKey;
+  return (
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+      {isEditing ? (
+        <div className="space-y-2">
+          {multiline ? (
+            <textarea
+              value={editValue}
+              onChange={(e) => onChange(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm min-h-[80px] focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              autoFocus
+            />
+          ) : (
+            <Input
+              value={editValue}
+              onChange={(e) => onChange(e.target.value)}
+              autoFocus
+            />
+          )}
+          <div className="flex gap-2">
+            <Button size="sm" className="!bg-purple-600 hover:!bg-purple-700" onClick={() => onSave(fieldKey)}>
+              <Check className="w-3.5 h-3.5 mr-1" />保存
+            </Button>
+            <Button size="sm" variant="secondary" onClick={onCancel}>取消</Button>
+          </div>
+        </div>
+      ) : (
+        <div
+          className="group flex items-start gap-2 cursor-pointer rounded-lg hover:bg-gray-50 px-2 py-1.5 -mx-2"
+          onClick={() => onStartEdit(fieldKey, value || '')}
+        >
+          <p className="text-sm text-gray-600 flex-1 whitespace-pre-wrap">{value || <span className="text-gray-400 italic">点击编辑</span>}</p>
+          <Pencil className="w-3.5 h-3.5 text-gray-300 group-hover:text-purple-500 mt-0.5 flex-shrink-0" />
+        </div>
+      )}
     </div>
   );
 }

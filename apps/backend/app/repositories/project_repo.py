@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 
-from app.db.models import ProjectCapabilityTagModel, ProjectModel, SkillStateModel
+from app.db.models import AchievementCardModel, ProjectCapabilityTagModel, ProjectModel, SkillStateModel
 from app.core.time_utils import utc_now, utc_now_iso
 from app.repositories.base import BaseRepository
 from app.repositories.utils import json_dumps, json_loads
@@ -145,6 +145,33 @@ def _to_skill_state(model: SkillStateModel) -> SkillState:
     )
 
 
+def _attach_achievement_card_info(projects: list[Project], db) -> list[Project]:
+    """批量回填关联成果档案卡摘要（achievement_card_id / is_public / is_featured）。
+
+    用于精选管理页签与首页精选 Demo 展示：让前端能直接跳转成果卡、判断精品状态。
+    一次 in_ 查询避免 N+1；无成果卡的项目保持字段为 None。
+    """
+    if not projects:
+        return projects
+    ids = [p.id for p in projects]
+    rows = (
+        db.query(AchievementCardModel)
+        .filter(
+            AchievementCardModel.project_id.in_(ids),
+            AchievementCardModel.is_deleted.is_(False),
+        )
+        .all()
+    )
+    by_project = {row.project_id: row for row in rows}
+    for project in projects:
+        card = by_project.get(project.id)
+        if card:
+            project.achievement_card_id = card.id
+            project.achievement_card_is_public = card.is_public
+            project.achievement_card_is_featured = card.is_featured
+    return projects
+
+
 class ProjectRepo(BaseRepository):
     @staticmethod
     def _extract_workspace(initial_data: dict) -> dict:
@@ -187,7 +214,8 @@ class ProjectRepo(BaseRepository):
         model = self.db.get(ProjectModel, project_id)
         if not model or model.is_deleted:
             return None
-        return _to_project(model)
+        project = _to_project(model)
+        return _attach_achievement_card_info([project], self.db)[0]
 
     def list_projects(
         self,
@@ -488,48 +516,63 @@ class ProjectRepo(BaseRepository):
 
     # ========== 项目精选管理 ==========
 
+    def _apply_admin_filters(self, query, filters: dict | None):
+        """
+        对项目管理员查询应用统一过滤条件。
+
+        支持 filters 键：
+        - visibility：可见性精确匹配
+        - is_featured_demo / is_featured_work：布尔精确匹配
+        - author_id：作者 ID 精确匹配（与 author_name 同时提供时优先）
+        - author_name：作者姓名 ILIKE 模糊匹配（JOIN users 表）
+        - search：项目名 ILIKE 模糊匹配
+        - completed_only：仅保留已完成阶段9（评估展示，current_stage=stage_08_evaluate）的项目
+        """
+        from app.db.models import UserModel  # 局部导入，避免顶层循环依赖
+
+        if not filters:
+            return query
+
+        if filters.get("visibility"):
+            query = query.filter(ProjectModel.visibility == filters["visibility"])
+        if filters.get("is_featured_demo") is not None:
+            query = query.filter(ProjectModel.is_featured_demo.is_(filters["is_featured_demo"]))
+        if filters.get("is_featured_work") is not None:
+            query = query.filter(ProjectModel.is_featured_work.is_(filters["is_featured_work"]))
+
+        if filters.get("author_id"):
+            # author_id 精确匹配优先于 author_name 模糊匹配
+            query = query.filter(ProjectModel.author_id == filters["author_id"])
+        elif filters.get("author_name"):
+            author_kw = f"%{filters['author_name'].strip()}%"
+            query = query.outerjoin(UserModel, UserModel.id == ProjectModel.author_id) \
+                .filter(UserModel.name.ilike(author_kw))
+
+        if filters.get("search"):
+            search_term = f"%{filters['search']}%"
+            query = query.filter(ProjectModel.name.ilike(search_term))
+        if filters.get("completed_only"):
+            # 精选管理"全部项目"页签：只展示已完成阶段9（评估展示）的项目
+            query = query.filter(ProjectModel.current_stage == "stage_08_evaluate")
+        return query
+
     def list_projects_for_admin(
         self,
         skip: int = 0,
         limit: int = 20,
         filters: dict | None = None,
     ) -> list[Project]:
-        """管理员获取项目列表，支持筛选"""
+        """管理员获取项目列表，支持筛选（含作者名模糊匹配）。"""
         query = self.db.query(ProjectModel).filter(ProjectModel.is_deleted.is_(False))
-        
-        if filters:
-            if filters.get("visibility"):
-                query = query.filter(ProjectModel.visibility == filters["visibility"])
-            if filters.get("is_featured_demo") is not None:
-                query = query.filter(ProjectModel.is_featured_demo.is_(filters["is_featured_demo"]))
-            if filters.get("is_featured_work") is not None:
-                query = query.filter(ProjectModel.is_featured_work.is_(filters["is_featured_work"]))
-            if filters.get("author_id"):
-                query = query.filter(ProjectModel.author_id == filters["author_id"])
-            if filters.get("search"):
-                search_term = f"%{filters['search']}%"
-                query = query.filter(ProjectModel.name.ilike(search_term))
-        
+        query = self._apply_admin_filters(query, filters)
         rows = query.order_by(ProjectModel.updated_at.desc()).offset(skip).limit(limit).all()
-        return [_to_project(item) for item in rows]
+        projects = [_to_project(item) for item in rows]
+        return _attach_achievement_card_info(projects, self.db)
 
     def count_projects_for_admin(self, filters: dict | None = None) -> int:
-        """管理员获取项目总数，支持筛选"""
+        """管理员获取项目总数，支持筛选（含作者名模糊匹配）。"""
         query = self.db.query(ProjectModel).filter(ProjectModel.is_deleted.is_(False))
-        
-        if filters:
-            if filters.get("visibility"):
-                query = query.filter(ProjectModel.visibility == filters["visibility"])
-            if filters.get("is_featured_demo") is not None:
-                query = query.filter(ProjectModel.is_featured_demo.is_(filters["is_featured_demo"]))
-            if filters.get("is_featured_work") is not None:
-                query = query.filter(ProjectModel.is_featured_work.is_(filters["is_featured_work"]))
-            if filters.get("author_id"):
-                query = query.filter(ProjectModel.author_id == filters["author_id"])
-            if filters.get("search"):
-                search_term = f"%{filters['search']}%"
-                query = query.filter(ProjectModel.name.ilike(search_term))
-        
+        query = self._apply_admin_filters(query, filters)
         return query.count()
 
     def list_featured_demos(self, skip: int = 0, limit: int = 4) -> list[Project]:
@@ -548,7 +591,8 @@ class ProjectRepo(BaseRepository):
             .limit(limit)
             .all()
         )
-        return [_to_project(item) for item in rows]
+        projects = [_to_project(item) for item in rows]
+        return _attach_achievement_card_info(projects, self.db)
 
     def count_featured_demos(self) -> int:
         """获取精选 Demo 项目总数"""
@@ -577,7 +621,8 @@ class ProjectRepo(BaseRepository):
             .limit(limit)
             .all()
         )
-        return [_to_project(item) for item in rows]
+        projects = [_to_project(item) for item in rows]
+        return _attach_achievement_card_info(projects, self.db)
 
     def count_featured_works(self) -> int:
         """获取精选作品项目总数"""

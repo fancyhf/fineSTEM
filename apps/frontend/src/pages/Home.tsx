@@ -28,6 +28,8 @@ export function Home() {
 
   useEffect(() => {
     const load = async () => {
+      // 2026-08-03：首页"精选 Demo"只读 demos 表（项目收录为 demo 后写入 demos 表），
+      // 不再同时读 projects.is_featured_demo，避免重复展示。
       const [demoRes, cardsRes, featuredRes] = await Promise.all([
         demosApi.list({ page: 1, page_size: 4 }),
         achievementCardsApi.listPublic({ page: 1, page_size: 4 }),

@@ -59,6 +59,9 @@ class DemoModel(AuditMixin, Base):
     fork_template_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     is_public: Mapped[bool] = mapped_column(Boolean, default=False)
     submitted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # 2026-08-03：记录 demo 由哪个 project 收录而来（种子数据为 NULL）。
+    # admin 把合格项目收录为 demo 时写入，用于追溯来源。
+    source_project_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
 
 
 class ProjectModel(AuditMixin, Base):

@@ -20,7 +20,7 @@ from app.schemas.achievements import (
 from app.schemas.common import ApiResponse, PaginationResult
 from app.schemas.auth import UserResponse
 from app.repositories.runtime_db import db
-from app.api.auth import get_current_user, require_admin
+from app.api.auth import get_current_user, get_optional_current_user, require_admin
 from app.services.providers.image_provider import generate_cover_image
 from app.services.storage_service import storage_service
 from app.schemas.projects import Project
@@ -91,7 +91,7 @@ async def get_project_achievement_card(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="项目不存在",
         )
-    if project.author_id != current_user.id:
+    if project.author_id != current_user.id and current_user.role != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="无权操作此项目",
@@ -206,6 +206,25 @@ async def withdraw_from_public(card_id: str, current_user: UserResponse = Depend
     return ApiResponse(data=updated_card, message="已从灵感墙撤回")
 
 
+@router.post("/{card_id}/admin-withdraw", response_model=ApiResponse[AchievementCard])
+async def admin_withdraw_from_public(card_id: str, admin: UserResponse = Depends(require_admin)):
+    """
+    管理员强制将档案卡从灵感墙下架（不校验作者身份）。
+
+    - 触发场景：管理员在“精选管理 - 全部项目”中判定内容不合规。
+    - 副作用：若卡片当前是精选，同时清除精选标记与排序，避免精选残留。
+    """
+    card = db.get_achievement_card(card_id)
+    if not card:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="档案卡不存在")
+
+    # 先撤回精选（若有），再下架公开
+    if card.is_featured:
+        db.set_card_featured(card_id, featured=False, sort_order=0)
+    updated_card = db.update_achievement_card(card_id, {"is_public": False})
+    return ApiResponse(data=updated_card, message="已由管理员强制下架")
+
+
 @router.post("/{card_id}/fork-project", response_model=ApiResponse[Project])
 async def fork_project_from_card(card_id: str, current_user: UserResponse = Depends(get_current_user)):
     card = db.get_achievement_card(card_id)
@@ -242,20 +261,38 @@ async def get_inspiration_wall(
     capability_tag: Optional[str] = None,
     project_mode: Optional[str] = None,
     sort_by: Optional[str] = "latest",
+    mine: bool = False,
+    author_id: Optional[str] = None,
+    keyword: Optional[str] = None,
+    author_username: Optional[str] = None,
+    current_user: Optional[UserResponse] = Depends(get_optional_current_user),
 ):
     """
     灵感墙（公开的成果档案卡）
+
+    - `mine=true`：仅返回当前登录用户的作品（需登录）。
+    - `author_id`：按指定作者过滤（管理员场景），若同时传入 mine，则 mine 优先。
+    - `keyword`：按标题/一句话简介模糊搜索。
+    - `author_username`：按作者名字模糊搜索（当 mine=true 时忽略）。
     """
+    effective_author_id = current_user.id if mine and current_user else author_id
+    effective_author_username = None if mine else author_username
     skip = (page - 1) * page_size
     cards = db.list_public_achievement_cards(
         skip=skip,
         limit=page_size,
         capability_tag=capability_tag,
         project_mode=project_mode,
+        author_id=effective_author_id,
+        keyword=keyword,
+        author_username=effective_author_username,
     )
     total = db.count_public_achievement_cards(
         capability_tag=capability_tag,
         project_mode=project_mode,
+        author_id=effective_author_id,
+        keyword=keyword,
+        author_username=effective_author_username,
     )
     total_pages = (total + page_size - 1) // page_size
     
@@ -341,6 +378,80 @@ async def set_card_featured(
             detail="档案卡不存在",
         )
     return ApiResponse(data=updated_card, message="精选设置成功" if payload.featured else "已取消精选")
+
+
+def _recommend_capability_tags(project_name: str, current_stage: str) -> list[str]:
+    """基于项目名称/阶段关键词推荐能力标签（与 capability_tags.py 的规则一致，独立实现避免循环依赖）。"""
+    source = f"{project_name} {current_stage}".lower()
+    tags: list[str] = []
+    if any(k in source for k in ("ai", "智能", "模型", "生成")):
+        tags.append("AI应用")
+    if any(k in source for k in ("数据", "分析", "统计", "图表")):
+        tags.append("数据分析")
+    if any(k in source for k in ("web", "网页", "html", "javascript", "前端")):
+        tags.append("Web开发")
+    if any(k in source for k in ("python", "代码", "编程", "程序")):
+        tags.append("编程")
+    if not tags:
+        tags.extend(["项目规划", "问题解决"])
+    return list(dict.fromkeys(tags))
+
+
+@router.post("/{card_id}/sync-capability-tags", response_model=ApiResponse[AchievementCard])
+async def sync_capability_tags_to_card(
+    card_id: str,
+    current_user: UserResponse = Depends(get_current_user),
+):
+    """
+    自动同步能力标签到成果卡（2026-08-04）。
+
+    数据来源优先级（取第一个非空）：
+    1. 项目详情页维护的能力标签（project_capability_tags 表）—— 项目维度最权威
+    2. 成果卡已有的 capability_tags（避免覆盖用户已设置的）
+    3. 基于项目名/阶段关键词自动推荐（兜底，保证不为空）
+
+    结果写入成果卡的 capability_tags，并返回更新后的卡。作者本人或管理员可操作。
+    """
+    card = db.get_achievement_card(card_id)
+    if not card:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="档案卡不存在")
+    if card.author_id != current_user.id and current_user.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权操作此档案卡")
+
+    project = db.get_project(card.project_id) if card.project_id else None
+
+    # 1) 项目维度能力标签
+    project_tags: list[str] = []
+    if project:
+        try:
+            project_tags = list(db.get_project_capability_tags(project.id) or [])
+        except Exception:
+            project_tags = []
+
+    # 2) 成果卡已有标签
+    card_tags = list(card.capability_tags or [])
+
+    # 3) 兜底推荐
+    recommended = (
+        _recommend_capability_tags(project.name, project.current_stage)
+        if project else ["项目规划", "问题解决"]
+    )
+
+    # 合并去重：project_tags 优先，补 card_tags，再补 recommended
+    merged: list[str] = []
+    for t in [*project_tags, *card_tags, *recommended]:
+        t = str(t).strip()
+        if t and t not in merged:
+            merged.append(t)
+
+    if not merged:
+        return ApiResponse(data=card, message="无可用能力标签")
+
+    updated_card = db.update_achievement_card(card_id, {"capability_tags": merged})
+    return ApiResponse(
+        data=updated_card or card,
+        message=f"已同步 {len(merged)} 个能力标签",
+    )
 
 
 @router.post("/{card_id}/generate-cover", response_model=ApiResponse[AchievementCard])

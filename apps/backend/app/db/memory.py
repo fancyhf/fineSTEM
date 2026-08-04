@@ -249,9 +249,14 @@ class MemoryDatabase:
         difficulty: Optional[str] = None,
         tech_stack: Optional[str] = None,
         search: Optional[str] = None,
+        is_public: Optional[bool] = None,
     ) -> List[Demo]:
         demos = list(self.demos.values())
 
+        if is_public is True:
+            demos = [d for d in demos if bool(getattr(d, "is_public", True))]
+        elif is_public is False:
+            demos = [d for d in demos if not bool(getattr(d, "is_public", True))]
         if subject:
             demos = [d for d in demos if subject in d.subjects]
         if difficulty:
@@ -273,8 +278,9 @@ class MemoryDatabase:
         difficulty: Optional[str] = None,
         tech_stack: Optional[str] = None,
         search: Optional[str] = None,
+        is_public: Optional[bool] = None,
     ) -> int:
-        return len(self.list_demos(0, 100000, subject, difficulty, tech_stack, search))
+        return len(self.list_demos(0, 100000, subject, difficulty, tech_stack, search, is_public))
 
     def create_demo(self, demo: Demo) -> Demo:
         demo.id = str(uuid.uuid4())
@@ -445,13 +451,28 @@ class MemoryDatabase:
         limit: int = 100,
         capability_tag: Optional[str] = None,
         project_mode: Optional[str] = None,
+        author_id: Optional[str] = None,
+        keyword: Optional[str] = None,
+        author_username: Optional[str] = None,
     ) -> List[AchievementCard]:
         cards = [c for c in self.achievement_cards.values() if c.is_public and not c.is_deleted]
 
+        if author_id:
+            cards = [c for c in cards if c.author_id == author_id]
         if capability_tag:
             cards = [c for c in cards if capability_tag in c.capability_tags]
         if project_mode:
             cards = [c for c in cards if c.project_mode == project_mode]
+        if keyword:
+            kw = keyword.strip().lower()
+            cards = [c for c in cards if kw in (c.title or "").lower() or kw in (c.one_liner or "").lower()]
+        if author_username:
+            uname = author_username.strip().lower()
+            def _match(c: AchievementCard) -> bool:
+                user = self.users.get(c.author_id) if hasattr(self, "users") else None
+                name = getattr(user, "name", "") if user else ""
+                return uname in (name or "").lower()
+            cards = [c for c in cards if _match(c)]
 
         return cards[skip:skip+limit]
 
@@ -459,8 +480,15 @@ class MemoryDatabase:
         self,
         capability_tag: Optional[str] = None,
         project_mode: Optional[str] = None,
+        author_id: Optional[str] = None,
+        keyword: Optional[str] = None,
+        author_username: Optional[str] = None,
     ) -> int:
-        return len(self.list_public_achievement_cards(0, 100000, capability_tag, project_mode))
+        return len(
+            self.list_public_achievement_cards(
+                0, 100000, capability_tag, project_mode, author_id, keyword, author_username,
+            )
+        )
 
     def create_achievement_card(self, card: AchievementCard) -> AchievementCard:
         card.id = str(uuid.uuid4())
