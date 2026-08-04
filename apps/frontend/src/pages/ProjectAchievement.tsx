@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { achievementCardsApi, projectsApi } from '../services/api';
+import { achievementCardsApi, notificationsApi, projectsApi } from '../services/api';
 import { AchievementCard, AchievementCardUpdate, AchievementRecommendation, Project } from '../types';
 import { AchievementCardView } from '../components/AchievementCardView';
 import { CoverPicker } from '../components/CoverPicker';
@@ -9,7 +9,9 @@ import { Button } from '../components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Input } from '../components/ui/Input';
-import { ArrowLeft, Share2, Copy, ExternalLink, Globe, EyeOff, FileText, Save, Wand2, Plus, X, Pencil, Check } from 'lucide-react';
+import { ArrowLeft, Share2, Copy, ExternalLink, Globe, EyeOff, FileText, Save, Wand2, Plus, X, Pencil, Check, Award, Bell } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import { showToast } from '../services/toast';
 
 /**
  * 后端返回的 share_url 是相对路径（如 /share/xxx），<a href> 会自动基于当前 origin 解析，
@@ -26,6 +28,7 @@ export default function ProjectAchievement() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { user } = useAuth();
   const wantCreate = searchParams.get('action') === 'create';
   const [achievement, setAchievement] = useState<AchievementCard | null>(null);
   const [project, setProject] = useState<Project | null>(null);
@@ -41,6 +44,10 @@ export default function ProjectAchievement() {
   // AI 草稿状态（从 Markdown 文件解析的结构化数据）
   const [draft, setDraft] = useState<Record<string, unknown> | null>(null);
   const [savingDraft, setSavingDraft] = useState(false);
+  // AI 一键生成成果卡状态（2026-08-04：与项目详情页"生成成果档案卡"主流程一致）
+  const [generatingCard, setGeneratingCard] = useState(false);
+  // 管理员通知作者补齐成果卡（admin 非本人项目场景）
+  const [notifyingAuthor, setNotifyingAuthor] = useState(false);
   // 成果卡内联编辑状态（2026-08-04：已保存的卡支持编辑标签/字段）
   const [editingField, setEditingField] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
@@ -193,6 +200,65 @@ export default function ProjectAchievement() {
       alert('撤回失败，请稍后重试');
     } finally {
       setPublishing(false);
+    }
+  };
+
+  /**
+   * AI 一键生成成果档案卡（2026-08-04）
+   * 与项目详情页 handleCreateAchievement、精选管理 handleGenerateCard 保持一致主流程：
+   * 系统不存在"手动从空白起步建立成果卡"的正规入口，
+   * 成果档案卡是根据项目历史（对话、文档、代码）自动化生成的。
+   * 若 AI 生成失败，用户可退化到"手动填写"次要入口作为兜底。
+   */
+  const handleAIGenerateCard = async () => {
+    if (!projectId || generatingCard) return;
+    try {
+      setGeneratingCard(true);
+      const response = await projectsApi.generateAchievementCard(projectId);
+      if (response.data) {
+        setAchievement(response.data);
+        setDraft(null);
+        setShowCreateForm(false);
+        // 生成成功后清除可能残留的 ?action=create
+        navigate(`/research/projects/${projectId}/achievement`, { replace: true });
+        return;
+      }
+      throw new Error(response.message || '成果档案卡生成失败');
+    } catch (err) {
+      console.error('[project_achievement:ai_generate] 自动生成失败:', err);
+      const msg = err instanceof Error ? err.message : 'AI 生成失败，请稍后重试或使用手动填写';
+      alert(msg);
+    } finally {
+      setGeneratingCard(false);
+    }
+  };
+
+  /**
+   * 管理员通知作者补齐成果卡（admin 非本人项目场景）：
+   * 向项目作者发送 achievement_missing 通知，linkUrl 指向本页面。
+   */
+  const handleNotifyAuthor = async () => {
+    if (!project || !projectId || notifyingAuthor) return;
+    if (!project.author_id) {
+      showToast('error', '无法获取项目作者信息');
+      return;
+    }
+    setNotifyingAuthor(true);
+    try {
+      await notificationsApi.adminCreate({
+        recipientId: project.author_id,
+        type: 'achievement_missing',
+        title: `请补齐项目「${project.name}」的成果档案卡`,
+        content: '管理员希望您尽快补齐该项目的成果档案卡，以便进入 Demo 收录与精选流程。点击可直接前往设置。',
+        relatedType: 'project',
+        relatedId: projectId,
+        linkUrl: `/research/projects/${projectId}/achievement`,
+      });
+      showToast('success', '已发送通知给作者');
+    } catch {
+      showToast('error', '发送通知失败，请稍后重试');
+    } finally {
+      setNotifyingAuthor(false);
     }
   };
 
@@ -364,32 +430,80 @@ export default function ProjectAchievement() {
       );
     }
 
-    // 无草稿 → 原有引导页
+    // 无草稿 → 引导页（2026-08-04 调整：主 CTA 改为 AI 一键生成，与系统主流程保持一致）
+    // 管理员非本人项目场景：隐藏 AI 生成/手动填写按钮，仅显示"通知作者补齐成果卡"入口
+    const isAdmin = user?.role === 'admin';
+    const isOwn = !!user && !!project && project.author_id === user.id;
+    const adminForOthers = isAdmin && !isOwn && !!project;
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
         <Card className="max-w-lg w-full">
           <CardHeader>
-            <CardTitle className="text-lg">还没有成果档案卡</CardTitle>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Award className="h-5 w-5 text-teal-600" />
+              该项目还没有成果档案卡
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <p className="text-sm text-gray-600">
-              {project ? `「${project.name}」已经可以从项目详情页回顾过程、导出代码和文档。完善成果说明后，就能生成可分享的成果档案卡。` : '项目详情页可以回顾过程、导出代码和文档，并生成可分享的成果档案卡。'}
-            </p>
-            <div className="flex flex-wrap gap-3">
-              <Button onClick={() => setShowCreateForm(true)}>
-                直接创建成果卡
-              </Button>
-              <Button variant="secondary" disabled title="请先创建成果卡后再生成封面">
-                <Wand2 className="w-4 h-4 mr-2" />
-                生成封面
-              </Button>
-              <Button variant="secondary" onClick={() => navigate(`/research/projects/${projectId}`)}>
-                去项目详情
-              </Button>
-              <Button variant="secondary" onClick={() => navigate('/research')}>
-                返回研究列表
-              </Button>
-            </div>
+            {adminForOthers ? (
+              <>
+                <p className="text-sm text-gray-600">
+                  {`「${project!.name}」的成果档案卡需由项目作者本人（${project!.author_name || project!.author_id}）生成。作为管理员，你可以直接向作者发送通知，提醒其尽快补齐。`}
+                </p>
+                <div className="flex flex-wrap gap-3">
+                  <Button
+                    onClick={handleNotifyAuthor}
+                    disabled={notifyingAuthor}
+                    className="bg-teal-600 hover:bg-teal-700"
+                  >
+                    <Bell className="w-4 h-4 mr-2" />
+                    {notifyingAuthor ? '发送中...' : '通知作者补齐成果卡'}
+                  </Button>
+                  <Button variant="secondary" onClick={() => navigate(`/research/projects/${projectId}`)}>
+                    去项目详情
+                  </Button>
+                  <Button variant="secondary" onClick={() => navigate('/admin/featured')}>
+                    返回精选管理
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-gray-600">
+                  {project
+                    ? `「${project.name}」的成果档案卡由 AI 根据项目历史（工作台对话、文档与代码）自动生成。点击下方"AI 生成成果档案卡"，系统会一键整理出可分享的档案卡。`
+                    : '成果档案卡由 AI 根据项目历史（工作台对话、文档与代码）自动生成。点击下方"AI 生成成果档案卡"，系统会一键整理出可分享的档案卡。'}
+                </p>
+                <div className="flex flex-wrap gap-3">
+                  <Button
+                    onClick={handleAIGenerateCard}
+                    disabled={generatingCard}
+                    className="bg-teal-600 hover:bg-teal-700"
+                  >
+                    <Wand2 className="w-4 h-4 mr-2" />
+                    {generatingCard ? 'AI 生成中...' : 'AI 生成成果档案卡'}
+                  </Button>
+                  <Button variant="secondary" onClick={() => navigate(`/research/projects/${projectId}`)}>
+                    去项目详情
+                  </Button>
+                  <Button variant="secondary" onClick={() => navigate('/research')}>
+                    返回研究列表
+                  </Button>
+                </div>
+                <div className="pt-2 border-t border-gray-100">
+                  <p className="text-xs text-gray-400 mb-2">若 AI 生成失败或希望手动填写：</p>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowCreateForm(true)}
+                    disabled={generatingCard}
+                  >
+                    <FileText className="w-3.5 h-3.5 mr-1" />
+                    手动填写成果卡（兜底）
+                  </Button>
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>

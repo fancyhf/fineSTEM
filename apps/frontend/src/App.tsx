@@ -26,6 +26,7 @@ import SharedAchievement from './pages/SharedAchievement';
 import ProjectEditor from './pages/ProjectEditor';
 import AdminFeatured from './pages/AdminFeatured';
 import AchievementDetail from './pages/AchievementDetail';
+import Notifications from './pages/Notifications';
 import { useAuth } from './contexts/AuthContext';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -129,6 +130,10 @@ export default function App() {
             <ProtectedRoute><ProjectAchievement /></ProtectedRoute>
           } />
           <Route path="projects/:id/edit" element={<ProtectedRoute><ProjectEditor /></ProtectedRoute>} />
+
+          <Route path="notifications" element={
+            <ProtectedRoute><Notifications /></ProtectedRoute>
+          } />
 
           <Route path="admin/featured" element={
             <AdminRoute><AdminFeatured /></AdminRoute>

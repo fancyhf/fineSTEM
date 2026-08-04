@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { Button } from '../ui/Button';
+import { NotificationBell } from '../NotificationBell';
 import {
   Sparkles,
   LogOut,
@@ -72,7 +73,9 @@ export function Navbar({ children }: NavbarProps) {
           {children}
 
           {user ? (
-            <div className="relative">
+            <>
+              <NotificationBell />
+              <div className="relative">
               <Button
                 variant="ghost"
                 className="flex items-center gap-2"
@@ -124,7 +127,8 @@ export function Navbar({ children }: NavbarProps) {
                   </div>
                 </>
               )}
-            </div>
+              </div>
+            </>
           ) : (
             <div className="flex items-center gap-2">
               <Link to="/login">

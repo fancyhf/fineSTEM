@@ -160,6 +160,41 @@ class ProjectCapabilityTagModel(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
+class NotificationModel(AuditMixin, Base):
+    """
+    通知消息模型
+
+    存储用户接收的各类通知（管理员消息、系统通知、精选状态变更等）。
+    - recipient_id: 收件人（学生或管理员）用户 id
+    - sender_id: 发件人用户 id；NULL 表示系统通知
+    - type: 通知类型，见 schemas.notifications.NotificationType
+    - related_type/related_id: 可选的关联对象（project/achievement_card/demo）
+    - link_url: 前端点击跳转地址（可选）
+    """
+
+    __tablename__ = "notifications"
+    __table_args__ = (
+        Index(
+            "ix_notifications_recipient_read_created",
+            "recipient_id",
+            "is_read",
+            "created_at",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    recipient_id: Mapped[str] = mapped_column(String(64), index=True)
+    sender_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    type: Mapped[str] = mapped_column(String(32), index=True)
+    title: Mapped[str] = mapped_column(String(255))
+    content: Mapped[str] = mapped_column(Text)
+    related_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    related_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    link_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    is_read: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    read_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
 class SkillRecordModel(AuditMixin, Base):
     __tablename__ = "skill_records"
     id: Mapped[str] = mapped_column(String(64), primary_key=True)

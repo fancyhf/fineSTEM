@@ -47,6 +47,11 @@ import {
   Course,
   CourseCreate,
   CapabilityTagSuggestion,
+  Notification,
+  NotificationBroadcastResult,
+  NotificationCreatePayload,
+  NotificationMarkAllReadResult,
+  NotificationUnreadCount,
 } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
@@ -597,6 +602,32 @@ export const capabilityTagsApi = {
 export const coursesApi = {
   listCourses: () => api.get<Course[]>('/courses'),
   createCourse: (data: CourseCreate) => api.post<Course>('/courses', data),
+};
+
+// 站内通知 API
+export const notificationsApi = {
+  /** 拉取当前用户通知列表（camelCase） */
+  list: (params?: { unreadOnly?: boolean; page?: number; pageSize?: number }) => {
+    const query = new URLSearchParams();
+    if (params) {
+      if (params.unreadOnly) query.append('unreadOnly', 'true');
+      if (params.page) query.append('page', String(params.page));
+      if (params.pageSize) query.append('pageSize', String(params.pageSize));
+    }
+    const qs = query.toString();
+    return api.get<PaginationResult<Notification>>(`/notifications${qs ? `?${qs}` : ''}`);
+  },
+  /** 未读数量 */
+  unreadCount: () => api.get<NotificationUnreadCount>('/notifications/unread-count'),
+  /** 标记单条通知已读 */
+  markRead: (id: string) => api.patch<Notification>(`/notifications/${id}/read`, {}),
+  /** 全部标记为已读 */
+  markAllRead: () => api.patch<NotificationMarkAllReadResult>('/notifications/read-all', {}),
+  /** 删除通知（软删除，仅收件人可删） */
+  delete: (id: string) => api.delete<boolean>(`/notifications/${id}`),
+  /** 管理员创建通知（单发 / 群发 / 广播三选一） */
+  adminCreate: (payload: NotificationCreatePayload) =>
+    api.post<NotificationBroadcastResult>('/notifications', payload),
 };
 
 export const codeExecutionApi = {

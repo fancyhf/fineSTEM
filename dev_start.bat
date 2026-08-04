@@ -67,7 +67,7 @@ echo ==========================================
 echo       Dev server started!
 echo ==========================================
 echo   Frontend:  http://localhost:5184
-echo   Backend:   http://localhost:3200/api/v1
+echo   Backend:   http://localhost:3200/api
 echo   API Docs:  http://localhost:3200/docs
 echo   ZeroClaw:  http://localhost:42617
 echo ==========================================

@@ -218,6 +218,7 @@ export interface Project extends ProjectBase {
   achievement_card_id?: string;
   achievement_card_is_public?: boolean;
   achievement_card_is_featured?: boolean;
+  achievement_card_screenshots?: string[]; // 关联成果卡封面截图（精选管理页签展示用）
   
   // 关联数据（前端展示用）
   author_name?: string;
@@ -587,4 +588,53 @@ export interface CapabilityTagSuggestion {
   project_id: string;
   tags: string[];
   reason: string;
+}
+
+// 通知消息类型（后端 camelCase 输出）
+export type NotificationType =
+  | 'admin_message'
+  | 'achievement_missing'
+  | 'system'
+  | 'project_featured'
+  | 'demo_offshelf';
+
+export type NotificationRelatedType = 'project' | 'achievement_card' | 'demo';
+
+export interface Notification {
+  id: string;
+  recipientId: string;
+  senderId: string | null;
+  type: NotificationType;
+  title: string;
+  content: string;
+  relatedType: NotificationRelatedType | null;
+  relatedId: string | null;
+  linkUrl: string | null;
+  isRead: boolean;
+  readAt: string | null;
+  createdAt: string;
+}
+
+export interface NotificationCreatePayload {
+  recipientId?: string;
+  recipientIds?: string[];
+  broadcast?: boolean;
+  type: NotificationType;
+  title: string;
+  content: string;
+  relatedType?: NotificationRelatedType;
+  relatedId?: string;
+  linkUrl?: string;
+}
+
+export interface NotificationUnreadCount {
+  unreadCount: number;
+}
+
+export interface NotificationMarkAllReadResult {
+  updatedCount: number;
+}
+
+export interface NotificationBroadcastResult {
+  count: number;
 }

@@ -17,13 +17,13 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Star, Check, X, EyeOff, Search, RotateCcw, ExternalLink, ChevronDown, ChevronUp, Trash2, Edit2, Wand2 } from 'lucide-react';
+import { Star, Check, X, EyeOff, Search, RotateCcw, ExternalLink, ChevronDown, ChevronUp, Trash2, Edit2, Wand2, Bell } from 'lucide-react';
 import { Card, CardContent, CardFooter } from '../components/ui/Card';
 import { CoverPicker } from '../components/CoverPicker';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Input } from '../components/ui/Input';
-import { achievementCardsApi, demosApi, projectsApi } from '../services/api';
+import { achievementCardsApi, demosApi, notificationsApi, projectsApi } from '../services/api';
 import { showToast } from '../services/toast';
 import { useAuth } from '../contexts/AuthContext';
 import type { AchievementCard, Demo, DemoCreateFromProject, DemoPrefill, DemoUpdate, Project, PaginationResult } from '../types';
@@ -509,6 +509,34 @@ export default function AdminFeatured() {
   };
 
   /**
+   * 管理员通知作者补齐成果卡：向项目作者发送 achievement_missing 通知，
+   * linkUrl 指向项目成果档案卡页面，便于作者直接跳转补全。
+   */
+  const handleNotifyAuthorForCard = async (project: Project) => {
+    if (!project.author_id) {
+      showToast('error', '无法获取项目作者信息');
+      return;
+    }
+    setProjectActionLoading(`notify-${project.id}`);
+    try {
+      await notificationsApi.adminCreate({
+        recipientId: project.author_id,
+        type: 'achievement_missing',
+        title: `请补齐项目「${project.name}」的成果档案卡`,
+        content: '管理员希望您尽快补齐该项目的成果档案卡，以便进入 Demo 收录与精选流程。点击可直接前往设置。',
+        relatedType: 'project',
+        relatedId: project.id,
+        linkUrl: `/research/projects/${project.id}/achievement`,
+      });
+      showToast('success', '已发送通知给作者');
+    } catch {
+      showToast('error', '发送通知失败，请稍后重试');
+    } finally {
+      setProjectActionLoading(null);
+    }
+  };
+
+  /**
    * 设为 / 取消精品项目：作用于项目关联成果卡的 is_featured（精品 = 精选作品）。
    * 需要成果卡存在且已发布到灵感墙（后端校验），否则 toast 提示。
    */
@@ -689,14 +717,34 @@ export default function AdminFeatured() {
   const renderProjectCard = (project: Project) => {
     const demoLoading = projectActionLoading === `demo-${project.id}`;
     const workLoading = projectActionLoading === `work-${project.id}`;
+    const notifyLoading = projectActionLoading === `notify-${project.id}`;
     const isOwn = project.author_id === user?.id;
+    const isAdmin = user?.role === 'admin';
+    const hasAchievementCard = !!project.achievement_card_id;
     const promotedDemo = projectDemoMap[project.id]; // 已收录的 demo（undefined = 未收录）
+    // 封面图：优先使用关联成果卡的截图，与首页精选作品/灵感墙展示逻辑一致
+    const cover = project.achievement_card_screenshots && project.achievement_card_screenshots.length > 0
+      ? resolveImageUrl(project.achievement_card_screenshots[0]) : null;
     return (
       <Card key={project.id} className="overflow-hidden flex flex-col">
         <div className="relative">
-          <div className="h-36 bg-gradient-to-br from-teal-50 to-cyan-100 flex items-center justify-center">
-            <span className="text-3xl text-teal-300">📦</span>
-          </div>
+          {cover ? (
+            <img
+              src={cover}
+              alt={project.name}
+              className="h-36 w-full object-cover"
+              loading="lazy"
+              onError={(e) => {
+                // 图片加载失败时隐藏 img，让兄弟节点的渐变占位符显示（需切到 else 分支时才存在，
+                // 此处兜底：直接隐藏并让父容器保留高度）
+                (e.target as HTMLImageElement).style.display = 'none';
+              }}
+            />
+          ) : (
+            <div className="h-36 bg-gradient-to-br from-teal-50 to-cyan-100 flex items-center justify-center">
+              <span className="text-3xl text-teal-300">📦</span>
+            </div>
+          )}
           <div className="absolute top-2 right-2 flex gap-1">
             {promotedDemo && (
               <Badge variant="success" size="sm">已收录 Demo</Badge>
@@ -744,10 +792,22 @@ export default function AdminFeatured() {
             <Button
               variant="success"
               size="sm"
-              disabled={demoLoading}
+              disabled={demoLoading || !hasAchievementCard}
               onClick={() => handleSetFeaturedDemo(project)}
+              title={!hasAchievementCard ? '该项目尚未生成成果档案卡，无法收录为 Demo' : undefined}
             >
               {demoLoading ? <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" /> : <><Star className="w-4 h-4 mr-1" />收录为 Demo</>}
+            </Button>
+          )}
+          {!hasAchievementCard && isAdmin && !isOwn && (
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={notifyLoading}
+              onClick={() => handleNotifyAuthorForCard(project)}
+              title="向该项目作者发送通知，请其补齐成果档案卡"
+            >
+              {notifyLoading ? <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600" /> : <><Bell className="w-4 h-4 mr-1" />通知作者补齐成果卡</>}
             </Button>
           )}
           {project.achievement_card_is_featured ? (
@@ -781,7 +841,15 @@ export default function AdminFeatured() {
       <Card key={demo.id} className="overflow-hidden flex flex-col">
         <div className="relative">
           {cover ? (
-            <img src={cover} alt={demo.name} className="h-36 w-full object-cover" loading="lazy" />
+            <img
+              src={cover}
+              alt={demo.name}
+              className="h-36 w-full object-cover"
+              loading="lazy"
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = 'none';
+              }}
+            />
           ) : (
             <div className="h-36 bg-gradient-to-br from-teal-50 to-cyan-100 flex items-center justify-center">
               <span className="text-3xl text-teal-300">📦</span>

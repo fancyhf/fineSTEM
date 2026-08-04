@@ -10,6 +10,7 @@ from app.repositories.achievement_repo import AchievementRepo
 from app.repositories.course_repo import CourseRepo
 from app.repositories.demo_repo import DemoRepo
 from app.repositories.evidence_repo import EvidenceRepo
+from app.repositories.notification_repo import NotificationRepo
 from app.repositories.project_repo import ProjectRepo
 from app.repositories.skill_record_repo import SkillRecordRepo
 from app.repositories.user_repo import UserRepo
@@ -347,6 +348,114 @@ class RepositoryBackedDB:
             result = repo.set_project_capability_tags(project_id, tags)
             session.commit()
             return result
+
+    # ========== 通知消息 ==========
+
+    def list_notifications(
+        self,
+        user_id: str,
+        unread_only: bool = False,
+        skip: int = 0,
+        limit: int = 20,
+    ):
+        with self._session() as session:
+            return NotificationRepo(session).list_for_user(
+                user_id=user_id,
+                unread_only=unread_only,
+                skip=skip,
+                limit=limit,
+            )
+
+    def count_notifications(self, user_id: str, unread_only: bool = False) -> int:
+        with self._session() as session:
+            return NotificationRepo(session).count_for_user(user_id, unread_only=unread_only)
+
+    def count_unread_notifications(self, user_id: str) -> int:
+        with self._session() as session:
+            return NotificationRepo(session).count_unread(user_id)
+
+    def create_notification(
+        self,
+        *,
+        recipient_id: str,
+        type_: str,
+        title: str,
+        content: str,
+        sender_id: str | None = None,
+        related_type: str | None = None,
+        related_id: str | None = None,
+        link_url: str | None = None,
+    ):
+        with self._session() as session:
+            repo = NotificationRepo(session)
+            return repo.create(
+                recipient_id=recipient_id,
+                type_=type_,
+                title=title,
+                content=content,
+                sender_id=sender_id,
+                related_type=related_type,
+                related_id=related_id,
+                link_url=link_url,
+            )
+
+    def create_notifications_bulk(
+        self,
+        *,
+        recipient_ids,
+        type_: str,
+        title: str,
+        content: str,
+        sender_id: str | None = None,
+        related_type: str | None = None,
+        related_id: str | None = None,
+        link_url: str | None = None,
+    ) -> int:
+        with self._session() as session:
+            return NotificationRepo(session).create_many(
+                recipient_ids=recipient_ids,
+                type_=type_,
+                title=title,
+                content=content,
+                sender_id=sender_id,
+                related_type=related_type,
+                related_id=related_id,
+                link_url=link_url,
+            )
+
+    def broadcast_notification_to_students(
+        self,
+        *,
+        sender_id: str | None,
+        type_: str,
+        title: str,
+        content: str,
+        related_type: str | None = None,
+        related_id: str | None = None,
+        link_url: str | None = None,
+    ) -> int:
+        with self._session() as session:
+            return NotificationRepo(session).broadcast_to_students(
+                sender_id=sender_id,
+                type_=type_,
+                title=title,
+                content=content,
+                related_type=related_type,
+                related_id=related_id,
+                link_url=link_url,
+            )
+
+    def mark_notification_read(self, notification_id: str, user_id: str):
+        with self._session() as session:
+            return NotificationRepo(session).mark_read(notification_id, user_id)
+
+    def mark_all_notifications_read(self, user_id: str) -> int:
+        with self._session() as session:
+            return NotificationRepo(session).mark_all_read(user_id)
+
+    def soft_delete_notification(self, notification_id: str, user_id: str) -> bool:
+        with self._session() as session:
+            return NotificationRepo(session).soft_delete(notification_id, user_id)
 
 
 db = RepositoryBackedDB()

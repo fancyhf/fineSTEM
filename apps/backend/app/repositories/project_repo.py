@@ -146,9 +146,9 @@ def _to_skill_state(model: SkillStateModel) -> SkillState:
 
 
 def _attach_achievement_card_info(projects: list[Project], db) -> list[Project]:
-    """批量回填关联成果档案卡摘要（achievement_card_id / is_public / is_featured）。
+    """批量回填关联成果档案卡摘要（achievement_card_id / is_public / is_featured / screenshots）。
 
-    用于精选管理页签与首页精选 Demo 展示：让前端能直接跳转成果卡、判断精品状态。
+    用于精选管理页签与首页精选 Demo 展示：让前端能直接跳转成果卡、判断精品状态、显示封面图。
     一次 in_ 查询避免 N+1；无成果卡的项目保持字段为 None。
     """
     if not projects:
@@ -169,6 +169,16 @@ def _attach_achievement_card_info(projects: list[Project], db) -> list[Project]:
             project.achievement_card_id = card.id
             project.achievement_card_is_public = card.is_public
             project.achievement_card_is_featured = card.is_featured
+            # 回填封面截图，供精选管理"全部项目/我的项目"页签展示封面
+            # 修复(2026-08-04)：card 是 SQLAlchemy 模型，screenshots 是 Text 列存 JSON 字符串，
+            # 必须走 json_loads 反序列化为 list[str]，否则前端 screenshots[0] 会拿到 '['。
+            raw_screenshots = getattr(card, 'screenshots', None)
+            if isinstance(raw_screenshots, str):
+                project.achievement_card_screenshots = json_loads(raw_screenshots, [])
+            elif isinstance(raw_screenshots, list):
+                project.achievement_card_screenshots = raw_screenshots
+            else:
+                project.achievement_card_screenshots = []
     return projects
 
 

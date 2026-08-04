@@ -25,7 +25,7 @@ class Settings(BaseSettings):
 
     CORS_ALLOW_ORIGINS: list[str] = [
         "http://localhost:5184",
-        "http://localhost:3300",
+        "http://localhost:3200",
     ]
     
     # 数据库配置（MVP 阶段使用内存数据库）

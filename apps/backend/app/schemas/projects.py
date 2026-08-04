@@ -393,7 +393,8 @@ class Project(ProjectBase, AuditFields):
     achievement_card_id: Optional[str] = Field(None, description="关联成果档案卡 ID")
     achievement_card_is_public: Optional[bool] = Field(None, description="关联成果卡是否已发布到灵感墙")
     achievement_card_is_featured: Optional[bool] = Field(None, description="关联成果卡是否精选（精品项目）")
-    
+    achievement_card_screenshots: Optional[List[str]] = Field(None, description="关联成果卡封面截图列表（精选管理页签展示用）")
+
     model_config = ConfigDict(from_attributes=True)
 
 
