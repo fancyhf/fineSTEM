@@ -763,11 +763,15 @@ export default function AdminFeatured() {
               </Badge>
             )}
           </div>
+          <div className="text-xs text-gray-400 font-mono mb-1" title={project.id}>
+            ID: {project.id}
+          </div>
           {project.description && (
             <p className="text-xs text-gray-500 mt-1 line-clamp-2">{project.description}</p>
           )}
           <div className="mt-2 text-xs text-gray-500">
-            作者：{project.author_name || project.author_id || '未知'}
+            <span>用户：{project.author_name || <span className="text-gray-400">匿名</span>}</span>
+            <span className="ml-2 font-mono text-gray-400" title={project.author_id}>{project.author_id}</span>
             {isOwn && <span className="ml-1 text-teal-600">（我）</span>}
           </div>
           {project.tech_stack && project.tech_stack.length > 0 && (

@@ -138,6 +138,28 @@ def _create_achievement_card(
 
 class TestListForAdminAuthorNameFilter:
 
+    def test_response_includes_author_name(
+        self,
+        client: TestClient,
+        admin_headers: dict,
+        registered_user: dict,
+    ):
+        project_id = _create_project_row(
+            registered_user["id"],
+            name="带作者名项目",
+            current_stage="stage_08_evaluate",
+        )
+
+        resp = client.get(
+            "/api/v1/projects/admin/featured?completed_only=true",
+            headers=admin_headers,
+        )
+        assert resp.status_code == 200
+        items = resp.json()["data"]["items"]
+        target = next((p for p in items if p["id"] == project_id), None)
+        assert target is not None
+        assert target["author_name"] == registered_user["name"]
+
     def test_author_name_ilike_match(
         self,
         client: TestClient,

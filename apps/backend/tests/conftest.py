@@ -9,6 +9,7 @@ links: .trae/documents/testing/
 import os
 import uuid
 from collections.abc import Generator
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -35,7 +36,17 @@ from app.db.models import (
 from main import app
 
 
-TEST_DB_PATH = "D:/data/finestem/test_finestem.db"
+def _resolve_test_db_path() -> str:
+    url = os.environ.get("DATABASE_URL", "")
+    prefix = "sqlite:///"
+    if url.startswith(prefix):
+        return url[len(prefix):]
+    return "D:/data/finestem/test_finestem.db"
+
+
+TEST_DB_PATH = _resolve_test_db_path()
+Path(TEST_DB_PATH).parent.mkdir(parents=True, exist_ok=True)
+Path(os.environ["STORAGE_BASE_PATH"]).mkdir(parents=True, exist_ok=True)
 TEST_ENGINE = create_engine(f"sqlite:///{TEST_DB_PATH}", connect_args={"check_same_thread": False})
 TestSessionLocal = sessionmaker(bind=TEST_ENGINE, autocommit=False, autoflush=False)
 

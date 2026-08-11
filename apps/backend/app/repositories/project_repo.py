@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 
-from app.db.models import AchievementCardModel, ProjectCapabilityTagModel, ProjectModel, SkillStateModel
+from app.db.models import AchievementCardModel, ProjectCapabilityTagModel, ProjectModel, SkillStateModel, UserModel
 from app.core.time_utils import utc_now, utc_now_iso
 from app.repositories.base import BaseRepository
 from app.repositories.utils import json_dumps, json_loads
@@ -84,13 +84,14 @@ def _normalize_initial_data(raw: object) -> dict:
     return json_loads(raw, {})
 
 
-def _to_project(model: ProjectModel) -> Project:
+def _to_project(model: ProjectModel, author_name: str | None = None) -> Project:
     # 获取 visibility，如果不存在则默认为 private
     visibility = getattr(model, "visibility", "private")
     
     return Project(
         id=model.id,
         author_id=model.author_id,
+        author_name=author_name,
         name=model.name,
         mode=model.mode,  # type: ignore[arg-type]
         # 2026-07-31 Q-034 修复：回填 description 列，否则 API 响应永远不含描述
@@ -119,6 +120,43 @@ def _to_project(model: ProjectModel) -> Project:
         featured_work_sort_order=getattr(model, "featured_work_sort_order", 0),
         featured_work_at=model.featured_work_at if hasattr(model, "featured_work_at") else None,
     )
+
+
+def _resolve_author_name(user: UserModel | None) -> str | None:
+    """优先返回用户昵称，缺失时回退到邮箱，避免管理页整列显示匿名。"""
+    if not user:
+        return None
+    for candidate in (getattr(user, "name", None), getattr(user, "email", None)):
+        if isinstance(candidate, str):
+            value = candidate.strip()
+            if value:
+                return value
+    return None
+
+
+def _to_project_with_author(row) -> Project:
+    """从已 JOIN UserModel 的查询行中提取 Project，兼容 SQLAlchemy 2 Row。"""
+    model = None
+    user = None
+
+    mapping = getattr(row, "_mapping", None)
+    if mapping is not None:
+        model = mapping.get(ProjectModel) or mapping.get("ProjectModel")
+        user = mapping.get(UserModel) or mapping.get("UserModel")
+
+    if model is None:
+        try:
+            model = row[0]
+        except Exception:
+            model = row
+
+    if user is None:
+        try:
+            user = row[1]
+        except Exception:
+            user = None
+
+    return _to_project(model, author_name=_resolve_author_name(user))
 
 
 def _to_skill_state(model: SkillStateModel) -> SkillState:
@@ -526,7 +564,7 @@ class ProjectRepo(BaseRepository):
 
     # ========== 项目精选管理 ==========
 
-    def _apply_admin_filters(self, query, filters: dict | None):
+    def _apply_admin_filters(self, query, filters: dict | None, *, joined_user: bool = False):
         """
         对项目管理员查询应用统一过滤条件。
 
@@ -555,8 +593,9 @@ class ProjectRepo(BaseRepository):
             query = query.filter(ProjectModel.author_id == filters["author_id"])
         elif filters.get("author_name"):
             author_kw = f"%{filters['author_name'].strip()}%"
-            query = query.outerjoin(UserModel, UserModel.id == ProjectModel.author_id) \
-                .filter(UserModel.name.ilike(author_kw))
+            if not joined_user:
+                query = query.outerjoin(UserModel, UserModel.id == ProjectModel.author_id)
+            query = query.filter(UserModel.name.ilike(author_kw))
 
         if filters.get("search"):
             search_term = f"%{filters['search']}%"
@@ -572,11 +611,19 @@ class ProjectRepo(BaseRepository):
         limit: int = 20,
         filters: dict | None = None,
     ) -> list[Project]:
-        """管理员获取项目列表，支持筛选（含作者名模糊匹配）。"""
+        """管理员获取项目列表，支持筛选（含作者名模糊匹配）。查询后批量补充 author_name。"""
         query = self.db.query(ProjectModel).filter(ProjectModel.is_deleted.is_(False))
         query = self._apply_admin_filters(query, filters)
         rows = query.order_by(ProjectModel.updated_at.desc()).offset(skip).limit(limit).all()
         projects = [_to_project(item) for item in rows]
+        # 批量查询作者名
+        author_ids = list({p.author_id for p in projects if p.author_id})
+        if author_ids:
+            from app.db.models import UserModel
+            users = self.db.query(UserModel.id, UserModel.name).filter(UserModel.id.in_(author_ids)).all()
+            name_map = {uid: name for uid, name in users}
+            for p in projects:
+                p.author_name = name_map.get(p.author_id)
         return _attach_achievement_card_info(projects, self.db)
 
     def count_projects_for_admin(self, filters: dict | None = None) -> int:

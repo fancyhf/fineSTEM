@@ -367,6 +367,7 @@ class Project(ProjectBase, AuditFields):
     """
     id: str = Field(description="项目 ID")
     author_id: str = Field(description="作者 ID")
+    author_name: Optional[str] = Field(None, description="作者名称（管理页展示用）")
     current_stage: str = Field(default='stage_01_brainstorm', description="当前阶段")
     skill_state: Optional[SkillState] = Field(None, description="SKILL_STATE")
     
