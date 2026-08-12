@@ -47,6 +47,14 @@ export default function ProjectDetail() {
   );
   // 精选状态操作 loading
   const [featuredLoading, setFeaturedLoading] = useState<string>('');
+  // 在线查看文档（2026-08-11）：开题/技术/结题文档页面内阅读弹窗
+  const [viewingDocument, setViewingDocument] = useState<{ type: 'proposal' | 'technical' | 'final'; title: string; markdown: string } | null>(null);
+  const [viewDocLoading, setViewDocLoading] = useState(false);
+  const documentTypeTitles: Record<'proposal' | 'technical' | 'final', string> = {
+    proposal: '开题报告',
+    technical: '技术报告',
+    final: '结题报告',
+  };
 
   // 当从聊天页带着 ?file= 参数跳入时，取 workspace 确认是否就是当前编辑的代码文件
   useEffect(() => {
@@ -237,6 +245,59 @@ export default function ProjectDetail() {
     } finally {
       setDownloading('');
     }
+  };
+
+  // 在线查看文档：拉取 Markdown 文本在弹窗内阅读
+  const handleViewDocument = async (documentType: 'proposal' | 'technical' | 'final') => {
+    if (!project?.id) return;
+    setViewDocLoading(true);
+    try {
+      const markdown = await documentsApi.view(project.id, documentType);
+      setViewingDocument({ type: documentType, title: documentTypeTitles[documentType], markdown });
+    } catch (err) {
+      console.error('[project_detail:view_document] 加载失败:', err);
+      alert('文档生成失败，请稍后重试');
+    } finally {
+      setViewDocLoading(false);
+    }
+  };
+
+  // 在线预览 PDF：生成后在新窗口用浏览器原生查看器阅读
+  const handlePreviewPdf = async (documentType: 'proposal' | 'technical' | 'final') => {
+    if (!project?.id) return;
+    try {
+      const res = await documentsApi.generate(project.id, documentType, 'pdf');
+      const url = URL.createObjectURL(res.blob);
+      window.open(url, '_blank');
+      // 延迟回收，避免预览窗口打开后资源被提前释放
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (err) {
+      console.error('[project_detail:preview_pdf] 生成失败:', err);
+      alert('PDF 生成失败，请稍后重试');
+    }
+  };
+
+  // Markdown 轻量渲染（仅支持标题/列表/正文，文本节点渲染无注入风险）
+  const renderMarkdown = (md: string) => {
+    return md.split('\n').map((line, idx) => {
+      const trimmed = line.trim();
+      if (!trimmed) return <div key={idx} className="h-3" />;
+      if (trimmed.startsWith('# ')) {
+        return <h2 key={idx} className="text-lg font-semibold text-gray-900 mt-2 mb-2">{trimmed.slice(2)}</h2>;
+      }
+      if (trimmed.startsWith('## ')) {
+        return <h3 key={idx} className="text-base font-semibold text-gray-800 mt-3 mb-1.5">{trimmed.slice(3)}</h3>;
+      }
+      if (trimmed.startsWith('- ')) {
+        return (
+          <div key={idx} className="flex gap-2 text-sm text-gray-700 leading-relaxed">
+            <span className="text-gray-400 flex-shrink-0">•</span>
+            <span>{trimmed.slice(2)}</span>
+          </div>
+        );
+      }
+      return <p key={idx} className="text-sm text-gray-700 leading-relaxed">{trimmed}</p>;
+    });
   };
 
   const handleRecommendTags = async () => {
@@ -644,6 +705,43 @@ export default function ProjectDetail() {
                     技术DOCX
                   </Button>
                 </div>
+
+                {/* 在线查看（2026-08-11）：无需下载，页面内直接阅读或新窗口预览 PDF */}
+                <div className="mt-4 pt-4 border-t border-gray-100">
+                  <p className="text-xs text-gray-500 mb-2 flex items-center gap-1">
+                    <BookOpen className="h-3.5 w-3.5" />
+                    在线查看文档（点击在页面内阅读）
+                  </p>
+                  <div className="grid grid-cols-3 gap-3">
+                    <Button
+                      variant="secondary"
+                      className="justify-center"
+                      onClick={() => void handleViewDocument('proposal')}
+                      disabled={viewDocLoading}
+                    >
+                      <BookOpen className="mr-2 h-4 w-4" />
+                      开题报告
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      className="justify-center"
+                      onClick={() => void handleViewDocument('technical')}
+                      disabled={viewDocLoading}
+                    >
+                      <BookOpen className="mr-2 h-4 w-4" />
+                      技术报告
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      className="justify-center"
+                      onClick={() => void handleViewDocument('final')}
+                      disabled={viewDocLoading}
+                    >
+                      <BookOpen className="mr-2 h-4 w-4" />
+                      结题报告
+                    </Button>
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
@@ -960,6 +1058,43 @@ export default function ProjectDetail() {
               <pre data-testid="explanation-doc-modal-content" className="text-xs text-gray-700 whitespace-pre-wrap font-mono leading-relaxed">
                 {explanationDoc}
               </pre>
+            </div>
+          </div>
+        </div>
+      )}
+    {/* 在线查看文档弹窗（2026-08-11）：开题/技术/结题 Markdown 渲染阅读，可新窗口预览 PDF */}
+      {viewingDocument && (
+        <div
+          data-testid="project-doc-viewer-modal"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+          onClick={(e) => { if (e.target === e.currentTarget) setViewingDocument(null); }}
+        >
+          <div className="w-[80vw] h-[80vh] bg-white rounded-xl shadow-2xl flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-200">
+              <span className="text-sm font-medium text-gray-700 flex items-center gap-1.5">
+                <BookOpen className="h-4 w-4 text-teal-600" />
+                {viewingDocument.title}
+              </span>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => void handlePreviewPdf(viewingDocument.type)}
+                >
+                  <FileText className="mr-1.5 h-3.5 w-3.5" />
+                  新窗口预览 PDF
+                </Button>
+                <button
+                  data-testid="project-doc-viewer-modal-close"
+                  onClick={() => setViewingDocument(null)}
+                  className="px-3 py-1 text-xs text-gray-500 hover:bg-gray-200 rounded"
+                >
+                  关闭
+                </button>
+              </div>
+            </div>
+            <div data-testid="project-doc-viewer-content" className="flex-1 overflow-auto p-4">
+              {renderMarkdown(viewingDocument.markdown)}
             </div>
           </div>
         </div>

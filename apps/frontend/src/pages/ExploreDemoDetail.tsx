@@ -320,21 +320,18 @@ export default function ExploreDemoDetail() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-4 border-t border-gray-100">
                   <Button
-                    size="lg"
                     variant="secondary"
                     onClick={() => setActiveTab('experience')}
                   >
                     试玩
                   </Button>
                   <Button
-                    size="lg"
                     variant="secondary"
                     onClick={() => setActiveTab('breakdown')}
                   >
                     看拆解
                   </Button>
                   <Button
-                    size="lg"
                     className="bg-teal-600 hover:bg-teal-700"
                     onClick={handleFork}
                     disabled={forking}
@@ -342,7 +339,6 @@ export default function ExploreDemoDetail() {
                     {forking ? '创建中...' : '我也做一个'}
                   </Button>
                   <Button
-                    size="lg"
                     variant="secondary"
                     onClick={handleSaveProject}
                     disabled={saving}

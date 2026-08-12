@@ -591,6 +591,9 @@ export const documentsApi = {
     documentType: 'proposal' | 'technical' | 'final',
     format: 'md' | 'json' | 'pdf' | 'docx',
   ) => requestBlob(`/documents/projects/${projectId}/generate?document_type=${documentType}&format=${format}`, { method: 'GET' }),
+  // 在线查看：拉取 Markdown 文本在页面内阅读（无需下载）
+  view: (projectId: string, documentType: 'proposal' | 'technical' | 'final') =>
+    requestText(`/documents/projects/${projectId}/generate?document_type=${documentType}&format=md`, { method: 'GET' }),
 };
 
 export const capabilityTagsApi = {
