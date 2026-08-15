@@ -16,6 +16,7 @@ from typing import Any, Dict, List, Optional
 from app.core.time_utils import utc_now
 from app.repositories.runtime_db import db
 from app.services.pbl_engine import ARTIFACT_TO_BLOB_KEY, advance_with_gate, save_artifact
+from app.services.demo_fork import build_demo_workspace_payload
 # 2026-07-22 重构：门禁判定函数统一从 stage_constants 导入
 from app.services.stage_constants import (
     STAGE_ORDER,
@@ -527,7 +528,7 @@ class StageAdvancerTool(BaseTool):
                             error="门禁检查未通过：当前阶段完成条件尚未满足",
                             data={"missing_requirements": "请先填写项目名称、一句话描述和核心功能列表"}
                         )
-                    updates = {"light_step": str(next_light)}
+                    updates = {"light_step": str(next_light), "current_stage": f"step_{next_light}"}
                     if evidence:
                         updates["light_step_data"] = {**light_data, **evidence}
                     db.update_skill_state(project_id, updates)
@@ -1312,10 +1313,17 @@ class ProjectCreatorTool(BaseTool):
             name=name,
             mode=mode,
             description=description,
-            current_stage="step_1" if mode == "light" else "stage_00_bootstrap",
+            from_demo_id=(getattr(demo, "id", None) if demo else None),
+            current_stage=("step_2" if demo and mode == "light" else ("step_1" if mode == "light" else "stage_00_bootstrap")),
             initial_data=initial_data,
         )
         created = db.create_project(project)
+        if demo:
+            db.save_project_workspace(
+                created.id,
+                build_demo_workspace_payload(demo.minimal_replica, demo_name=demo.name),
+                updated_by=author_id,
+            )
         if created.mode == "light":
             step_seed = {
                 "project_name": created.name,

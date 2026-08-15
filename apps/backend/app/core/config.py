@@ -70,6 +70,8 @@ class Settings(BaseSettings):
     FF_PROVIDER_FALLBACK_ENABLED: bool = True
     FF_PROVIDER_FALLBACK_ROLLOUT_PERCENT: int = 100
     FF_METRICS_PERSISTENCE_ENABLED: bool = True
+    # 非高峰时段切换 DeepSeek（默认关闭=全程 qwen-plus；开启后非高峰用 deepseek-v4-flash）
+    FF_OFFPEAK_DEEPSEEK_ENABLED: bool = False
     # 文件存储配置
     STORAGE_BASE_PATH: str = r"D:\data\finestem"
     STORAGE_UPLOAD_DIR: str = "uploads"

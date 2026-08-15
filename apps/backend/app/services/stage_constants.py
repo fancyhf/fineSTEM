@@ -107,6 +107,8 @@ CODE_ALLOWED_STAGES: set[str] = {
     "stage_05_design",
     "stage_07_execute",
     "stage_08_evaluate",
+    "step_2",
+    "step_3",
 }
 
 # project_code_writer 工具最早可用的阶段

@@ -561,6 +561,10 @@ export const agentApi = {
   // 2026-07-31 Q-038：后端场景化系统提示词（问问题/解释代码/开始项目/写报告等），
   // 前端拿到后注入 WS 直连 daemon 的消息文本，让两条链路共享同一套场景提示词
   scenePrompts: () => api.get<Record<string, string>>('/agent/scene-prompts'),
+  // 灰度开关：admin 可读全部、可写 offpeak_deepseek 等
+  featureFlags: () => api.get<Record<string, { enabled: boolean; rollout_percent: number }>>('/agent/feature-flags'),
+  updateFeatureFlag: (name: string, enabled: boolean) =>
+    api.patch<Record<string, { enabled: boolean; rollout_percent: number }>>(`/agent/feature-flags/${name}`, { enabled }),
 };
 
 // Chat API（Q-003 修复：问题卡片二次确认）

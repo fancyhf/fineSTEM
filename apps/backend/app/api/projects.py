@@ -48,6 +48,7 @@ from app.api.auth import get_current_user, require_admin
 from app.services.document_service import document_service
 from app.services.pbl_engine import advance_with_gate, save_artifact
 from app.services.stage08_sync import build_stage08_payload, merge_stage08_into_standard_data
+from app.services.demo_fork import build_demo_workspace_payload
 from app.services.providers.image_provider import generate_cover_image
 from app.services.storage_service import storage_service
 from app.core.config import settings
@@ -737,6 +738,7 @@ async def create_project(
     """
     创建新项目
     """
+    initial_stage = "step_2" if project_data.mode == "light" and project_data.from_demo_id else ("step_1" if project_data.mode == "light" else "stage_01_brainstorm")
     project = Project(
         id=str(uuid.uuid4()),
         author_id=current_user.id,
@@ -745,11 +747,20 @@ async def create_project(
         description=project_data.description or "",
         mode=project_data.mode,
         from_demo_id=project_data.from_demo_id,
+        current_stage=initial_stage,
         initial_data=project_data.initial_data or {},
         created_by=current_user.id,
     )
     
     created_project = db.create_project(project)
+    if project_data.from_demo_id:
+        demo = db.get_demo(project_data.from_demo_id)
+        if demo:
+            db.save_project_workspace(
+                created_project.id,
+                build_demo_workspace_payload(demo.minimal_replica, demo_name=demo.name),
+                updated_by=current_user.id,
+            )
     _collect_auto_evidence(
         project_id=created_project.id,
         user_id=current_user.id,

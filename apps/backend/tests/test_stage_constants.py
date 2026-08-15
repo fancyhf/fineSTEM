@@ -181,6 +181,12 @@ class TestCodeAllowedStages:
     def test_evaluate_stage_allows_code(self):
         assert is_code_allowed_stage("stage_08_evaluate") is True
 
+    def test_light_step_2_allows_code(self):
+        assert is_code_allowed_stage("step_2") is True
+
+    def test_light_step_3_allows_code(self):
+        assert is_code_allowed_stage("step_3") is True
+
     @pytest.mark.parametrize("stage", [
         "stage_00_bootstrap",
         "stage_01_brainstorm",
@@ -188,10 +194,11 @@ class TestCodeAllowedStages:
         "stage_03_constraints",
         "stage_04_track",
         "stage_06_step_plan",
+        "step_1",
     ])
     def test_non_code_stages_block_code(self, stage):
         """脑爆/开题/范围/轨道/计划阶段禁止出代码。"""
         assert is_code_allowed_stage(stage) is False
 
-    def test_code_allowed_set_has_exactly_3(self):
-        assert len(CODE_ALLOWED_STAGES) == 3
+    def test_code_allowed_set_has_exactly_5(self):
+        assert len(CODE_ALLOWED_STAGES) == 5

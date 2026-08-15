@@ -12,7 +12,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSock
 from fastapi.responses import StreamingResponse
 from jose import JWTError, jwt
 
-from app.api.auth import get_current_user, SECRET_KEY, ALGORITHM
+from app.api.auth import get_current_user, require_admin, SECRET_KEY, ALGORITHM
+from pydantic import BaseModel
 from app.schemas.agent import AgentChatRequest, AgentChatResponse
 from app.schemas.auth import UserResponse
 from app.schemas.common import ApiResponse
@@ -162,3 +163,26 @@ async def metrics(current_user: UserResponse = Depends(get_current_user)):
 @router.get("/feature-flags", response_model=ApiResponse[dict])
 async def feature_flags(current_user: UserResponse = Depends(get_current_user)):
     return ApiResponse(data=feature_flag_service.snapshot(), message=f"获取成功: {current_user.id}")
+
+
+class FeatureFlagUpdate(BaseModel):
+    enabled: bool
+
+
+@router.patch("/feature-flags/{flag_name}", response_model=ApiResponse[dict])
+async def update_feature_flag(
+    flag_name: str,
+    payload: FeatureFlagUpdate,
+    current_user: UserResponse = Depends(require_admin),
+):
+    """更新灰度开关（仅管理员）。写回 runtime/feature_flags.json 持久化。"""
+    ok = feature_flag_service.set_flag(flag_name, payload.enabled)
+    if not ok:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"未知的开关: {flag_name}",
+        )
+    return ApiResponse(
+        data=feature_flag_service.snapshot(),
+        message=f"开关 {flag_name} 已{'开启' if payload.enabled else '关闭'}",
+    )

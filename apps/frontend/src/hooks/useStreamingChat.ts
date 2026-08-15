@@ -1,5 +1,5 @@
-import { useCallback } from 'react';
-import { authStorage } from '../services/api';
+import { useCallback, useEffect } from 'react';
+import { authStorage, agentApi } from '../services/api';
 import { QuestionData } from '../components/QuestionCard';
 import { parseQuestionBlock, parseQuestionBlocks, extractChoiceListStrict } from '../lib/questionParser';
 import { confirmQuestions } from '../lib/questionConfirm';
@@ -339,8 +339,36 @@ function getZeroClawBearerToken(): string {
   throw new Error('未配置 ZeroClaw Bearer Token，请设置 VITE_ZC_TOKEN 或在 localStorage 存储 zeroclaw_bearer_token');
 }
 
+// ── 模型策略：offpeak_deepseek 开关缓存 ──
+// 从后端 feature flag 拉取，localStorage 兜底（admin 改后用户刷新页面即生效）。
+// 默认全程 qwen-plus；开关开启且非高峰时段才走 deepseek-v4-flash。
+let _offpeakDsEnabled = false;
+const _OFFPEAK_DS_LS_KEY = 'finestem_offpeak_deepseek';
+try { _offpeakDsEnabled = localStorage.getItem(_OFFPEAK_DS_LS_KEY) === '1'; } catch {/* 无存储时默认 false */}
+
+/** 从后端刷新"非高峰用 DeepSeek"开关到缓存（hook 挂载时调用） */
+export function refreshModelStrategyFlag(): void {
+  agentApi.featureFlags().then((res) => {
+    _offpeakDsEnabled = res.data?.offpeak_deepseek?.enabled ?? false;
+    try { localStorage.setItem(_OFFPEAK_DS_LS_KEY, _offpeakDsEnabled ? '1' : '0'); } catch {/* */}
+  }).catch(() => {/* 拉取失败沿用缓存值 */});
+}
+
+/** 当前是否为 DeepSeek 高峰时段（北京时间 9-12、14-18，DS 此时最贵） */
+function _isDeepSeekPeakHour(): boolean {
+  const h = Number(new Intl.DateTimeFormat('zh-CN',
+    { timeZone: 'Asia/Shanghai', hour: '2-digit', hour12: false }).format(new Date()));
+  return (h >= 9 && h < 12) || (h >= 14 && h < 18);
+}
+
 function getZcAgentAlias(): string {
-  return (import.meta.env.VITE_ZC_AGENT as string | undefined) || 'assistant';
+  // 允许手动覆盖（调试/锁定某个 agent）
+  const explicit = import.meta.env.VITE_ZC_AGENT as string | undefined;
+  if (explicit) return explicit;
+  // 管理员开启"非高峰用 DeepSeek"且当前非高峰 → deepseek-v4-flash
+  if (_offpeakDsEnabled && !_isDeepSeekPeakHour()) return 'assistant';
+  // 默认 / 高峰 → qwen-plus（主力，最省）
+  return 'assistant_qwen';
 }
 
 // -----------------------------------------------------------------------------
@@ -520,6 +548,9 @@ export function isAbortError(err: unknown): boolean {
 }
 
 export function useStreamingChat() {
+  // 挂载时刷新模型策略开关（offpeak_deepseek），决定走 qwen-plus 还是 deepseek-flash
+  useEffect(() => { refreshModelStrategyFlag(); }, []);
+
   const stream = useCallback(async (
     payload: StreamPayload,
     onToken: (token: string) => void,

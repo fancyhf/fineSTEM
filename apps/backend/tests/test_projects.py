@@ -33,6 +33,27 @@ class TestProjectCreate:
         assert body["data"]["mode"] == "light"
         assert body["data"]["from_demo_id"] == seeded_demo_id
 
+    def test_create_project_from_demo_copies_workspace(
+        self, client: TestClient, auth_headers: dict, seeded_demo_with_breakdown_id: str
+    ):
+        create_resp = client.post("/api/v1/projects", json={
+            "name": "Demo copy workspace test",
+            "mode": "light",
+            "from_demo_id": seeded_demo_with_breakdown_id,
+        }, headers=auth_headers)
+        assert create_resp.status_code == 200
+        project_id = create_resp.json()["data"]["id"]
+
+        workspace_resp = client.get(f"/api/v1/projects/{project_id}/workspace", headers=auth_headers)
+        assert workspace_resp.status_code == 200
+        workspace = workspace_resp.json()["data"]["workspace"]
+        assert workspace["filename"] == "index.html"
+        assert workspace["language"] == "html"
+        files = {item["name"]: item["content"] for item in workspace["files"]}
+        assert files["index.html"] == "<h1>Calculator</h1>"
+        assert files["src/main.js"] == "console.log('calc');"
+        assert workspace_resp.json()["data"]["progress"]["current_stage"] == "step_2"
+
     def test_create_standard_project(self, client: TestClient, auth_headers: dict):
         resp = client.post("/api/v1/projects", json={
             "name": "标准研学项目",

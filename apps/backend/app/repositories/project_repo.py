@@ -315,7 +315,7 @@ class ProjectRepo(BaseRepository):
                 version="1.0.0",
                 mode=project.mode,
                 current_stage=project.current_stage,
-                light_step="1" if project.mode == "light" else None,
+                light_step=({"step_1": "1", "step_2": "2", "step_3": "3"}).get(project.current_stage, "1") if project.mode == "light" else None,
                 stages="{}",
                 metadata="{}",
                 light_to_standard_mapping=None,

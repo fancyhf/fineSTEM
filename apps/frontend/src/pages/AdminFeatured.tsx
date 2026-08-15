@@ -23,7 +23,7 @@ import { CoverPicker } from '../components/CoverPicker';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Input } from '../components/ui/Input';
-import { achievementCardsApi, demosApi, notificationsApi, projectsApi } from '../services/api';
+import { achievementCardsApi, demosApi, notificationsApi, projectsApi, agentApi } from '../services/api';
 import { showToast } from '../services/toast';
 import { useAuth } from '../contexts/AuthContext';
 import type { AchievementCard, Demo, DemoCreateFromProject, DemoPrefill, DemoUpdate, Project, PaginationResult } from '../types';
@@ -196,6 +196,10 @@ export default function AdminFeatured() {
   // 是否查看未公开草稿（默认 false = 只看公开 demo）
   const [showDemoDrafts, setShowDemoDrafts] = useState(false);
 
+  // ---------- AI 模型策略开关（offpeak_deepseek）----------
+  const [offpeakDeepseek, setOffpeakDeepseek] = useState(false);
+  const [flagSaving, setFlagSaving] = useState(false);
+
   // ---------- 收录/编辑 Demo Modal 状态 ----------
   // promote 模式：把 project 收录为 demo（project 必填）
   // edit 模式：编辑已存在的 demo（demo 必填，project 可选用于回显来源）
@@ -238,6 +242,27 @@ export default function AdminFeatured() {
   useEffect(() => {
     void refreshProjectDemoMap();
   }, [refreshProjectDemoMap]);
+
+  // 加载 AI 模型策略开关（offpeak_deepseek）初始状态
+  useEffect(() => {
+    agentApi.featureFlags().then((res) => {
+      setOffpeakDeepseek(res.data?.offpeak_deepseek?.enabled ?? false);
+    }).catch(() => {/* 加载失败按默认 false */});
+  }, []);
+
+  /** 切换"非高峰用 DeepSeek"开关 */
+  const handleToggleOffpeakDeepseek = async (enabled: boolean) => {
+    setFlagSaving(true);
+    try {
+      const res = await agentApi.updateFeatureFlag('offpeak_deepseek', enabled);
+      setOffpeakDeepseek(res.data?.offpeak_deepseek?.enabled ?? enabled);
+      showToast('success', enabled ? '已开启：非高峰时段将使用 DeepSeek' : '已关闭：全程使用 Qwen-Plus');
+    } catch {
+      showToast('error', '开关更新失败，请重试');
+    } finally {
+      setFlagSaving(false);
+    }
+  };
 
   // ---------- 页面级搜索/过滤条件区（对所有页签的当前数据都生效）----------
   // 输入中间态（用户在框里编辑，尚未提交）
@@ -1036,6 +1061,29 @@ export default function AdminFeatured() {
           <p className="text-gray-600">
             管理全局 Demo 项目、精选作品与灵感墙；设置精选、调整排序、强制下架不合规内容。
           </p>
+        </div>
+
+        {/* ── AI 模型策略开关 ── */}
+        <div className="bg-white p-4 rounded-xl border border-gray-200 mb-4 flex items-center justify-between gap-4">
+          <div className="flex items-start gap-2">
+            <Wand2 className="h-5 w-5 text-purple-600 mt-0.5" />
+            <div>
+              <div className="font-medium text-gray-900">AI 模型策略</div>
+              <div className="text-sm text-gray-500 mt-0.5">
+                开启后，非高峰时段（北京时间 9-12、14-18 之外）自动切换到 DeepSeek 以节省 Qwen 额度；高峰时段仍用 Qwen-Plus。默认关闭（全程 Qwen-Plus）。
+              </div>
+            </div>
+          </div>
+          <label className="inline-flex items-center gap-2 text-sm text-gray-600 cursor-pointer shrink-0">
+            <input
+              type="checkbox"
+              className="w-4 h-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+              checked={offpeakDeepseek}
+              disabled={flagSaving}
+              onChange={(e) => handleToggleOffpeakDeepseek(e.target.checked)}
+            />
+            非高峰用 DeepSeek
+          </label>
         </div>
 
         {/* ── 页面级搜索/过滤条件区（唯一一处，作用于所有页签的当前数据）── */}

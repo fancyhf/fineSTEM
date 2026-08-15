@@ -22,6 +22,7 @@ from app.schemas.auth import UserResponse
 from app.repositories.runtime_db import db
 from app.api.auth import require_admin
 from app.core.time_utils import utc_now, utc_now_iso
+from app.services.demo_fork import parse_minimal_replica
 
 router = APIRouter(prefix="/demos", tags=["示例项目"])
 
@@ -468,26 +469,7 @@ async def get_demo_fork_template(demo_id: str):
         "扩展一个与学科相关的新功能并记录验证结果",
     ]
 
-    template_entry = "src/main.js"
-    template_files: dict[str, str] = {}
-    if demo.minimal_replica:
-        try:
-            parsed = json.loads(demo.minimal_replica)
-            if isinstance(parsed, dict):
-                maybe_entry = parsed.get("entry_file")
-                maybe_files = parsed.get("files")
-                if isinstance(maybe_entry, str) and maybe_entry:
-                    template_entry = maybe_entry
-                if isinstance(maybe_files, dict):
-                    template_files = {str(k): str(v) for k, v in maybe_files.items()}
-        except json.JSONDecodeError:
-            pass
-
-    if not template_files:
-        template_files = {
-            "index.html": "<!doctype html><html><body><h1>Demo Template</h1><script type='module' src='./src/main.js'></script></body></html>",
-            "src/main.js": "console.log('Start from this template and build your own version.');",
-        }
+    template_entry, template_files = parse_minimal_replica(demo.minimal_replica, demo_name=demo.name)
 
     return ApiResponse(
         data={

@@ -40,6 +40,10 @@ class FeatureFlagService:
                 "enabled": settings.FF_METRICS_PERSISTENCE_ENABLED,
                 "rollout_percent": 100,
             },
+            "offpeak_deepseek": {
+                "enabled": settings.FF_OFFPEAK_DEEPSEEK_ENABLED,
+                "rollout_percent": 100,
+            },
         }
         self._path = Path(settings.AGENT_FEATURE_FLAGS_PATH)
         self._load_from_file()
@@ -81,6 +85,27 @@ class FeatureFlagService:
     def snapshot(self) -> Dict[str, Dict[str, Any]]:
         with self._lock:
             return {key: dict(value) for key, value in self._flags.items()}
+
+    def set_flag(self, flag: str, enabled: bool) -> bool:
+        """更新开关状态并持久化到 feature_flags.json（供 admin 后台调用）"""
+        with self._lock:
+            value = self._flags.get(flag)
+            if not value:
+                return False
+            value["enabled"] = bool(enabled)
+            self._save_to_file()
+            return True
+
+    def _save_to_file(self) -> None:
+        """将当前开关状态写回 runtime/feature_flags.json（调用方须已持 _lock）"""
+        try:
+            self._path.parent.mkdir(parents=True, exist_ok=True)
+            self._path.write_text(
+                json.dumps(self._flags, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+        except Exception:
+            pass
 
 
 feature_flag_service = FeatureFlagService()
