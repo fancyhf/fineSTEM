@@ -94,3 +94,41 @@ bug/
 projects/up-video-analyzer/venv/
 projects/up-video-analyzer/libs/
 projects/up-video-analyzer/models/
+
+# Database files (SQLite) - local dev/test data, do not track
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# Backend local runtime / temp test data
+apps/backend/tmp_test/
+apps/backend/tmp_test2/
+apps/backend/tmp_test3/
+apps/backend/uploads2/
+apps/backend/test_finestem.db
+apps/backend/test_finestem2.db
+apps/backend/test_finestem3.db
+apps/backend/test_regression.db
+apps/backend/test_verify.db
+apps/backend/app.db
+apps/backend/fine_stem.db
+apps/backend/finestem.db
+
+# Python model / binary artifacts
+*.pkl
+*.model
+*.pth
+*.onnx
+*.bin
+
+# Temp HTML / diagnostic outputs
+apps/backend/*调试*.html
+apps/backend/*测试*.html
+
+# Screenshot / image temp outputs (keep real uploaded assets out of repo)
+test-failed-*.png
+*.trace.png
+apps/backend/tmp_test/*.png
+apps/backend/tmp_test/**/*.png
