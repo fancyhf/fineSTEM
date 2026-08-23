@@ -25,7 +25,9 @@ for _s in (sys.stdout, sys.stderr):
     except (AttributeError, ValueError):
         pass
 
-TOKEN = "zc_f5e09815815c6d130401da6d29ad5982e6eec88cf83a51d24fadd972fc3d4e87"
+from _zc_token import load_zc_token
+
+TOKEN = load_zc_token()
 AGENT = "assistant"
 BASE_URL = "ws://127.0.0.1:42617"
 SESSION_ID = f"finestem-multiturn-{int(time.time())}"

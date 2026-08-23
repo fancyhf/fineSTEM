@@ -21,7 +21,9 @@ import time
 
 import websockets
 
-TOKEN = "zc_f5e09815815c6d130401da6d29ad5982e6eec88cf83a51d24fadd972fc3d4e87"
+from _zc_token import load_zc_token
+
+TOKEN = load_zc_token()
 BASE = "ws://127.0.0.1:42617"
 SESSION = f"regression-{int(time.time())}"
 

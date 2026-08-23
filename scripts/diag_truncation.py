@@ -4,6 +4,7 @@
 import asyncio
 import json
 import sys
+from pathlib import Path
 
 try:
     import websockets
@@ -11,8 +12,28 @@ except ImportError:
     print("需要 websockets: pip install websockets", file=sys.stderr)
     sys.exit(1)
 
+
+def _load_zc_token() -> str:
+    """token 统一从环境变量或 apps/frontend/.env.development 读取，不再硬编码。"""
+    token = ""
+    import os
+    token = os.environ.get("ZC_WS_TOKEN", "").strip()
+    if token:
+        return token
+    env_path = Path(__file__).resolve().parents[1] / "apps" / "frontend" / ".env.development"
+    if env_path.exists():
+        for line in env_path.read_text(encoding="utf-8", errors="ignore").splitlines():
+            line = line.strip()
+            if line.startswith("VITE_ZC_TOKEN="):
+                token = line.split("=", 1)[1].strip()
+                if token:
+                    return token
+    print("未找到 ZeroClaw token：请设置环境变量 ZC_WS_TOKEN，或在 apps/frontend/.env.development 配置 VITE_ZC_TOKEN", file=sys.stderr)
+    sys.exit(1)
+
+
 async def test():
-    token = "zc_f5e09815815c6d130401da6d29ad5982e6eec88cf83a51d24fadd972fc3d4e87"
+    token = _load_zc_token()
     url = f"ws://127.0.0.1:42617/ws/chat?token={token}&agent=assistant"
     print(f"连接 daemon WS ...")
     async with websockets.connect(url, max_size=20 * 1024 * 1024) as ws:

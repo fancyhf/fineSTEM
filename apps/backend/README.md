@@ -274,13 +274,20 @@ step_1 → step_2 → step_3  （可升级为 standard）
 
 ## 配置项速查（`app/core/config.py`）
 
+> **LLM API Key 唯一设置点：`apps/backend/.env`**（`GLM_API_KEY` / `DEEPSEEK_API_KEY`，
+> 旧命名 `glm_key` / `deepseek_key` 自动映射兼容）。根目录 `.env`、前端 `.env*`、
+> 脚本里都不放模型 key；AI 聊天主链路的模型 key 在 ZeroClaw daemon 的
+> config.toml（keyring 加密）。自检：`python scripts/check_llm_keys.py --live`。
+
 | 配置项 | 默认值 | 说明 |
 |--------|--------|------|
 | `BACKEND_PORT` | `3200` | 后端端口 |
 | `DATABASE_URL` | `sqlite:///D:/data/finestem/finestem.db` | 数据库路径 |
 | `STORAGE_BASE_PATH` | `D:\data\finestem` | 文件存储根目录 |
+| `GLM_API_KEY` | `None` | 智谱 GLM key（截图识别/封面图/GLM 直连） |
+| `DEEPSEEK_API_KEY` | `None` | DeepSeek key（直连回退链路） |
 | `ZEROCLAW_GATEWAY_URL` | `None`（自动推断） | LLM Gateway URL |
-| `ZEROCLAW_API_KEY` | `None` | LLM API Key |
+| `ZEROCLAW_API_KEY` | `None`（由上两个 key 顺延） | 直连回退链路用 LLM API Key |
 | `ZEROCLAW_MAX_TOKENS` | `16384` | 最大 token 数 |
 | `ZEROCLAW_TIMEOUT_SECONDS` | `120` | 超时秒数 |
 | `BACKUP_ENABLED` | `True` | 数据库自动备份 |

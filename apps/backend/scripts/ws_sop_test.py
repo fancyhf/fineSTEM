@@ -47,7 +47,9 @@ AGENT = "assistant"
 SESSION_ID = f"ws-sop-test-{int(time.time())}"
 
 # ── 后备 token（config.toml 中的 token 是加密的，此处使用已知明文 token）──
-FALLBACK_TOKEN = "zc_f5e09815815c6d130401da6d29ad5982e6eec88cf83a51d24fadd972fc3d4e87"
+from _zc_token import load_zc_token
+
+FALLBACK_TOKEN = load_zc_token()
 
 # ── 超时配置（秒）──
 CONNECT_TIMEOUT = 15

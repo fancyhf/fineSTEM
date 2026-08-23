@@ -58,7 +58,9 @@ WS_PATH = "/ws/chat"
 AGENT = "assistant"
 
 # ── 后备 token ──
-FALLBACK_TOKEN = "zc_f5e09815815c6d130401da6d29ad5982e6eec88cf83a51d24fadd972fc3d4e87"
+from _zc_token import load_zc_token
+
+FALLBACK_TOKEN = load_zc_token()
 
 # ── 超时配置（秒）──
 HANDSHAKE_TIMEOUT = 10

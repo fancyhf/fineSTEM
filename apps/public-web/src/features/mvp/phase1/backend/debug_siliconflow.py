@@ -2,7 +2,9 @@ import os
 import httpx
 import asyncio
 
-API_KEY = "sk-mqyhprbiobyydcqxtvbipknsfkdeqtndoucaqjkduvcdespg"
+API_KEY = os.environ.get("SILICONFLOW_API_KEY", "")
+if not API_KEY:
+    raise SystemExit("请设置环境变量 SILICONFLOW_API_KEY（key 统一在环境变量管理，不硬编码）")
 BASE_URL = "https://api.siliconflow.cn/v1/chat/completions"
 
 async def test_api():

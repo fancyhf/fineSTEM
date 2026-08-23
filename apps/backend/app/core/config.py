@@ -52,6 +52,17 @@ class Settings(BaseSettings):
     ZEROCLAW_ENABLE_MOCK_FALLBACK: bool = False
     ZEROCLAW_TIMEOUT_SECONDS: int = 120
     ZEROCLAW_MAX_TOKENS: int = 16384
+
+    # ── LLM API Keys —— 全项目唯一设置点：apps/backend/.env ──────────────────
+    # 规范命名（新配置一律用这两个）：
+    #   GLM_API_KEY      智谱 GLM：GLM-4V 截图识别、CogView 封面图、GLM 直连对话
+    #   DEEPSEEK_API_KEY DeepSeek：直连对话回退链路
+    # 旧命名 glm_key / deepseek_key 仅作兼容别名（model_post_init 自动映射）。
+    # 注意：AI 聊天主链路的模型 key 存在 ZeroClaw daemon 的 config.toml（keyring
+    # 加密），不在本文件——这里只管后端进程自己发起的 LLM 调用。
+    GLM_API_KEY: Optional[str] = None
+    DEEPSEEK_API_KEY: Optional[str] = None
+    # 旧命名（兼容保留，勿在新配置中使用）
     glm_key: Optional[str] = None
     deepseek_key: Optional[str] = None
     AGENT_SKILL_TIMEOUT_MS: int = 15000
@@ -85,12 +96,17 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7
 
     def model_post_init(self, __context) -> None:
-        if not self.ZEROCLAW_API_KEY and self.deepseek_key:
-            self.ZEROCLAW_API_KEY = self.deepseek_key
-        if not self.ZEROCLAW_API_KEY and self.glm_key:
-            self.ZEROCLAW_API_KEY = self.glm_key
+        # LLM key 统一解析：规范命名优先，旧命名自动映射（只在一个地方设 key）
+        self.GLM_API_KEY = self.GLM_API_KEY or self.glm_key
+        self.DEEPSEEK_API_KEY = self.DEEPSEEK_API_KEY or self.deepseek_key
+        # 直连回退链路（orchestrator，非主链路）：未单独配置 ZEROCLAW_API_KEY 时
+        # 按 DeepSeek → GLM 顺延，并根据可用 key 推断 OpenAI 兼容端点
+        if not self.ZEROCLAW_API_KEY and self.DEEPSEEK_API_KEY:
+            self.ZEROCLAW_API_KEY = self.DEEPSEEK_API_KEY
+        if not self.ZEROCLAW_API_KEY and self.GLM_API_KEY:
+            self.ZEROCLAW_API_KEY = self.GLM_API_KEY
         if not self.ZEROCLAW_GATEWAY_URL and self.ZEROCLAW_API_KEY:
-            if self.deepseek_key:
+            if self.DEEPSEEK_API_KEY:
                 self.ZEROCLAW_GATEWAY_URL = "https://api.deepseek.com/v1"
             else:
                 self.ZEROCLAW_GATEWAY_URL = "https://open.bigmodel.cn/api/paas/v4"
@@ -112,6 +128,8 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
         case_sensitive=True,
+        # .env 允许存在未声明的变量（如备用 key 存档、部署模板注释项）
+        extra="ignore",
     )
 
 

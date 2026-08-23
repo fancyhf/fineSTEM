@@ -43,9 +43,9 @@ async def describe_chat_image(image_bytes: bytes, mime_type: str = "image/png") 
 
     失败时返回 None（不抛异常，前端降级为"图片识别不可用"提示）。
     """
-    api_key = settings.glm_key
+    api_key = settings.GLM_API_KEY
     if not api_key:
-        logger.warning("glm_key 未配置，无法识别聊天图片")
+        logger.warning("GLM_API_KEY 未配置，无法识别聊天图片")
         return None
 
     b64 = base64.b64encode(image_bytes).decode("ascii")
@@ -125,9 +125,9 @@ async def generate_cover_image(
     Returns:
         图片 URL 字符串，失败时返回 None（不抛异常，不阻断主流程）
     """
-    api_key = settings.glm_key
+    api_key = settings.GLM_API_KEY
     if not api_key:
-        logger.warning("glm_key 未配置，跳过封面图生成")
+        logger.warning("GLM_API_KEY 未配置，跳过封面图生成")
         return None
 
     prompt = _build_prompt(title, one_liner, subjects)
