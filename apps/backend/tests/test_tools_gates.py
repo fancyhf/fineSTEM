@@ -431,3 +431,79 @@ class TestStageAdvancerTargetGate:
         result = await tool.execute({})
         assert not result.success
         assert "project_id" in result.error
+
+
+# ── 2026-08-19（Q-048）：复制引导收官的 light 门禁放行 ─────────────
+
+def _light_state(current_stage: str, light_step: str, copy_guidance_completed: bool, light_step_data: str = "{}"):
+    import json as _json
+    metadata = {}
+    if copy_guidance_completed:
+        metadata["copy_guidance"] = {"session_status": "completed", "current_task": None}
+    return type("S", (), {
+        "current_stage": current_stage,
+        "mode": "light",
+        "light_step": light_step,
+        "light_step_data": light_step_data,
+        "standard_step_data": "{}",
+        "metadata": _json.dumps(metadata),
+    })()
+
+
+class TestStageAdvancerCopyGuidanceCompletion:
+    """复制引导全部完成 → step_2→step_3 门禁放行（原门禁要求 light_step_data
+    的 code_url/key_screenshots，复制项目从不写该字段会被永久拦在 step_2）。"""
+
+    @pytest.mark.asyncio
+    async def test_advance_step2_to_step3_with_completed_session(self):
+        tool = StageAdvancerTool()
+        state = _light_state("step_2", "2", copy_guidance_completed=True)
+        with patch("app.services.tools.db") as mock_db:
+            mock_db.get_skill_state.return_value = state
+            result = await tool.execute({"project_id": "p1", "target_stage": "step_3"})
+        assert result.success
+        assert result.data["current_stage"] == "step_3"
+        updates = mock_db.update_skill_state.call_args[0][1]
+        assert updates["current_stage"] == "step_3"
+
+    @pytest.mark.asyncio
+    async def test_step2_to_step3_still_gated_without_completed_session(self):
+        """未完成引导的 light 项目仍走原门禁（空 light_step_data 被拦）。"""
+        tool = StageAdvancerTool()
+        state = _light_state("step_2", "2", copy_guidance_completed=False)
+        with patch("app.services.tools.db") as mock_db:
+            mock_db.get_skill_state.return_value = state
+            result = await tool.execute({"project_id": "p1", "target_stage": "step_3"})
+        assert not result.success
+        assert "门禁" in (result.error or "")
+
+
+class TestAchievementCardLightGate:
+    """achievement_card：light 项目 step_3 放行、step_2 仍拦。"""
+
+    @pytest.mark.asyncio
+    async def test_block_light_step_2_mentions_step3_path(self):
+        tool = AchievementCardTool()
+        with patch("app.services.tools.db") as mock_db:
+            mock_state = type("S", (), {"current_stage": "step_2", "mode": "light"})()
+            mock_db.get_skill_state.return_value = mock_state
+            result = await tool.execute({
+                "project_id": "p1", "title": "x", "one_liner": "x",
+                "problem_solved": "x", "method_used": "x", "reflection": "x",
+            })
+        assert not result.success
+        assert "light 项目 step_3" in (result.error or "")
+
+    @pytest.mark.asyncio
+    async def test_block_standard_step_07_unchanged(self):
+        """标准模式 stage_07 拦截语义不回归。"""
+        tool = AchievementCardTool()
+        with patch("app.services.tools.db") as mock_db:
+            mock_state = type("S", (), {"current_stage": "stage_07_execute", "mode": "standard"})()
+            mock_db.get_skill_state.return_value = mock_state
+            result = await tool.execute({
+                "project_id": "p1", "title": "x", "one_liner": "x",
+                "problem_solved": "x", "method_used": "x", "reflection": "x",
+            })
+        assert not result.success
+        assert "stage_08_evaluate" in (result.error or "")

@@ -1,16 +1,19 @@
 # fineSTEM MVP2 Create 复制项目任务引导：功能与开发说明书
 
-version: v1.1.0
+version: v1.3.0
 created_at: 2026-08-13 00:00:00.000
-updated_at: 2026-08-13 00:00:00.000
+updated_at: 2026-08-19 00:00:00.000
 maintainer: 产品负责人 / 开发团队
-status: 开发输入，待执行（v1.1 已校正主链路落点）
+status: 开发输入（v1.3 收官链路已实施；验收按 9.1 AC 表逐条回签）
 
 change_log:
+  - 2026-08-20 00:00:00.000 v1.3 补充（Q-049/Q-050）：①阶段条 mode 稳定性——handleSend 流末不得硬编码 mode，以服务端 workspace 回读为准（light 项目全程 3 步条）；②主体区数据契约——LightProjectStep1/2/3 schema 并入前端表单字段（topic/goal、steps、result/reflection），复制项目创建时初始化 step_1，verifier 通过任务时同步追加 steps、收官写 result/reflection，读取入口（_build_workspace_payload）对存量项目自愈回填。
+  - 2026-08-19 00:00:00.000 v1.3 新增阶段映射与收官链路（§4.4，Q-048）：激活 copy_guidance 会话状态机（verifier 验证后自动推进 session_status/current_task）；全部任务完成后 AI 必须询问学生是否推进 step_3 并生成正式成果卡；stage_advancer 对"引导已完成"的 light 项目放行 step_2→step_3 门禁；achievement_card 放行 light 项目 step_3；新增 AC-15/AC-16。明确复制项目与新建项目的阶段适配规则。
   - 2026-08-13 00:00:00.000 根据产品评审补充业务功能、开发落地说明和测试验收标准。
   - 2026-08-13 00:00:00.000 记录 P0-01/P0-02 已修复，P0-03 至 P0-09 进入开发。
   - 2026-08-13 00:00:00.000 冻结边界：不新建项目实验室，不新建视频平台运营数据，不新做数字人和语音。
   - 2026-08-13 00:00:00.000 v1.1 主链路校正：AI 场景生效源是 zeroclaw_provider.SCENE_SYSTEM_PROMPTS（前端经 /agent/scene-prompts 注入 WS），orchestrator.py 仅为回退；教学模式在主链路无独立注入机制，改为在场景 prompt 内嵌；HTML 样板无法用 code_runner，完成验证改为确定性结构检查 + AI 语义复核；补充 MCP 工具数与前端降级同步项。
+  - 2026-08-16 00:00:00.000 v1.2 澄清触发语义 + 补验收防线：明确"不自动发消息"仅约束提醒出现、点击之前，点击"开始任务引导"即触发首条场景消息（v1.1 措辞含糊导致 2026-08-16 线上"点击后无反应"问题，10 号文档同步修正）；AC 表新增"验证方式"列，每条 AC 必须映射自动化测试或记录在案的手测；新增 9.3 AC 回签规则。
 
 ---
 
@@ -85,9 +88,9 @@ MVP2 新增的是很薄的一层：
 规则：
 
 - 不遮挡整个编辑器。
-- 不自动向 AI 发消息。
-- “开始任务引导”记录已开始状态并触发引导场景。
-- “先自己看看”只关闭提醒，不隐藏后续入口。
+- **提醒出现时**（学生点击任何按钮之前）不自动向 AI 发消息。禁止的是"未经点击的自动发送"。
+- “开始任务引导”记录已开始状态，**并立即以 `copy_project_guidance` 场景发送首条聊天消息**——AI 收到后先读 Skill 状态和真实代码，再返回第一项任务。点击这个动作本身就是学生授权的发送时机。仅切换前端场景变量、不发消息，不算"触发引导场景"。
+- “先自己看看”只关闭提醒，不隐藏后续入口，也不发任何消息。
 - 同一项目换设备或重新登录后不重复弹首次提醒。
 
 ### 2.3 再次进入
@@ -137,6 +140,33 @@ MVP2 新增的是很薄的一层：
 - 页面运行失败。
 - 验证标准要求出现新内容，但预览没有出现。
 - 学生无法说明自己改了哪里，也没有过程证据。
+
+### 2.6 阶段映射与收官链路（v1.3，2026-08-19，Q-048）
+
+**阶段映射规范**（复制项目 = light 模式三步；与新建项目互不影响）：
+
+| light 阶段 | 复制引导对应内容 | 说明 |
+|------|------|------|
+| step_1 想法与方向 | **跳过**（创建即 step_2） | “选哪个 Demo”即完成选题（P0-02 决定） |
+| step_2 设计与实现 | 引导任务 1-4（改标题/加数据/改交互/修错误）+ 运行验证 | 收官前项目停留在此阶段 |
+| step_3 展示与反思 | 任务 5（说明自己的改动）+ 证据沉淀 + 成果档案卡 | 由收官链路推进进入 |
+
+适配规则：
+
+- 新建 standard 项目走 9 阶段门禁，**完全不受复制引导逻辑影响**（复制引导只作用于 `from_demo_id` 非空的 light 项目）。
+- 新建 light 项目（无 `from_demo_id`）不出现任务引导，按 light 三步原流程走。
+- 复制项目的 step_1 视为“已完成/跳过”，不要求补做。
+- **主体区数据契约（2026-08-20，Q-050）**：详情主体区三步表单读写 `light_step_data` 的 `topic/goal`（step_1）、`steps[]`（step_2）、`result/reflection`（step_3），与后端原字段（project_name/one_liner/core_features、code_url/key_screenshots、brief_reflection）并存于 schema，门禁按“任一套填齐”判定。复制项目创建时自动填 topic/goal；引导任务验证通过自动追加 steps；收官自动写 result（explain_changes 的口述写 reflection）；存量项目在 workspace 读取时自愈回填。
+
+**收官链路规范**（全部任务完成后，防止“做完了项目还停在 step_2”）：
+
+1. **会话状态机**（`copy_guidance_verifier` 自动维护，不依赖 AI 主动写）：每次验证后更新 `copy_guidance`——未通过 → `active` + `current_task=本任务`；通过且有下一项 → `active` + 切到下一项；通过且是最后一项 → `completed` + `current_task=null`，结果额外返回 `all_tasks_completed=true` 与收官指引文本。旧项目无节点时自动引导落 `started+active`。
+2. **收官询问**（AI 执行）：收到 `all_tasks_completed=true`（或读到 `session_status=completed`）→ 正文第一句祝贺，**必须**用 ask_question 询问「🚀 推进到『展示与反思』并生成成果档案卡 / 🤔 先不推进，继续自由改造」。学生点选项即为“主动要求”，与“学生没有主动要求时不得调 stage_advancer”一致。
+3. **推进与成果卡**（学生同意后）：AI 调 `stage_advancer`（target_stage=step_3）→ 调 `achievement_card` 生成正式成果卡 → 引导学生到项目详情页查看。学生拒绝则不推进；`session_status=completed` 的项目再次进入只引导收官或自由改造，**不重新布置任务清单**。
+4. **门禁适配**（防偷跑与放行并存）：
+   - `stage_advancer` 的 step_2→step_3 原门禁要求 light_step_data 的 `code_url`/`key_screenshots`——复制项目从不写该字段。放行条件：`copy_guidance.session_status=completed`（已含真实代码改动+运行检查+证据）视为“有可运行成果”；**未完成引导的 light 项目仍走原门禁**，新建 light/standard 项目完全不变。
+   - `achievement_card` 原门禁只认 `stage_08_evaluate`——light 项目永无 AI 生成正式卡的路径。现放行 `mode=light 且 current_stage=step_3`；标准模式 stage 门禁不变。
+   - 项目详情页 `POST /achievement-generate`（学生手动生成）本就无阶段门禁，与 AI 路径并存。
 
 ---
 
@@ -449,11 +479,12 @@ project.from_demo_id 非空
 
 ### 7.2 首次提醒交互
 
-- 不自动调用聊天接口。
+- 提醒显示期间（学生点击之前）不自动调用聊天接口。
 - “开始任务引导”需要把 `intro_status` 标记为 `started`。
-- “先自己看看”需要把 `intro_status` 标记为 `dismissed`。
-- 标记成功后触发 `copy_project_guidance` 场景。
-- 标记失败时保持当前状态，不重复弹窗。
+- “先自己看看”需要把 `intro_status` 标记为 `dismissed`，不发消息。
+- 标记成功后触发 `copy_project_guidance` 场景，**触发 = 调用现有聊天发送（前端 `handleSend`，场景参数 `copy_project_guidance`）**。AI 应回复第一项任务和完成条件；只切换本地场景状态、不发消息是错误实现（2026-08-16 线上问题的根因）。
+- 发送内容统一由 `apps/frontend/src/lib/copyGuidance.ts` 的 `buildCopyGuidanceTrigger()` 生成，不得在组件里散写文案。
+- 标记失败时保持当前状态，不重复弹窗，但必须在聊天区给出可见的失败反馈（不允许只写 console 日志静默）。
 
 ### 7.3 快捷区入口
 
@@ -500,22 +531,24 @@ flowchart TD
 
 ### 9.1 功能验收用例
 
-| 编号 | 场景 | 预期 |
-|------|------|------|
-| AC-01 | 保存古诗/知识卡 Demo 后进入 Create | workspace 包含来源 Demo 真实代码，current_stage 为 `step_2` |
-| AC-02 | 从零创建 light 项目进入 Create | 不显示复制项目首次提醒，也不显示任务引导入口 |
-| AC-03 | 第一次进入复制项目 | 显示一次首次提醒，且不自动向 AI 发消息 |
-| AC-04 | 点“先自己看看” | 提醒关闭，后续仍可从快捷区进入任务引导 |
-| AC-05 | 刷新或换设备重新进入同一复制项目 | 不重复显示首次提醒 |
-| AC-06 | 点“开始任务引导” | AI 先读 Skill 和代码，再返回一项任务，不一次给多个任务 |
-| AC-07 | 学生未改代码就说“我改好了” | 验证失败，不能保存通过证据 |
-| AC-08 | 学生改错位置 | AI 指出第一处关键问题，并只给一层提示 |
-| AC-09 | 学生正确修改并运行 | 验证通过，保存证据，解释一个知识点 |
-| AC-10 | 第一项通过后 | 再询问是否进入下一项，不自动连续布置 |
-| AC-11 | 切换四种教学模式 | 引导场景遵守对应教学模式 |
-| AC-12 | 复制项目未完成任何任务 | 下次进入可继续当前任务 |
-| AC-13 | 标准 PBL 项目 | 9 阶段门禁、项目恢复、聊天、运行和成果卡无回归 |
-| AC-14 | 本地临时项目 | 不显示任务引导入口，不写入引导状态 |
+| 编号 | 场景 | 预期 | 验证方式（v1.2 起必填：自动化测试名，或“手测”+执行人/日期） |
+|------|------|------|------|
+| AC-01 | 保存古诗/知识卡 Demo 后进入 Create | workspace 包含来源 Demo 真实代码，current_stage 为 `step_2` | 自动化：`tests/test_projects.py::test_create_project_from_demo_copies_workspace` |
+| AC-02 | 从零创建 light 项目进入 Create | 不显示复制项目首次提醒，也不显示任务引导入口 | 自动化：`tests/test_copy_guidance_state.py::test_self_created_project_has_no_copy_guidance`、`apps/frontend/src/lib/copyGuidance.test.ts`（自建项目用例） |
+| AC-03 | 第一次进入复制项目 | 显示一次首次提醒，且提醒出现时不自动向 AI 发消息 | 自动化：`copyGuidance.test.ts`（pending 显示）、`Create.copyGuidanceWiring.test.ts`（横幅 JSX 无发送调用）、e2e `tests/specs/copy-guidance-intro.spec.ts`（真实链路）；手测：换设备不重复 |
+| AC-04 | 点“先自己看看” | 提醒关闭，后续仍可从快捷区进入任务引导，且不发消息 | 自动化：e2e `copy-guidance-intro.spec.ts`（dismiss 用例）、`copyGuidance.test.ts`（dismissed 后快捷区仍显示）；手测：快捷区再进入 |
+| AC-05 | 刷新或换设备重新进入同一复制项目 | 不重复显示首次提醒 | 自动化：`tests/test_copy_guidance_state.py::test_update_intro_status_pending_to_started`（状态持久化）；手测：刷新+重登录 |
+| AC-06 | 点“开始任务引导” | 发送首条 `copy_project_guidance` 场景消息；AI 先读 Skill 和代码，再返回一项任务，不一次给多个任务 | 自动化：`copyGuidance.test.ts`（buildCopyGuidanceTrigger）、`Create.copyGuidanceWiring.test.ts`（点击→发送接线）、e2e `copy-guidance-intro.spec.ts`（点击后用户气泡出现）；**手测（必做，带 daemon 真实链路）：注册新号→复制 Demo→点击→确认 AI 回复一项任务** |
+| AC-07 | 学生未改代码就说“我改好了” | 验证失败，不能保存通过证据 | 自动化：`tests/test_copy_guidance_verifier.py::TestCodeChangedCheck`；手测：对话中说完成 |
+| AC-08 | 学生改错位置 | AI 指出第一处关键问题，并只给一层提示 | 自动化：`TestContentKeywordCheck`/`TestCardCountCheck`（失败结构）；手测：真实对话 |
+| AC-09 | 学生正确修改并运行 | 验证通过，保存证据，解释一个知识点 | 自动化：`TestEvidenceSave`、`TestRunSuccessCheck`；手测：真实对话 |
+| AC-10 | 第一项通过后 | 再询问是否进入下一项，不自动连续布置 | 自动化：`tests/test_copy_guidance_scene.py::test_scene_prompt_contains_ordering_hints`；手测：真实对话 |
+| AC-11 | 切换四种教学模式 | 引导场景遵守对应教学模式 | 自动化：`test_scene_prompt_contains_all_four_teaching_modes`；手测：切模式后再引导 |
+| AC-12 | 复制项目未完成任何任务 | 下次进入可继续当前任务 | 自动化：`Create.copyGuidanceWiring.test.ts`（快捷区 continue 触发）；手测：退出重进点快捷区 |
+| AC-13 | 标准 PBL 项目 | 9 阶段门禁、项目恢复、聊天、运行和成果卡无回归 | 自动化：`tests/test_stage_constants.py`、`tests/test_tools_gates.py` |
+| AC-14 | 本地临时项目 | 不显示任务引导入口，不写入引导状态 | 自动化：`Create.copyGuidanceWiring.test.ts`（handler 前置 `local-` 守卫）；手测：未登录本地模式 |
+| AC-15 | 复制项目全部任务完成（最后一项验证通过） | verifier 置 session=completed 并返回 all_tasks_completed；AI 祝贺并询问是否推进 step_3+生成成果卡；学生同意后阶段推进、正式成果卡生成；拒绝则不推进；再次进入不重新布置任务 | 自动化：`test_copy_guidance_verifier.py::TestSessionStateMachine`（收官信号）、`test_tools_gates.py::TestStageAdvancerCopyGuidanceCompletion`、`test_copy_guidance_scene.py::TestScenePromptFinalization`；手测（带 daemon）：真项目走完 5 项任务观察收官询问与推进 |
+| AC-16 | 门禁不回归 | 未完成引导的 light 项目 step_2→step_3 仍被拦；新建 light/standard 项目门禁与原一致；achievement_card 标准 stage 门禁不变 | 自动化：`test_tools_gates.py::TestStageAdvancerCopyGuidanceCompletion::test_step2_to_step3_still_gated_without_completed_session`、`TestAchievementCardLightGate`；回归：`test_stage_constants.py` |
 
 ### 9.2 后端自动化测试
 
@@ -541,11 +574,21 @@ flowchart TD
 
 - 首次提醒只渲染一次。
 - 自建项目不渲染提醒。
-- 点击按钮后没有自动调用聊天接口。
+- **提醒渲染时不调用聊天接口（学生未点击前零发送）；点击"开始任务引导"后必须出现一条 `copy_project_guidance` 场景的用户消息**——2026-08-16 线上问题的根因就是旧版把这条写成了"点击按钮后没有自动调用聊天接口"，把禁止时机错挂到点击上，开发照做导致点击后无反应。触发内容统一由 `buildCopyGuidanceTrigger()` 生成并用 vitest 锁定。
 - 快捷区入口可见。
 - 小屏下入口不遮挡编辑器。
 - **`apps/frontend/src/lib/scenePrompts.ts` 的 `FALLBACK_PROMPTS` 需补 `copy_project_guidance` 精简版**：后端 `/agent/scene-prompts` 不可达时仍有场景约束，否则降级链路下引导场景提示词为空。
-- 判定逻辑（如 `shouldShowCopyGuidanceIntro(project, progress)`）抽成纯函数，用 vitest 覆盖；渲染行为用现有 Playwright e2e（`tests/specs/`）补充，不引入新的渲染测试依赖。
+- 判定逻辑（如 `shouldShowCopyGuidanceIntro(project, progress)`）抽成纯函数，用 vitest 覆盖；渲染行为用现有 Playwright e2e（`tests/specs/`）补充，不引入新的渲染测试依赖。e2e 基线：`specs/copy-guidance-intro.spec.ts`（AC-03/04/06，不依赖 daemon）；巨型组件 `Create.tsx` 的事件接线另由 `src/pages/Create.copyGuidanceWiring.test.ts` 源码级守卫锁定，组件测试基建落地后可移除。
+
+### 9.4 AC 回签与交付门禁（v1.2 新增，流程硬规则）
+
+2026-08-16 线上问题的教训：单测全绿 ≠ 验收通过。AC-06 在 9.1 表里写得很清楚，但没有任何机制强制执行它，直到真实用户第一次手测才暴露。因此：
+
+1. **每条 AC 必须有验证方式**（9.1 表"验证方式"列）：自动化测试名，或"手测"+执行人+日期。不允许"待补"。
+2. **开发 Agent 交付物必须逐条 AC 回签**：最终报告里给出 AC-XX → 测试名/手测记录 的对照表；写不出验证方式的 AC 视为未完成，不得声称任务完成。
+3. **交付前必须做一次真实链路走查**：前端 dev + 后端 + ZeroClaw daemon 全部真实运行，至少走通 AC-06（注册新号 → 复制 Demo → 点击 → AI 返回一项任务）和 AC-13（标准项目无回归）各一遍，记录日期和执行人。"daemon 侧联调待重启后进行"不能作为交付状态，只能作为风险项。
+4. **文档转写必须回溯对齐**：从本文转写开发 Agent Prompt（如 10 号文档）时，涉及交互时机和行为语义的条款必须逐句对照本文 AC 表复核；两处说法冲突时以本文为准并回改转写稿。
+5. **AC 表变更即升版**：修改任何 AC 的预期行为时，必须更新 9.1 的"验证方式"列并在 change_log 记录，防止规范与验收漂移。
 
 ---
 

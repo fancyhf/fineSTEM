@@ -286,6 +286,18 @@ export interface ProjectUpgrade {
   mapping?: LightToStandardMapping;
 }
 
+export interface CopyGuidanceNode {
+  version?: string;
+  intro_status: 'pending' | 'dismissed' | 'started';
+  session_status: 'idle' | 'active' | 'waiting_verify' | 'completed';
+  current_task?: {
+    id?: string;
+    title?: string;
+  } | null;
+  started_at?: string;
+  updated_at?: string;
+}
+
 export interface ProjectProgress {
   current_stage: SkillStage;
   stage_history: Array<{ stage: SkillStage; started_at: string; completed_at?: string }>;
@@ -294,6 +306,8 @@ export interface ProjectProgress {
   teaching_mode?: 'guided' | 'demo' | 'hands_on' | 'lecture';
   // Q-017 记忆持久化：学生画像（问题标题→选中标签），刷新后从后端恢复避免 AI 失忆
   student_profile?: Record<string, string[]>;
+  // MVP2 P0-03：复制项目任务引导状态节点，仅复制项目非空
+  copy_guidance?: CopyGuidanceNode | null;
 }
 
 export interface FileEntry {

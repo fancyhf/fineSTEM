@@ -244,6 +244,12 @@ class AgentOrchestratorService:
 
     @classmethod
     def _build_scene_instruction(cls, req: AgentChatRequest) -> str:
+        context = req.context or {}
+        scene = context.get("scene")
+        # MVP2 P0-05：复制项目任务引导（回退链路同步，主链路以 zeroclaw_provider 为准）
+        if scene == "copy_project_guidance":
+            from app.services.copy_guidance_scene import COPY_PROJECT_GUIDANCE_PROMPT
+            return COPY_PROJECT_GUIDANCE_PROMPT
         if not cls._is_achievement_scene(req):
             return ""
         return """

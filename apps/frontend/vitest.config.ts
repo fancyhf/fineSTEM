@@ -1,4 +1,5 @@
 /// <reference types="vitest" />
+import { resolve } from 'node:path';
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 
@@ -20,8 +21,11 @@ export default defineConfig({
     },
   },
   resolve: {
-    alias: {
+    alias: [
       // 让测试里能用和源码一致的相对/绝对路径
-    },
+      // 2026-08-16：monaco-editor 打桩——单测不渲染编辑器，真实 monaco 在 jsdom
+      // 里 import 即崩（clipboard contrib 依赖 document.queryCommandSupported）。
+      { find: /^monaco-editor$/, replacement: resolve(__dirname, 'src/test/stubs/monaco-stub.ts') },
+    ],
   },
 });

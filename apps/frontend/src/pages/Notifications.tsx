@@ -118,7 +118,7 @@ export default function Notifications(): JSX.Element {
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-xl font-semibold text-gray-900">通知中心</h1>
         <Button
-          variant="outline"
+          variant="secondary"
           size="sm"
           disabled={busy || loading}
           onClick={() => {
@@ -212,7 +212,7 @@ export default function Notifications(): JSX.Element {
       {totalPages > 1 && (
         <div className="mt-4 flex items-center justify-center gap-2 text-sm">
           <Button
-            variant="outline"
+            variant="secondary"
             size="sm"
             disabled={page <= 1 || loading}
             onClick={() => setPage((p) => Math.max(1, p - 1))}
@@ -223,7 +223,7 @@ export default function Notifications(): JSX.Element {
             第 {page} / {totalPages} 页
           </span>
           <Button
-            variant="outline"
+            variant="secondary"
             size="sm"
             disabled={page >= totalPages || loading}
             onClick={() => setPage((p) => Math.min(totalPages, p + 1))}

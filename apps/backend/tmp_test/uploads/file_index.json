@@ -1,0 +1,22 @@
+{
+  "ac553ff8-ec2e-4347-ab77-35bd808afd62": {
+    "id": "ac553ff8-ec2e-4347-ab77-35bd808afd62",
+    "owner_id": "79110cb8-beb7-4db2-b9d5-294406026f03",
+    "project_id": "9622bc41-825c-4f62-bff4-d7df120c97a4",
+    "original_name": "test.png",
+    "stored_path": "G:\\mediaProjects\\fineSTEM\\apps\\backend\\tmp_test\\uploads\\uploads\\79110cb8-beb7-4db2-b9d5-294406026f03\\9622bc41-825c-4f62-bff4-d7df120c97a4\\ac553ff8-ec2e-4347-ab77-35bd808afd62.png",
+    "content_type": "image/png",
+    "size": 33,
+    "created_at": "2026-08-15T04:50:53.894805+00:00"
+  },
+  "09d7d77c-7ae8-4337-a185-ca4ed004e9e3": {
+    "id": "09d7d77c-7ae8-4337-a185-ca4ed004e9e3",
+    "owner_id": "4578e83b-b853-4bb9-ad0b-7e20e644394e",
+    "project_id": "b04e0b9a-100c-4040-938b-2fbbb799af71",
+    "original_name": "test.png",
+    "stored_path": "G:\\mediaProjects\\fineSTEM\\apps\\backend\\tmp_test\\uploads\\uploads\\4578e83b-b853-4bb9-ad0b-7e20e644394e\\b04e0b9a-100c-4040-938b-2fbbb799af71\\09d7d77c-7ae8-4337-a185-ca4ed004e9e3.png",
+    "content_type": "image/png",
+    "size": 33,
+    "created_at": "2026-08-15T04:54:16.458532+00:00"
+  }
+}

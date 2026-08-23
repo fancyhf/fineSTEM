@@ -38,6 +38,7 @@ from app.schemas.projects import (
     FileEntry,
     ProjectFeaturedUpdate,
     ProjectVisibilityUpdate,
+    CopyGuidanceUpdate,
 )
 from app.schemas.evidence import Evidence
 from app.schemas.achievements import AchievementCard
@@ -49,6 +50,12 @@ from app.services.document_service import document_service
 from app.services.pbl_engine import advance_with_gate, save_artifact
 from app.services.stage08_sync import build_stage08_payload, merge_stage08_into_standard_data
 from app.services.demo_fork import build_demo_workspace_payload
+from app.services.copy_guidance_state import (
+    CopyGuidanceStateError,
+    get_copy_guidance,
+    init_copy_guidance,
+    update_copy_guidance,
+)
 from app.services.providers.image_provider import generate_cover_image
 from app.services.storage_service import storage_service
 from app.core.config import settings
@@ -697,6 +704,53 @@ def _build_workspace_payload(project_id: str) -> tuple[ProjectProgress, ProjectW
                 standard_step_data = updated_state.standard_step_data or hydrated_standard_data
             else:
                 standard_step_data = hydrated_standard_data
+
+    # 2026-08-20（Q-050）：复制项目 light_step_data 自愈。项目详情主体区
+    # （LightProjectSteps）只读 light_step_data，而引导任务成果沉淀在
+    # copy_guidance/证据里——不回填则主体区表单全空。只补空字段，绝不覆盖
+    # 学生/AI 已写内容（rule #9/#17）。
+    if getattr(project, "mode", "") == "light" and getattr(project, "from_demo_id", None):
+        try:
+            _lsd_raw = getattr(skill_state, "light_step_data", None)
+            _lsd = json.loads(_lsd_raw) if isinstance(_lsd_raw, str) else (_lsd_raw or {})
+            if not isinstance(_lsd, dict):
+                _lsd = {}
+            _changed = False
+            if not _lsd.get("topic"):
+                _lsd["topic"] = getattr(project, "name", "") or ""
+                _changed = True
+            if not _lsd.get("goal"):
+                _demo = db.get_demo(project.from_demo_id)
+                _demo_name = _demo.name if _demo else project.from_demo_id
+                _lsd["goal"] = f"复刻 Demo「{_demo_name}」并完成自己的个性化改造"
+                _changed = True
+            _cg = get_copy_guidance(skill_state)
+            if isinstance(_cg, dict):
+                if not _lsd.get("steps"):
+                    _ev = db.list_evidence_by_project(project_id)
+                    _titles = []
+                    for _e in (_ev or []):
+                        _t = (_e.title or "").strip()
+                        if not _t:
+                            continue
+                        if _t.startswith("复制项目任务完成："):
+                            _titles.append(_t.replace("复制项目任务完成：", "") + "：完成并验证通过")
+                        elif _t.startswith(("自由改造：", "项目收尾总结：", "任务完成：")):
+                            _titles.append(_t)
+                    if _titles:
+                        _lsd["steps"] = _titles
+                        _changed = True
+                if _cg.get("session_status") == "completed" and not _lsd.get("result"):
+                    _lsd["result"] = "完成复制项目全部引导任务，已生成成果档案卡"
+                    _changed = True
+            if _changed:
+                _updated = db.update_skill_state(project_id, {"light_step_data": _lsd})
+                if _updated:
+                    skill_state = _updated
+        except Exception:
+            # 自愈失败不影响 workspace 正常返回
+            pass
+
     progress = ProjectProgress(
         current_stage=skill_state.current_stage,
         stage_history=skill_state.stage_history,
@@ -704,6 +758,7 @@ def _build_workspace_payload(project_id: str) -> tuple[ProjectProgress, ProjectW
         standard_step_data=standard_step_data,
         teaching_mode=_get_teaching_mode_from_state(skill_state),
         student_profile=_get_student_profile_from_state(skill_state),
+        copy_guidance=get_copy_guidance(skill_state),
     )
     workspace_data = ProjectWorkspaceData(
         code=str(workspace.get("code") or ""),
@@ -761,6 +816,30 @@ async def create_project(
                 build_demo_workspace_payload(demo.minimal_replica, demo_name=demo.name),
                 updated_by=current_user.id,
             )
+        # MVP2 P0-03：为复制项目初始化 copy_guidance 节点
+        skill_state = db.get_skill_state(created_project.id)
+        if skill_state:
+            metadata = getattr(skill_state, "metadata", {}) or {}
+            if isinstance(metadata, str):
+                try:
+                    metadata = json.loads(metadata)
+                except Exception:
+                    metadata = {}
+            if not isinstance(metadata, dict):
+                metadata = {}
+            metadata["copy_guidance"] = init_copy_guidance()
+            # 2026-08-20（Q-050）：同步初始化 light_step_data 的 step_1 内容。
+            # 项目详情主体区（LightProjectSteps）只读 light_step_data，此前复制项目
+            # 从不写该字段 → 主体区表单全空。step_1 对复制项目是"已完成/跳过"，
+            # 直接用项目名与来源 Demo 填充 topic/goal。
+            demo_name = demo.name if demo else (project_data.from_demo_id or "")
+            db.update_skill_state(created_project.id, {
+                "metadata": metadata,
+                "light_step_data": {
+                    "topic": created_project.name,
+                    "goal": f"复刻 Demo「{demo_name}」并完成自己的个性化改造",
+                },
+            })
     _collect_auto_evidence(
         project_id=created_project.id,
         user_id=current_user.id,
@@ -946,6 +1025,72 @@ async def update_project_teaching_mode(
 
     progress, _ = _build_workspace_payload(project_id)
     return ApiResponse(data=progress, message="教学模式更新成功")
+
+
+@router.post("/{project_id}/copy-guidance", response_model=ApiResponse[ProjectProgress])
+async def update_project_copy_guidance(
+    project_id: str,
+    payload: CopyGuidanceUpdate,
+    current_user: UserResponse = Depends(get_current_user),
+):
+    """
+    更新复制项目任务引导状态（MVP2 P0-03）。
+
+    - 仅对 from_demo_id 非空的项目生效。
+    - 状态流转由 copy_guidance_state.update_copy_guidance 校验，非法流转返回 400。
+    """
+    project = db.get_project(project_id)
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="项目不存在",
+        )
+    if project.author_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="无权修改此项目",
+        )
+    if not getattr(project, "from_demo_id", None):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="非复制项目不支持任务引导状态更新",
+        )
+
+    skill_state = db.get_skill_state(project_id)
+    if not skill_state:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="项目状态不存在",
+        )
+
+    patch = payload.model_dump(exclude_unset=True)
+    if not patch:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="请求体为空",
+        )
+
+    try:
+        updated_node = update_copy_guidance(skill_state, patch)
+    except CopyGuidanceStateError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        )
+
+    metadata = getattr(skill_state, "metadata", {}) or {}
+    if isinstance(metadata, str):
+        try:
+            metadata = json.loads(metadata)
+        except Exception:
+            metadata = {}
+    if not isinstance(metadata, dict):
+        metadata = {}
+    metadata["copy_guidance"] = updated_node
+    db.update_skill_state(project_id, {"metadata": metadata})
+
+    progress, _ = _build_workspace_payload(project_id)
+    return ApiResponse(data=progress, message="任务引导状态已更新")
 
 
 class StudentProfileUpdate(BaseModel):

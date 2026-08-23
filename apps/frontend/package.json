@@ -15,8 +15,10 @@
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
+    "@types/js-beautify": "^1.14.3",
     "@webcontainer/api": "^1.6.4",
     "clsx": "^2.1.0",
+    "js-beautify": "^2.0.3",
     "lucide-react": "^0.559.0",
     "monaco-editor": "^0.56.0",
     "react": "^18.2.0",

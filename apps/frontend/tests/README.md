@@ -44,6 +44,7 @@
 | **Q-023 流式空闲重连** | `specs/q023-streaming-idle-reconnect.spec.ts` | Q-023 回归 |
 | **Q-023A2 大代码截断** | `specs/q023a2-large-code-truncation.spec.ts` | Q-023A2 回归 |
 | **引导启动项目** | `specs/guide-start-project.spec.ts` | 引导流程 |
+| **复制项目任务引导** | `specs/copy-guidance-intro.spec.ts` | MVP2 首次提醒 + 点击发送接线（AC-03/04/06） |
 
 ---
 

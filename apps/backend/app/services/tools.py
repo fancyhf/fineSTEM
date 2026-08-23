@@ -452,8 +452,16 @@ class StageAdvancerTool(BaseTool):
     ]
 
     GATE_CHECKS = {
-        "step_1_to_step_2": lambda s: bool(s.get("project_name") and s.get("one_liner") and s.get("core_features")),
-        "step_2_to_step_3": lambda s: bool(s.get("code_url") or s.get("key_screenshots")),
+        # 2026-08-20（Q-050）：兼容两套字段——后端原字段（project_name/one_liner/
+        # core_features、code_url/key_screenshots）或详情主体区表单字段
+        # （topic/goal、steps）任一套填齐即过。
+        "step_1_to_step_2": lambda s: bool(
+            (s.get("project_name") or s.get("topic"))
+            and (s.get("one_liner") or s.get("goal"))
+        ),
+        "step_2_to_step_3": lambda s: bool(
+            s.get("code_url") or s.get("key_screenshots") or s.get("steps")
+        ),
         "step_3_to_done": lambda s: True,
     }
 
@@ -522,7 +530,27 @@ class StageAdvancerTool(BaseTool):
                     gate_key = f"step_{int(light_step)}_to_step_{next_light}"
                     light_data_raw = getattr(state, "light_step_data", "{}")
                     light_data = json.loads(light_data_raw) if isinstance(light_data_raw, str) else light_data_raw
-                    if gate_key in self.GATE_CHECKS and not self.GATE_CHECKS[gate_key](light_data):
+                    # 2026-08-19（Q-048）：复制引导项目从不写 light_step_data 的
+                    # code_url/key_screenshots，原门禁会把它们永久拦在 step_2。
+                    # 引导全部任务验证通过（copy_guidance.session_status=completed，
+                    # 含真实代码改动+运行检查+证据）视为已满足"有可运行成果"。
+                    cg_session_completed = False
+                    if gate_key == "step_2_to_step_3":
+                        try:
+                            _meta_raw = getattr(state, "metadata", "{}") or "{}"
+                            _meta = json.loads(_meta_raw) if isinstance(_meta_raw, str) else _meta_raw
+                            cg_session_completed = (
+                                isinstance(_meta, dict)
+                                and ((_meta.get("copy_guidance") or {}).get("session_status") == "completed")
+                            )
+                        except Exception:
+                            cg_session_completed = False
+                    gate_failed = (
+                        gate_key in self.GATE_CHECKS
+                        and not self.GATE_CHECKS[gate_key](light_data)
+                        and not cg_session_completed
+                    )
+                    if gate_failed:
                         return ToolResult(
                             False,
                             error="门禁检查未通过：当前阶段完成条件尚未满足",
@@ -1422,14 +1450,20 @@ class AchievementCardTool(BaseTool):
         skill_state = db.get_skill_state(project_id)
         current_stage = getattr(skill_state, "current_stage", "") if skill_state else ""
         if current_stage and current_stage != "stage_08_evaluate":
-            return ToolResult(
-                False,
-                error=(
-                    f"阶段门禁拦截：achievement_card 只能在 stage_08_evaluate（验收阶段）生成。"
-                    f"当前阶段是 {current_stage}。请先通过 stage_advancer 按门禁推进到验收阶段。"
-                ),
-                data={"current_stage": current_stage, "required_stage": "stage_08_evaluate"},
-            )
+            # 2026-08-19（Q-048）：light 模式收官放行——复制引导全部任务完成并推进到
+            # step_3（展示与反思）后允许生成。原门禁只认标准模式 stage_08，light 项目
+            # 永远无法通过 AI 生成正式成果卡（只能走详情页手动按钮）。
+            state_mode = getattr(skill_state, "mode", "") if skill_state else ""
+            if not (state_mode == "light" and current_stage == "step_3"):
+                return ToolResult(
+                    False,
+                    error=(
+                        f"阶段门禁拦截：achievement_card 只能在 stage_08_evaluate（验收阶段）"
+                        f"或 light 项目 step_3（展示与反思）生成。当前阶段是 {current_stage}。"
+                        f"请先通过 stage_advancer 按门禁推进。"
+                    ),
+                    data={"current_stage": current_stage, "required_stage": "stage_08_evaluate"},
+                )
 
         # 门禁通过后才延迟导入（避免循环依赖）
         # 注：db.create_achievement_card 期望的是 schema AchievementCard（与 projects.py 一致），
@@ -1683,6 +1717,642 @@ class SopStateSyncTool(BaseTool):
         })
 
 
+class CopyGuidanceVerifierTool(BaseTool):
+    """复制项目任务完成验证工具（MVP2 P0-07）。
+
+    双层验证的第一层（确定性）：读取当前 workspace 与来源 Demo minimal_replica，
+    按任务的 acceptance_checks 做规则化检查；HTML 走结构完整性检查而非 code_runner。
+    第二层 AI 语义复核由 copy_project_guidance 场景 prompt 完成。
+    """
+
+    name = "copy_guidance_verifier"
+    description = (
+        "验证复制项目当前任务是否完成。读取真实代码与来源 Demo 对比，按任务的 "
+        "acceptance_checks（code_changed/run_success/visible_text_changed/"
+        "content_keyword/card_count）做确定性检查。通过时可自动保存证据。"
+        "不要凭学生一句话判定通过。"
+    )
+    parameters_schema = {
+        "type": "object",
+        "properties": {
+            "project_id": {"type": "string", "description": "项目 ID（必填）"},
+            "task_id": {"type": "string", "description": "当前任务 ID（必填），如 replace_first_card"},
+            "claimed_changes": {
+                "type": "string",
+                "description": "学生自己描述改成的具体新内容（如新标题文字），用于语义复核；不要填你臆造的期望值",
+            },
+            "save_evidence": {
+                "type": "boolean",
+                "description": "验证通过时是否自动保存证据，默认 true",
+            },
+        },
+        "required": ["project_id", "task_id"],
+    }
+
+    async def execute(self, params: Dict[str, Any]) -> ToolResult:
+        from app.services.copy_guidance_tasks import get_task, get_next_task
+        from app.services.demo_fork import parse_minimal_replica
+
+        project_id = str(params.get("project_id") or "").strip()
+        task_id = str(params.get("task_id") or "").strip()
+        claimed = str(params.get("claimed_changes") or "").strip()
+        save_evidence = params.get("save_evidence")
+        if save_evidence is None:
+            save_evidence = True
+
+        if not project_id or not task_id:
+            return ToolResult(False, error="缺少必填参数 project_id / task_id")
+
+        # 按来源 Demo 优先解析任务（两个 Demo 共用任务 ID，靠 demo_ids 区分）
+        from_demo_id_pre = None
+        _proj = db.get_project(project_id)
+        if _proj is not None:
+            from_demo_id_pre = getattr(_proj, "from_demo_id", None)
+        task = get_task(task_id, demo_id=from_demo_id_pre)
+        if not task:
+            return ToolResult(False, error=f"未找到任务 {task_id}")
+
+        project = _proj
+        if not project:
+            return ToolResult(False, error=f"未找到项目 {project_id}")
+
+        from_demo_id = from_demo_id_pre
+        if not from_demo_id:
+            return ToolResult(False, error="非复制项目不支持任务引导完成验证")
+
+        # 2026-08-18：任务归属校验——AI 曾把 demo_poetry_card 的任务套在
+        # demo_video_analyzer 项目上，验收标准错位导致学生改了代码也永远不过。
+        task_demo_ids = [str(d) for d in (task.get("demo_ids") or [])]
+        if task_demo_ids and from_demo_id not in task_demo_ids:
+            return ToolResult(
+                False,
+                error=(
+                    f"任务 {task_id} 不适用于来源 Demo {from_demo_id}"
+                    f"（仅适用于 {task_demo_ids}）。请改用该 Demo 对应的任务 ID。"
+                ),
+            )
+
+        workspace = db.get_project_workspace(project_id) or {}
+        current_files = self._collect_files(workspace)
+
+        demo = db.get_demo(from_demo_id)
+        demo_files: Dict[str, str] = {}
+        if demo is not None:
+            _entry, demo_files = parse_minimal_replica(demo.minimal_replica, demo_name=demo.name)
+
+        acceptance_checks = list(task.get("acceptance_checks") or [])
+        checks_detail: List[Dict[str, Any]] = []
+        first_issue: Optional[str] = None
+        next_hint: Optional[str] = task.get("hint")
+        all_passed = True
+
+        for check in acceptance_checks:
+            detail = self._run_check(check, current_files, demo_files, claimed)
+            checks_detail.append(detail)
+            if not detail.get("passed"):
+                all_passed = False
+                if first_issue is None:
+                    first_issue = detail.get("reason") or f"{check} 未通过"
+
+        evidence_saved = False
+        if all_passed and save_evidence:
+            evidence_saved = await self._save_verification_evidence(
+                project=project,
+                task=task,
+                claimed=claimed,
+                checks_detail=checks_detail,
+            )
+
+        next_task = get_next_task(task_id, demo_id=from_demo_id)
+        base_data: Dict[str, Any] = {
+            "auto_passed": all_passed,
+            "passed": all_passed,
+            "task_id": task_id,
+            "checks_detail": checks_detail,
+            "knowledge_point": task.get("knowledge_point"),
+            "next_task_id": (next_task or {}).get("id"),
+        }
+
+        # ── 2026-08-19：激活 copy_guidance 会话状态机（Q-048）──────────────────
+        # 此前 session_status/current_task 没有任何代码写入（REST 端点存在但无人调），
+        # 系统不知道"做到第几项/是否全部完成"，收官链路无从谈起。
+        # 现在每次验证后自动推进状态机：
+        #   未通过 → active + current_task=本任务；通过且有下一项 → active + 下一项；
+        #   通过且已是最后一项 → completed + current_task=None + all_tasks_completed=true
+        session_note = self._update_copy_guidance_session(
+            project_id=project_id,
+            task_id=task_id,
+            task_title=str(task.get("title") or ""),
+            passed=all_passed,
+            next_task=next_task,
+            claimed=claimed,
+        )
+        if isinstance(session_note, dict):
+            base_data["session_status"] = session_note.get("session_status")
+            base_data["current_task"] = session_note.get("current_task")
+            if session_note.get("all_completed"):
+                base_data["all_tasks_completed"] = True
+                base_data["final_guidance"] = (
+                    "全部引导任务已完成。请在正文第一句向学生表示祝贺，然后必须用 ask_question "
+                    "询问：「🚀 推进到『展示与反思』并生成成果档案卡」/「🤔 先不推进，继续自由改造」。"
+                    "学生同意后：先调用 stage_advancer（target_stage=step_3，复制项目按引导完成放行），"
+                    "再调用 achievement_card 生成正式成果卡（light 项目 step_3 已放行），"
+                    "最后引导学生到项目详情页查看。学生拒绝则不推进。不得跳过询问自动推进。"
+                )
+
+        if all_passed:
+            base_data["evidence_saved"] = evidence_saved
+            base_data["message"] = "任务已通过全部确定性检查"
+            # 服务端强制信号：即便 auto_passed=true，AI 仍必须做语义复核
+            # （对照 claimed_changes 与 checks_detail，看是否真的改到位）。
+            base_data["semantic_review_required"] = True
+            base_data["semantic_review_instruction"] = (
+                "auto_passed=true 只代表确定性规则通过。请对照 claimed_changes 与 "
+                "checks_detail 判断学生是否真的完成了当前任务的语义目标；若不吻合，"
+                "追问细节或判定未完成，不要立刻推进下一项。"
+            )
+        else:
+            base_data["first_issue"] = first_issue or "未检测到有效改动"
+            base_data["next_hint"] = next_hint or "先按提示改一处再重新提交"
+            base_data["semantic_review_required"] = False
+
+        return ToolResult(True, data=base_data)
+
+    # ---------- 内部辅助 ----------
+
+    @staticmethod
+    def _update_copy_guidance_session(
+        project_id: str,
+        task_id: str,
+        task_title: str,
+        passed: bool,
+        next_task: Optional[Dict[str, Any]],
+        claimed: str = "",
+    ) -> Optional[Dict[str, Any]]:
+        """
+        验证后推进 copy_guidance 会话状态机（2026-08-19，Q-048）。
+
+        返回最新节点摘要 {"session_status", "current_task", "all_completed"}；
+        任何异常（状态流转非法/DB 失败）只降级为跳过，不影响验证结果本身。
+        """
+        try:
+            from app.services.copy_guidance_state import (
+                CopyGuidanceStateError,
+                apply_copy_guidance_to_metadata,
+                get_copy_guidance,
+                update_copy_guidance,
+            )
+
+            skill_state = db.get_skill_state(project_id)
+            if skill_state is None:
+                return None
+
+            metadata_raw = getattr(skill_state, "metadata", {}) or {}
+            if isinstance(metadata_raw, str):
+                try:
+                    metadata = json.loads(metadata_raw)
+                except Exception:
+                    metadata = {}
+            elif isinstance(metadata_raw, dict):
+                metadata = metadata_raw
+            else:
+                metadata = {}
+            if not isinstance(metadata, dict):
+                metadata = {}
+            # 临时挂在 skill_state 上供 update_copy_guidance 读取
+            skill_state.metadata = metadata
+
+            current_node = get_copy_guidance(skill_state)
+            has_node = current_node is not None
+
+            if passed and next_task:
+                target_status = "active"
+                target_task = {
+                    "id": str(next_task.get("id") or ""),
+                    "title": str(next_task.get("title") or ""),
+                }
+                all_completed = False
+            elif passed:
+                target_status = "completed"
+                target_task = None
+                all_completed = True
+            else:
+                target_status = "active"
+                target_task = {"id": task_id, "title": task_title}
+                all_completed = False
+
+            patches: List[Dict[str, Any]] = [
+                {"session_status": target_status, "current_task": target_task}
+            ]
+            if not has_node:
+                # 旧项目无节点：先落 started（pending→started 合法），
+                # 再走 idle→active；若目标是 completed 需要中间补一步 active
+                patches.insert(0, {"intro_status": "started", "session_status": "active"})
+            elif (
+                target_status == "completed"
+                and (current_node or {}).get("session_status") == "idle"
+            ):
+                patches.insert(0, {"session_status": "active"})
+
+            node = current_node
+            for patch in patches:
+                node = update_copy_guidance(skill_state, patch)
+                skill_state.metadata = apply_copy_guidance_to_metadata(metadata, node)
+
+            # 2026-08-20（Q-050）：同步把任务成果写入 light_step_data——
+            # 项目详情主体区（LightProjectSteps）只读该字段，不写则主体区全空。
+            updates: Dict[str, Any] = {"metadata": skill_state.metadata}
+            light_raw = getattr(skill_state, "light_step_data", None)
+            light_data = (
+                json.loads(light_raw) if isinstance(light_raw, str) else (light_raw or {})
+            )
+            if not isinstance(light_data, dict):
+                light_data = {}
+            if passed:
+                entry = f"{task_title or task_id}：完成并验证通过"
+                steps = list(light_data.get("steps") or [])
+                if entry not in steps:
+                    steps.append(entry)
+                light_data["steps"] = steps
+            if all_completed:
+                light_data["result"] = (
+                    light_data.get("result")
+                    or "完成复制项目全部引导任务，已生成成果档案卡"
+                )
+                if task_id == "explain_changes" and not light_data.get("reflection"):
+                    # 学生"说明自己的改动"的口述即反思内容
+                    light_data["reflection"] = claimed or task_title
+            if light_data:
+                updates["light_step_data"] = light_data
+
+            db.update_skill_state(project_id, updates)
+            return {
+                "session_status": node.get("session_status"),
+                "current_task": node.get("current_task"),
+                "all_completed": all_completed,
+            }
+        except CopyGuidanceStateError as exc:
+            import logging as _log
+            _log.getLogger(__name__).warning("[copy_guidance] 状态机更新被跳过（流转非法）: %s", exc)
+            return None
+        except Exception as exc:
+            import logging as _log
+            _log.getLogger(__name__).warning("[copy_guidance] 状态机更新失败（不影响验证）: %s", exc)
+            return None
+
+    @staticmethod
+    def _collect_files(workspace: Dict[str, Any]) -> Dict[str, str]:
+        """把 workspace 的多文件条目/单文件兜底归一化成 {name: content}。"""
+        files: Dict[str, str] = {}
+        raw_files = workspace.get("files") if isinstance(workspace, dict) else None
+        if isinstance(raw_files, list):
+            for entry in raw_files:
+                if not isinstance(entry, dict):
+                    continue
+                name = entry.get("name")
+                if isinstance(name, str) and name.strip():
+                    files[name] = str(entry.get("content") or "")
+        if not files and isinstance(workspace, dict) and workspace.get("code"):
+            filename = workspace.get("filename") or _guess_code_filename(
+                str(workspace.get("language") or "html")
+            )
+            files[filename] = str(workspace.get("code") or "")
+        return files
+
+    @staticmethod
+    def _normalize(text: str) -> str:
+        return "".join((text or "").split())
+
+    @classmethod
+    def _run_check(
+        cls,
+        check: str,
+        current_files: Dict[str, str],
+        demo_files: Dict[str, str],
+        claimed: str,
+    ) -> Dict[str, Any]:
+        if check == "code_changed":
+            return cls._check_code_changed(current_files, demo_files)
+        if check == "run_success":
+            return cls._check_run_success(current_files)
+        if check == "visible_text_changed":
+            return cls._check_visible_text_changed(current_files, demo_files)
+        if check == "content_keyword":
+            return cls._check_content_keyword(current_files, demo_files, claimed)
+        if check == "card_count":
+            return cls._check_card_count(current_files, demo_files)
+        return {"check": check, "passed": False, "reason": f"未知 check 类型: {check}"}
+
+    @classmethod
+    def _check_code_changed(
+        cls,
+        current_files: Dict[str, str],
+        demo_files: Dict[str, str],
+    ) -> Dict[str, Any]:
+        import hashlib
+
+        if not current_files:
+            return {"check": "code_changed", "passed": False, "reason": "当前工作区为空"}
+
+        def _hash(files: Dict[str, str]) -> str:
+            joined = "\n".join(
+                f"{name}::{cls._normalize(content)}" for name, content in sorted(files.items())
+            )
+            return hashlib.md5(joined.encode("utf-8")).hexdigest()
+
+        current_hash = _hash(current_files)
+        demo_hash = _hash(demo_files) if demo_files else ""
+        changed = bool(demo_files) and current_hash != demo_hash
+        detail: Dict[str, Any] = {
+            "check": "code_changed",
+            "passed": changed,
+            "current_hash": current_hash,
+            "demo_hash": demo_hash,
+        }
+        if not changed:
+            detail["reason"] = "代码与原始 Demo 完全一致，没有检测到改动"
+        return detail
+
+    @classmethod
+    def _check_run_success(cls, current_files: Dict[str, str]) -> Dict[str, Any]:
+        """
+        HTML 项目走结构完整性检查（标签配对/括号配对）；
+        py/js 只做静态结构检查，真实执行由外层 AI 决定是否调用 code_runner。
+        """
+        if not current_files:
+            return {"check": "run_success", "passed": False, "reason": "当前工作区为空"}
+
+        # 优先检查 HTML 入口
+        html_names = [n for n in current_files if n.lower().endswith((".html", ".htm"))]
+        js_names = [n for n in current_files if n.lower().endswith((".js", ".mjs", ".cjs"))]
+
+        if html_names:
+            for name in html_names:
+                content = current_files[name] or ""
+                if not cls._html_structure_ok(content):
+                    return {
+                        "check": "run_success",
+                        "passed": False,
+                        "reason": f"{name} 结构不完整（标签或括号未配对）",
+                        "note": "html 结构检查失败",
+                    }
+        if js_names:
+            for name in js_names:
+                content = current_files[name] or ""
+                if not cls._brace_balanced(content):
+                    return {
+                        "check": "run_success",
+                        "passed": False,
+                        "reason": f"{name} 括号未配对",
+                        "note": "js 括号检查失败",
+                    }
+
+        return {
+            "check": "run_success",
+            "passed": True,
+            "note": "html 结构完整" if html_names else "js 括号配对",
+        }
+
+    @staticmethod
+    def _html_structure_ok(html: str) -> bool:
+        lowered = html.lower()
+        if "<html" in lowered and "</html>" not in lowered:
+            return False
+        if "<body" in lowered and "</body>" not in lowered:
+            return False
+        if "<script" in lowered and "</script>" not in lowered:
+            return False
+        # 括号配对（粗粒度）
+        return CopyGuidanceVerifierTool._brace_balanced(html)
+
+    @staticmethod
+    def _brace_balanced(text: str) -> bool:
+        pairs = {"(": ")", "[": "]", "{": "}"}
+        opens = set(pairs.keys())
+        closes = {v: k for k, v in pairs.items()}
+        stack: List[str] = []
+        in_string: Optional[str] = None
+        i = 0
+        while i < len(text):
+            ch = text[i]
+            if in_string:
+                if ch == "\\":
+                    i += 2
+                    continue
+                if ch == in_string:
+                    in_string = None
+            else:
+                if ch in ("'", '"', "`"):
+                    in_string = ch
+                elif ch in opens:
+                    stack.append(ch)
+                elif ch in closes:
+                    if not stack or stack[-1] != closes[ch]:
+                        return False
+                    stack.pop()
+            i += 1
+        return not stack
+
+    @staticmethod
+    def _extract_heading_texts(files: Dict[str, str]) -> Dict[str, List[str]]:
+        """提取 HTML 的 <title> 与 h1-h3 标题文本（归一化、按出现顺序）。"""
+        import re
+
+        texts: Dict[str, List[str]] = {}
+        for name, content in files.items():
+            if not name.lower().endswith((".html", ".htm")):
+                continue
+            for tag in ("title", "h1", "h2", "h3"):
+                values = [
+                    CopyGuidanceVerifierTool._normalize(re.sub(r"<[^>]+>", "", m.group(2)))
+                    for m in re.finditer(
+                        rf"<({tag})[^>]*>(.*?)</\1>", content, re.S | re.I
+                    )
+                ]
+                values = [v for v in values if v]
+                if values:
+                    texts[f"{name}#{tag}"] = values
+        return texts
+
+    @classmethod
+    def _check_visible_text_changed(
+        cls,
+        current_files: Dict[str, str],
+        demo_files: Dict[str, str],
+    ) -> Dict[str, Any]:
+        """
+        2026-08-18 新增：页面可见标题文本是否与 Demo 原文不同。
+
+        背景（线上实测，项目 b9e0f446）：学生把标题改成"词频分析器-my"（自己的
+        个性化），AI 却要求必须改成项目名"UP主视频内容分析器"，content_keyword
+        永远不过，学生陷入无限重改。个性化任务的正确验收是"与 Demo 原文不同"，
+        任何学生自己的内容（包括 -my 这类后缀）都应通过。
+        """
+        cur = cls._extract_heading_texts(current_files)
+        demo = cls._extract_heading_texts(demo_files)
+        if not demo:
+            # Demo 无可提取标题：只要有当前文件即视为可继续（退化由 code_changed 把关）
+            return {
+                "check": "visible_text_changed",
+                "passed": bool(cur),
+                **({} if cur else {"reason": "当前工作区为空"}),
+            }
+        changed: List[str] = []
+        unchanged: List[str] = []
+        for key, demo_values in demo.items():
+            if cur.get(key) != demo_values:
+                changed.append(key)
+            else:
+                unchanged.append(key)
+        passed = bool(changed)
+        detail: Dict[str, Any] = {
+            "check": "visible_text_changed",
+            "passed": passed,
+            "changed": changed,
+            "unchanged": unchanged,
+        }
+        if not passed:
+            detail["reason"] = (
+                "页面标题等可见文本与 Demo 原文完全一致，没有检测到你的个性化内容"
+            )
+        return detail
+
+    @classmethod
+    def _check_content_keyword(
+        cls,
+        current_files: Dict[str, str],
+        demo_files: Dict[str, str],
+        claimed: str,
+    ) -> Dict[str, Any]:
+        keywords = [kw.strip() for kw in cls._split_keywords(claimed) if kw.strip()]
+        if not keywords:
+            return {
+                "check": "content_keyword",
+                "passed": False,
+                "reason": "学生未描述具体改动的关键词",
+                "keywords": [],
+                "matched": [],
+            }
+        combined = "\n".join(current_files.values())
+        demo_combined = "\n".join(demo_files.values()) if demo_files else ""
+        matched: List[str] = []
+        for kw in keywords:
+            if kw in combined and (not demo_combined or kw not in demo_combined):
+                matched.append(kw)
+        passed = bool(matched)
+        detail: Dict[str, Any] = {
+            "check": "content_keyword",
+            "passed": passed,
+            "matched": matched,
+            "keywords": keywords,
+        }
+        if not passed:
+            detail["reason"] = "未在当前代码中命中学生描述的新内容关键词"
+        return detail
+
+    @staticmethod
+    def _split_keywords(claimed: str) -> List[str]:
+        if not claimed:
+            return []
+        # 支持逗号/顿号/空格/中英文标点分隔
+        import re
+        parts = re.split(r"[\s,，、;；]+", claimed)
+        # 中文单字过于宽松、纯符号无意义：中文≥1字、英文/数字≥2字符
+        cleaned: List[str] = []
+        for raw in parts:
+            token = raw.strip()
+            if not token:
+                continue
+            # 全 ASCII 时要求长度≥2，避免命中 'a'/'1' 等噪声
+            if all(ord(c) < 128 for c in token):
+                if len(token) >= 2:
+                    cleaned.append(token)
+            else:
+                # 含中文/CJK：长度≥1 即可（"杜"/"甫" 常见）
+                cleaned.append(token)
+        return cleaned
+
+    @classmethod
+    def _check_card_count(
+        cls,
+        current_files: Dict[str, str],
+        demo_files: Dict[str, str],
+    ) -> Dict[str, Any]:
+        import re
+
+        def _count(files: Dict[str, str]) -> int:
+            combined = "\n".join(files.values()) if files else ""
+            # 粗粒度统计：优先数组条目（{...},），退化到 <li>/<div class="card"/li>
+            obj_matches = re.findall(r"\{[^{}]*\}", combined)
+            candidates: List[int] = []
+            if obj_matches:
+                candidates.append(len(obj_matches))
+            # 兼容 JSX/map 场景：<Card ... /> / <Card>...</Card>
+            jsx_card = len(re.findall(r"<[A-Z][A-Za-z0-9_]*Card\b", combined))
+            if jsx_card:
+                candidates.append(jsx_card)
+            # 兼容数组字符串字面量：['甲','乙','丙']
+            str_arr = re.findall(r"\[[^\[\]\n]{0,400}?\]", combined)
+            for arr in str_arr:
+                items = re.findall(r"['\"][^'\"]+['\"]", arr)
+                if len(items) >= 2:
+                    candidates.append(len(items))
+                    break
+            li_count = len(re.findall(r"<li[\s>]", combined, flags=re.IGNORECASE))
+            card_count = len(re.findall(r"class=[\"'][^\"']*card", combined, flags=re.IGNORECASE))
+            if li_count:
+                candidates.append(li_count)
+            if card_count:
+                candidates.append(card_count)
+            return max(candidates) if candidates else 0
+
+        current = _count(current_files)
+        demo = _count(demo_files) if demo_files else 0
+        passed = current > demo
+        detail: Dict[str, Any] = {
+            "check": "card_count",
+            "passed": passed,
+            "current_count": current,
+            "demo_count": demo,
+        }
+        if not passed:
+            detail["reason"] = f"当前卡片/条目数量（{current}）未超过 Demo 初始（{demo}）"
+        return detail
+
+    @staticmethod
+    async def _save_verification_evidence(
+        project: Any,
+        task: Dict[str, Any],
+        claimed: str,
+        checks_detail: List[Dict[str, Any]],
+    ) -> bool:
+        from app.schemas.evidence import Evidence
+        try:
+            title = f"复制项目任务完成：{task.get('title') or task.get('id')}"
+            payload = {
+                "task_id": task.get("id"),
+                "task_title": task.get("title"),
+                "knowledge_point": task.get("knowledge_point"),
+                "claimed_changes": claimed,
+                "checks_detail": checks_detail,
+            }
+            evidence = Evidence(
+                id=str(uuid.uuid4()),
+                project_id=getattr(project, "id", ""),
+                author_id=getattr(project, "author_id", ""),
+                type="auto_ai_summary",
+                title=title,
+                content=json.dumps(payload, ensure_ascii=False, indent=2),
+                related_step=getattr(project, "current_stage", ""),
+                created_at=utc_now(),
+                updated_at=utc_now(),
+            )
+            db.create_evidence(evidence)
+            return True
+        except Exception:
+            return False
+
+
 TOOL_REGISTRY: Dict[str, BaseTool] = {
     "skill_state_reader": SkillStateReaderTool(),
     "ask_question": AskQuestionTool(),
@@ -1700,6 +2370,7 @@ TOOL_REGISTRY: Dict[str, BaseTool] = {
     "project_memory_store": ProjectMemoryStoreTool(),
     "project_memory_recall": ProjectMemoryRecallTool(),
     "sop_state_sync": SopStateSyncTool(),
+    "copy_guidance_verifier": CopyGuidanceVerifierTool(),
 }
 
 

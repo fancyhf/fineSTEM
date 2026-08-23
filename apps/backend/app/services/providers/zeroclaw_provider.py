@@ -10,6 +10,11 @@ import json
 from typing import Any, AsyncGenerator, Dict, List, Optional
 import httpx
 
+from app.services.copy_guidance_scene import (
+    COPY_PROJECT_GUIDANCE_PROMPT,
+    COPY_PROJECT_GUIDANCE_SCENE_KEY,
+)
+
 
 STEM_SYSTEM_PROMPT = """你是 fineSTEM 助教，一位专业的青少年 STEM 研学指导老师。
 
@@ -128,6 +133,8 @@ SCENE_SYSTEM_PROMPTS = {
 - stage_04-05: 帮助选择技术轨道，设计方案
 - stage_06-07: 帮助制定计划，编写代码
 - stage_08: 帮助总结成果，准备展示""",
+
+    COPY_PROJECT_GUIDANCE_SCENE_KEY: STEM_SYSTEM_PROMPT + "\n\n" + COPY_PROJECT_GUIDANCE_PROMPT,
 }
 
 

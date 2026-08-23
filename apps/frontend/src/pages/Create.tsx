@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { MessageSquare, Code, Rocket, FileText, ChevronUp, Paperclip, Image as ImageIcon, FolderOpen, Plus, Sparkles, User, Zap, Play, Copy, Check, ArrowRight, BookOpen, PanelLeftClose, PanelLeftOpen, Terminal, Eye, Pencil, MoreHorizontal, Maximize2, PanelLeft, Loader2, X } from 'lucide-react';
+import { MessageSquare, Code, Rocket, FileText, ChevronUp, Paperclip, Image as ImageIcon, FolderOpen, Plus, Sparkles, User, Zap, Play, Copy, Check, ArrowRight, BookOpen, PanelLeftClose, PanelLeftOpen, Terminal, Eye, Pencil, MoreHorizontal, Maximize2, PanelLeft, Loader2, X, Save, Wand2 } from 'lucide-react';
 import { ContinueButton } from '../components/ContinueButton';
 import { Card } from '../components/ui/Card';
 import { CodeGeneratedEvent, useStreamingChat, abortActiveStream, isAbortError } from '../hooks/useStreamingChat';
@@ -15,8 +15,16 @@ import { ProjectFilesPanel } from '../components/ProjectFilesPanel';
 import { QuestionCard, QuestionData } from '../components/QuestionCard';
 import { useAuth } from '../contexts/AuthContext';
 import { projectsApi, codeExecutionApi, authStorage, chatApi } from '../services/api';
-import { ProjectWorkspaceResponse, FileEntry } from '../types';
+import { ProjectWorkspaceResponse, FileEntry, CopyGuidanceNode } from '../types';
 import { streamLogger } from '../lib/streamLogger';
+import {
+  shouldShowCopyGuidanceIntro,
+  shouldShowCopyGuidanceShortcut,
+  getCopyGuidanceShortcutLabel,
+  resolveCopyGuidanceShortcutAction,
+  buildCopyGuidanceTrigger,
+} from '../lib/copyGuidance';
+import { formatCode } from '../lib/codeFormat';
 
 interface Message {
   id: string;
@@ -339,27 +347,89 @@ const CODEX_SUGGESTIONS: Array<{ text: string; scene: string }> = [
 ];
 
 /**
+ * 2026-08-18 修复：流式收尾时选择最终正文。
+ *
+ * 背景（线上实测，项目 b9e0f446 的"任务 3 布置消失"）：模型常见输出顺序是
+ * "正文（布置任务/讲解）→ 调 ask_question 等工具 → 再写一句短收尾"。服务端
+ * final/content_update 往往只带**最后一段**（"卡片已经发出去啦…"），原逻辑直接
+ * 采用 final，导致工具前的实质内容在流结束瞬间被整段丢弃——学生看着任务布置
+ * 写出来，然后眼睁睁消失。
+ *
+ * 策略：本地全程累积（rawAssistantContent）同样经过 clean（DSML/UUID 清洗）。
+ * 若服务器 final 只是本地版本的尾段（归一化空白后可 containment 判定），说明
+ * 内容同源、本地更完整 → 用本地版；两者分叉（服务端确实重写/清理过）→ 仍以
+ * 服务端为准，保留原有防脏片段语义。
+ */
+export function resolveFinalAssistantContent(
+  finalCleaned: string,
+  localCleaned: string,
+  maxVisible: string,
+): string {
+  const norm = (s: string) => (s || '').replace(/\s+/g, '');
+  const nFinal = norm(finalCleaned);
+  const nLocal = norm(localCleaned);
+  if (finalCleaned && localCleaned && nLocal.includes(nFinal) && nLocal.length > nFinal.length) {
+    return localCleaned;
+  }
+  return finalCleaned || maxVisible;
+}
+
+/**
  * 2026-07-31 Q-038：从思考链中抢救正文。
  * 现象：随意问模式下 AI 把对问题的实际回答写在 thinking 帧里，正文只输出一句
  * “点一张卡片告诉我你的想法吧”+选项卡 → 学生看不到答案（用户实测截图）。
- * 提示词层已注入输出可见性规则（治本），此函数是前端最后防线（兜底）：
- * 当正文极短（<40 字）而思考文本较长（>120 字）时，过滤思考文本中的元叙述行
- * （“我应该/让我/调用工具”等），把剩余实质内容提升为正文。返回 null 表示无需兜底。
+ * 提示词层已注入输出可见性规则（治本），此函数是前端最后防线（兜底）。
+ *
+ * 2026-08-16 v2：新增“回复计划”提取。线上实测（项目 b9e0f446，验证回复）发现
+ * 第二种形态：正文有 100+ 字的泛泛提示（通过旧阈值 40 字，兜底不触发），但真正的
+ * 结论（“验证未通过，因为 <h1> 还是词频分析器…”）写在 thinking 尾部的
+ * “我的回复应该是：1. … 2. …”计划里 → 学生永远看不到验证结果。
+ * v2 在正文 <400 字且思考 >1500 字时，从思考尾部提取“回复计划”段提升为正文开头。
  */
-function salvageAnswerFromThinking(content: string, thinking: string): string | null {
+export function salvageAnswerFromThinking(content: string, thinking: string): string | null {
   const trimmedContent = (content || '').trim();
   const trimmedThinking = (thinking || '').trim();
-  if (trimmedContent.length >= 40) return null;
-  if (trimmedThinking.length <= 120) return null;
+  if (!trimmedThinking) return null;
   // 过滤元叙述行：AI 的自我规划、工具调用打算等不适合展示给学生
   const META_LINE = /(我应该|我需要|让我|我先|我要|接下来我|调用|工具|ask_question|project_creator|skill_state|首先分析|用户(想|问|说)|学生的意图|我来判断|规划一下)/;
-  const kept = trimmedThinking
-    .split(/\n+/)
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0 && !META_LINE.test(line));
-  const salvaged = kept.join('\n\n').trim();
-  if (salvaged.length < 60) return null; // 过滤后剩太少，宁可不兜底
-  return trimmedContent ? `${salvaged}\n\n${trimmedContent}` : salvaged;
+
+  // 形态一（Q-038 原始）：正文极短（<40 字）而思考较长（>120 字）
+  if (trimmedContent.length < 40 && trimmedThinking.length > 120) {
+    const kept = trimmedThinking
+      .split(/\n+/)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0 && !META_LINE.test(line));
+    const salvaged = kept.join('\n\n').trim();
+    if (salvaged.length >= 60) { // 过滤后剩太少，宁可不兜底
+      return trimmedContent ? `${salvaged}\n\n${trimmedContent}` : salvaged;
+    }
+    return null;
+  }
+
+  // 形态二（2026-08-16 v2，2026-08-18 扩充标记词）：正文是泛泛引导语，真正结论在
+  // 思考尾部的回复计划里。保守触发：正文 <400 字、思考 >1500 字、且思考尾部 2500
+  // 字内有明确的计划标记（线上实测过的标记：我的回复应该是/讲解内容规划/我决定：）。
+  if (trimmedContent.length < 400 && trimmedThinking.length > 1500) {
+    const tail = trimmedThinking.slice(-2500);
+    const planMarker = tail.match(
+      /(我的回复应该|回复应该是|回复内容应该|现在组织回复|组织回复|最终回复[:：]|讲解内容规划|我决定[:：]|让我写正文)/,
+    );
+    if (planMarker && planMarker.index !== undefined) {
+      const planText = tail.slice(planMarker.index);
+      // 截到 800 字，避免把整段思考搬进正文
+      const bounded = planText.slice(0, 800);
+      const kept = bounded
+        .split(/\n+/)
+        .map((line) => line.replace(/^[-*•]\s*/, '').trim())
+        .filter((line) => line.length > 0 && !META_LINE.test(line));
+      const salvaged = kept.join('\n').trim();
+      if (salvaged.length >= 60 && salvaged !== trimmedContent) {
+        // 结论放最前，原有正文（如有具体指引）保留在后
+        return `${salvaged}\n\n${trimmedContent}`.trim();
+      }
+    }
+  }
+  return null;
 }
 
 const TEACHING_MODES: Array<{
@@ -958,6 +1028,9 @@ export function Create() {
   const [projectContext, setProjectContext] = useState<ProjectContext>({
     projectId: null, projectName: '', mode: null, currentStage: '', stageProgress: 0, evidenceCount: 0, teachingMode: 'guided',
   });
+  // MVP2 P0-04：复制项目任务引导本地状态（源为 workspace.progress.copy_guidance）
+  const [copyGuidance, setCopyGuidance] = useState<CopyGuidanceNode | null>(null);
+  const [copyGuidanceFromDemoId, setCopyGuidanceFromDemoId] = useState<string | null>(null);
   const [userProjects, setUserProjects] = useState<Array<{id: string; name: string; mode: string; current_stage?: string; created_at?: string}>>([]);
 
   const [editorCode, setEditorCode] = useState(DEFAULT_CODE);
@@ -1019,6 +1092,10 @@ const [runResultBlobUrl, setRunResultBlobUrl] = useState<string | null>(null); /
   const projectCreatingRef = useRef(false);
   const codeSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const chatSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 2026-08-16：代码保存状态（修复"手工改代码看不到保存入口/不知是否已保存"）。
+  // 手工编辑本就有 2s 防抖自动保存，问题是零反馈——工具栏展示 保存中/已保存/失败。
+  const [codeSaveStatus, setCodeSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [codeSavedAt, setCodeSavedAt] = useState<Date | null>(null);
   const prevProjectIdRef = useRef<string | null>(null);
   const restoreAutosaveGuardRef = useRef<{
     projectId: string | null;
@@ -1180,6 +1257,9 @@ const [runResultBlobUrl, setRunResultBlobUrl] = useState<string | null>(null); /
     // Q-017 记忆持久化：从后端恢复学生画像，刷新后 AI 不再失忆重复问。
     // progress.student_profile 是 {问题标题: [选中标签]} 结构，直接回填内存 ref。
     studentProfileRef.current = new Map(Object.entries(progress.student_profile || {}));
+    // MVP2 P0-04：复制项目任务引导状态回填（自建项目为 null）
+    setCopyGuidance(progress.copy_guidance ?? null);
+    setCopyGuidanceFromDemoId(project.from_demo_id ?? null);
     // 优化代码展示逻辑：有代码则展示，无代码则保留默认提示
     const rawCode = workspace.code || '';
     const trimmedCode = rawCode.trim();
@@ -1547,14 +1627,36 @@ const [runResultBlobUrl, setRunResultBlobUrl] = useState<string | null>(null); /
   useEffect(() => { if (messagesEndRef.current) messagesEndRef.current.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
   useEffect(() => { if (textareaRef.current) { textareaRef.current.style.height = 'auto'; textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 200) + 'px'; } }, [inputValue]);
 
+  // 2026-08-16：手动保存（工具栏按钮 + Ctrl/Cmd+S）。与自动保存共用同一接口；
+  // 会取消待执行的防抖定时器，避免重复请求。本地临时项目（local-）不保存。
+  const saveCodeNow = useCallback(async () => {
+    const pid = projectContext.projectId;
+    if (!pid || pid.startsWith('local-')) return;
+    if (codeSaveTimerRef.current) clearTimeout(codeSaveTimerRef.current);
+    setCodeSaveStatus('saving');
+    try {
+      await projectsApi.saveCode(pid, buildWorkspaceSavePayload(editorCode, editorLanguage, activeFileName));
+      setCodeSaveStatus('saved');
+      setCodeSavedAt(new Date());
+    } catch (error) {
+      console.error('[save:code] 手动保存失败:', error);
+      setCodeSaveStatus('error');
+    }
+  }, [projectContext.projectId, buildWorkspaceSavePayload, editorCode, editorLanguage, activeFileName]);
+
   useEffect(() => {
     if (!projectContext.projectId) return;
     const projectId = projectContext.projectId;
     if (consumeRestoreAutosaveGuard('code', projectId)) return;
     if (codeSaveTimerRef.current) clearTimeout(codeSaveTimerRef.current);
     codeSaveTimerRef.current = setTimeout(() => {
-      projectsApi.saveCode(projectId, buildWorkspaceSavePayload(editorCode, editorLanguage, activeFileName)).catch((error) => {
+      setCodeSaveStatus('saving');
+      projectsApi.saveCode(projectId, buildWorkspaceSavePayload(editorCode, editorLanguage, activeFileName)).then(() => {
+        setCodeSaveStatus('saved');
+        setCodeSavedAt(new Date());
+      }).catch((error) => {
         console.error('[autosave:code] 保存失败:', error);
+        setCodeSaveStatus('error');
       });
     }, 2000);
     return () => { if (codeSaveTimerRef.current) clearTimeout(codeSaveTimerRef.current); };
@@ -2470,6 +2572,59 @@ const handleWriteCodeToEditor = useCallback((code: string, language: string) => 
     }
   }, [projectContext.projectId]);
 
+  // MVP2 P0-04：更新复制项目任务引导状态（intro_status）
+  const handleCopyGuidanceIntroChange = useCallback(
+    async (nextStatus: 'started' | 'dismissed') => {
+      const pid = projectContext.projectId;
+      if (!pid || pid.startsWith('local-')) return;
+      try {
+        const resp = await projectsApi.updateCopyGuidance(pid, { intro_status: nextStatus });
+        setCopyGuidance(resp.data?.copy_guidance ?? null);
+        // 学生点“开始任务引导”（09 文档 AC-06）：标记 started 后必须发一条
+        // copy_project_guidance 场景消息，AI 才会先读 Skill 状态和真实代码、
+        // 再给出第一项任务。只切 activeScene 不发消息，界面会停在空聊天框
+        // （2026-08-16 线上问题，触发内容由 buildCopyGuidanceTrigger 锁定）。
+        if (nextStatus === 'started') {
+          const trigger = buildCopyGuidanceTrigger('start');
+          setActiveScene(trigger.scene);
+          handleSendRef.current?.(trigger.message, trigger.scene, {
+            displayContent: trigger.displayContent,
+          });
+        }
+      } catch (error) {
+        // 状态更新失败时保持当前状态，不重复弹窗（09 文档 7.2 约束）
+        // eslint-disable-next-line no-console
+        console.warn('[copy_guidance] intro_status 更新失败', error);
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: nextMessageId(),
+            role: 'assistant',
+            content: `任务引导启动失败：${error instanceof Error ? error.message : '网络异常'}。请稍后再点一次“开始任务引导”。`,
+          },
+        ]);
+        setShowChatHistory(true);
+      }
+    },
+    [projectContext.projectId],
+  );
+
+  // MVP2 P0-04：快捷区"任务引导"按钮点击。决策交给纯函数便于测试。
+  const handleCopyGuidanceShortcut = useCallback(() => {
+    const action = resolveCopyGuidanceShortcutAction(copyGuidance);
+    if (action.kind === 'start_and_switch_scene') {
+      void handleCopyGuidanceIntroChange('started');
+    } else if (action.kind === 'switch_scene_only') {
+      // 已 started 后的再次进入（09 文档 AC-12）：同样要发一条场景消息让 AI
+      // 续上当前任务，否则和首次点击一样停在空聊天框（接线守卫测试锁定）。
+      const trigger = buildCopyGuidanceTrigger('continue');
+      setActiveScene(trigger.scene);
+      handleSendRef.current?.(trigger.message, trigger.scene, {
+        displayContent: trigger.displayContent,
+      });
+    }
+  }, [copyGuidance, handleCopyGuidanceIntroChange]);
+
 const handleSend = async (
       text?: string,
       sceneOverride?: string,
@@ -3059,7 +3214,13 @@ let rawAssistantContent = '';
         lastSessionIdRef.current = streamResult.sessionId;
       }
       const finalCleaned = cleanAssistantMessageContent(rawFinal);
-      assistantContent = finalCleaned || maxVisibleContent;
+      // 2026-08-18：多段回复（正文→工具→正文）时服务端 final 只含末段，
+      // 由 resolveFinalAssistantContent 判定是否恢复本地完整版本。
+      assistantContent = resolveFinalAssistantContent(
+        finalCleaned,
+        cleanAssistantMessageContent(rawAssistantContent || ''),
+        maxVisibleContent,
+      );
       if (receivedContentUpdate && assistantContent.length === 0 && maxVisibleContent.length > 0) {
         console.warn('[handleSend] 最终内容为空但存在历史可见内容，恢复历史内容');
         assistantContent = maxVisibleContent;
@@ -3068,12 +3229,26 @@ let rawAssistantContent = '';
       // 引导语时（用户实测截图），过滤元叙述后把思考内容提升为正文。提示词层已治本，
       // 这里是前端最后防线。
       {
+        // 2026-08-18 修复：thinkingAccum 是"本次 handleSend 调用"的局部累积，
+        // 自动续接后只含最后一次尝试的 thinking（消息里的 thinking 却跨尝试累积）。
+        // 线上实测（项目 b9e0f446，msg"讲讲 placeholder"）：正文 39 字、消息 thinking
+        // 2757 字，salvage 却因 thinkingAccum 过短没触发。这里取两者较大值。
+        const lastMsgForSalvage = messagesRef.current[messagesRef.current.length - 1];
+        const thinkingTotal = (
+          lastMsgForSalvage?.role === 'assistant' ? (lastMsgForSalvage.thinking || '') : ''
+        ) || thinkingAccum;
+        if (thinkingTotal.length > thinkingAccum.length) thinkingAccum = thinkingTotal;
         const salvaged = salvageAnswerFromThinking(assistantContent, thinkingAccum);
         if (salvaged) {
           console.info('[handleSend] Q-038 salvage：正文过短而思考区有实质内容，提升为正文', {
             contentLen: assistantContent.length, thinkingLen: thinkingAccum.length,
           });
           assistantContent = salvaged;
+          // 同步底层累积变量：防止 salvage 之后才触发的 rAF flush 用旧 raw 内容覆盖回短正文
+          rawAssistantContent = salvaged;
+          if (assistantContent.length > maxVisibleContent.length) {
+            maxVisibleContent = assistantContent;
+          }
         }
       }
       setMessages(prev => {
@@ -3265,7 +3440,10 @@ let rawAssistantContent = '';
           ...prev,
           projectId: finalProjectId || prev.projectId,
           projectName: finalProjectName || prev.projectName,
-          mode: 'standard',
+          // 2026-08-20（Q-049）修复：这里曾硬编码 mode: 'standard'，导致 light 项目
+          // （复制引导/轻项目）每收完一条 AI 回复，顶部阶段条就从 3 步翻成 9 阶段。
+          // 规则：同一项目保留现有 mode；项目是新创建的（WS/关键词兜底建的均为 standard）才用 standard。
+          mode: prev.projectId === finalProjectId && prev.mode ? prev.mode : 'standard',
           currentStage: finalStage,
         }));
         // 2026-07-28 Q-022 修复：AI 在脑爆/简报阶段确定的项目名只存在 PBL 数据里，
@@ -3281,9 +3459,19 @@ let rawAssistantContent = '';
             const wsProject = wsRes.data?.project;
             const confirmedName = wsProject?.name?.trim();
             const recentlyRenamed = Date.now() - manualRenameAtRef.current < 5000;
-            if (confirmedName && !recentlyRenamed && confirmedName !== projectContext.projectName) {
-              setProjectContext(prev => (prev.projectName === confirmedName ? prev : { ...prev, projectName: confirmedName }));
-            }
+            // 2026-08-20（Q-049）：服务端权威回读——mode 和 current_stage 一并同步。
+            // 收官链路中 AI 调 stage_advancer 推进后，阶段条无需刷新页面即可更新。
+            const wsMode = wsProject?.mode;
+            const wsStage = wsRes.data?.progress?.current_stage;
+            setProjectContext(prev => {
+              const next = { ...prev };
+              if (confirmedName && !recentlyRenamed && confirmedName !== prev.projectName) {
+                next.projectName = confirmedName;
+              }
+              if (wsMode === 'light' || wsMode === 'standard') next.mode = wsMode;
+              if (wsStage && wsStage !== prev.currentStage) next.currentStage = wsStage;
+              return next;
+            });
             // 刷新侧边栏列表，让项目区显示同步后的新名字
             loadUserProjects();
           }).catch((e) => console.warn('[handleSend] Q-022 项目名同步刷新失败:', e));
@@ -3829,6 +4017,19 @@ let rawAssistantContent = '';
             <button onClick={handleAdvanceStage} className="w-full flex items-center px-2.5 py-1.5 rounded-lg text-left text-xs text-gray-600 hover:bg-gray-50 transition-colors">
               <ArrowRight className="w-3 h-3 mr-1.5 text-gray-400" /> 推进下一阶段
             </button>
+            {shouldShowCopyGuidanceShortcut(
+              { from_demo_id: copyGuidanceFromDemoId || undefined },
+              { copy_guidance: copyGuidance },
+            ) && (
+              <button
+                onClick={handleCopyGuidanceShortcut}
+                title={getCopyGuidanceShortcutLabel(copyGuidance)}
+                className="w-full flex items-center px-2.5 py-1.5 rounded-lg text-left text-xs text-teal-700 bg-teal-50 hover:bg-teal-100 transition-colors"
+              >
+                <BookOpen className="w-3 h-3 mr-1.5 text-teal-500" />
+                {getCopyGuidanceShortcutLabel(copyGuidance)}
+              </button>
+            )}
           </div>
         </Card>
       </div>
@@ -3853,6 +4054,35 @@ let rawAssistantContent = '';
             </div>
           )}
           {projectContext.mode && showChatHistory && <StageProgressBar projectContext={projectContext} />}
+
+          {/* MVP2 P0-04：复制项目首次提醒。不自动调聊天接口，只更新 intro_status */}
+          {shouldShowCopyGuidanceIntro(
+            { from_demo_id: copyGuidanceFromDemoId || undefined },
+            { copy_guidance: copyGuidance },
+          ) && (
+            <div className="mx-3 mt-3 p-3 rounded-lg border border-teal-200 bg-teal-50 text-xs">
+              <div className="font-semibold text-teal-800 mb-1">这是一个从 Demo 复制来的项目</div>
+              <div className="text-teal-700 leading-relaxed mb-2">
+                我可以按顺序带你完成 5 个个性化改造任务，每次只做一小步，全部完成后你就掌握了这个 Demo 的核心思路。
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => void handleCopyGuidanceIntroChange('started')}
+                  className="px-2.5 py-1 rounded-md bg-teal-600 text-white text-[11px] font-medium hover:bg-teal-700 transition-colors"
+                >
+                  开始任务引导
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleCopyGuidanceIntroChange('dismissed')}
+                  className="px-2.5 py-1 rounded-md border border-teal-300 text-teal-700 text-[11px] hover:bg-teal-100 transition-colors"
+                >
+                  先自己看看
+                </button>
+              </div>
+            </div>
+          )}
 
           {showChatHistory ? (
             <div className="flex-1 overflow-y-auto">
@@ -4161,6 +4391,50 @@ let rawAssistantContent = '';
                   <option value="html">HTML</option>
                   <option value="css">CSS</option>
                 </select>
+                {/* 2026-08-16：格式化（HTML/JS/CSS）。修复 Demo 压缩成单行无法阅读的问题 */}
+                {editorLanguage !== 'python' && (
+                  <button
+                    data-testid="format-code"
+                    onClick={() => {
+                      const formatted = formatCode(editorCode, editorLanguage);
+                      if (formatted !== editorCode) setEditorCode(formatted);
+                    }}
+                    className="flex items-center gap-1 px-2 py-1 border border-gray-300 hover:bg-gray-50 text-gray-600 rounded text-xs font-medium transition-colors"
+                    title="整理代码排版（缩进换行）"
+                  >
+                    <Wand2 className="w-3 h-3" /> 格式化
+                  </button>
+                )}
+                {/* 2026-08-16：显式保存入口 + 状态反馈。手工编辑本就自动保存（2 秒防抖），
+                    但此前零反馈，学生不知道改动已保存。Ctrl/Cmd+S 同效。 */}
+                {(() => {
+                  const canSave = !!projectContext.projectId && !projectContext.projectId.startsWith('local-');
+                  return (
+                    <>
+                      <button
+                        data-testid="save-code"
+                        onClick={() => void saveCodeNow()}
+                        disabled={!canSave || codeSaveStatus === 'saving'}
+                        className="flex items-center gap-1 px-2 py-1 bg-gray-700 hover:bg-gray-800 disabled:bg-gray-300 text-white rounded text-xs font-medium transition-colors"
+                        title={canSave ? '保存到项目（Ctrl+S）。平时改动也会自动保存' : '登录并在项目中编辑时自动保存'}
+                      >
+                        {codeSaveStatus === 'saving' ? (
+                          <><span className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin inline-block" /> 保存中</>
+                        ) : (
+                          <><Save className="w-3 h-3" /> 保存</>
+                        )}
+                      </button>
+                      {canSave && codeSaveStatus === 'saved' && codeSavedAt && (
+                        <span className="text-[10px] text-green-600 hidden sm:inline" data-testid="save-status">
+                          已保存 {codeSavedAt.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      )}
+                      {canSave && codeSaveStatus === 'error' && (
+                        <span className="text-[10px] text-red-500 hidden sm:inline" data-testid="save-status">保存失败，点击重试</span>
+                      )}
+                    </>
+                  );
+                })()}
                 <button onClick={handleRunEditorCode} disabled={runningCode} className="flex items-center gap-1 px-2 py-1 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white rounded text-xs font-medium transition-colors">
                   {runningCode ? (
                     <><span className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin inline-block" /> 运行中</>
@@ -4203,7 +4477,7 @@ let rawAssistantContent = '';
             {/* 内容区 - flex-1 填满剩余空间 */}
             <div className={`flex-1 min-h-0 ${editorTab === 'code' ? 'bg-[#1e1e1e]' : 'bg-white'} rounded-b-xl border-x border-b border-gray-200 overflow-hidden`}>
               {editorTab === 'code' ? (
-                <CodeEditor code={editorCode} language={editorLanguage} onChange={(v) => setEditorCode(v)} />
+                <CodeEditor code={editorCode} language={editorLanguage} onChange={(v) => setEditorCode(v)} onSaveShortcut={() => void saveCodeNow()} />
               ) : (
                 <CodePreview htmlContent={previewHtml} title="运行结果" onAskAI={(text) => handleSendRef.current?.(text)} />
               )}

@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="UTF-8">
+<title>🕵️ 房价侦探 · 估价柜台（自动版）</title>
+<style>
+  body { font-family: "Microsoft YaHei", sans-serif; background:#0e1117; color:#e6edf3;
+         max-width:760px; margin:0 auto; padding:24px; }
+  h1 { color:#00bcd4; text-align:center; }
+  .card { background:#161b26; border:1px solid #232b3a; border-radius:14px; padding:18px; }
+  .row { margin:10px 0; } .row label { display:flex; justify-content:space-between; font-size:13px; }
+  input[type=range] { width:100%; accent-color:#00bcd4; }
+  .out { background:rgba(0,188,212,.1); border:1px solid #00bcd4; border-radius:14px;
+          text-align:center; padding:22px; margin-top:16px; }
+  .big { font-size:46px; font-weight:900; color:#00bcd4; }
+  .wan { margin-top:4px; }
+</style></head><body>
+<h1>🕵️ 房价侦探 · 估价柜台（自动版）</h1>
+<div class="card">
+        <div class="row"><label>家庭收入(万美元) <b id="v_家庭收入(万美元)">6.0</b></label>
+        <input type="range" id="s_家庭收入(万美元)" min="1.5" max="12" step="0.1" value="6.0" oninput="upd()"></div>
+        <div class="row"><label>房龄(年) <b id="v_房龄(年)">20</b></label>
+        <input type="range" id="s_房龄(年)" min="0" max="52" step="1" value="20" oninput="upd()"></div>
+        <div class="row"><label>每户房间数 <b id="v_每户房间数">5.0</b></label>
+        <input type="range" id="s_每户房间数" min="3" max="8" step="0.1" value="5.0" oninput="upd()"></div>
+        <div class="row"><label>每户卧室数 <b id="v_每户卧室数">1.5</b></label>
+        <input type="range" id="s_每户卧室数" min="0.5" max="3" step="0.1" value="1.5" oninput="upd()"></div>
+        <div class="row"><label>区域人口 <b id="v_区域人口">800</b></label>
+        <input type="range" id="s_区域人口" min="200" max="3000" step="50" value="800" oninput="upd()"></div>
+        <div class="row"><label>每户人数 <b id="v_每户人数">3.0</b></label>
+        <input type="range" id="s_每户人数" min="1.5" max="6" step="0.1" value="3.0" oninput="upd()"></div>
+        <div class="row"><label>纬度 <b id="v_纬度">34.5</b></label>
+        <input type="range" id="s_纬度" min="32.5" max="42" step="0.1" value="34.5" oninput="upd()"></div>
+        <div class="row"><label>经度 <b id="v_经度">-118.3</b></label>
+        <input type="range" id="s_经度" min="-124.3" max="-114.3" step="0.1" value="-118.3" oninput="upd()"></div></div>
+<div class="out">
+  <div>预测房价</div>
+  <div class="big" id="price">--</div>
+  <div>十万美元（1 十万美元 = 10 万元）</div>
+  <div class="wan">≈ <span id="wan">--</span> 万元</div>
+  <div style="font-size:12px;color:#8b98a9;margin-top:8px;">🧠 R² = 0.620 · 模型参数已写入网页，离线可算</div>
+</div>
+<script>
+const C = { "家庭收入(万美元)": 0.19363207769477878,
+  "房龄(年)": -0.007518113245010224,
+  "每户房间数": 0.035149179392838126,
+  "每户卧室数": -0.10063523841002156,
+  "区域人口": 4.149214735233234e-06,
+  "每户人数": -0.05855641255005415,
+  "纬度": -0.0053223869988212585,
+  "经度": -0.017404754241805726 };
+const B = 1.7138779748066062;
+function val(n) { return parseFloat(document.getElementById("s_"+n).value); }
+function upd() {
+  let p = B;
+  for (const n in C) { p += C[n] * val(n); document.getElementById("v_"+n).textContent = document.getElementById("s_"+n).value; }
+  p = Math.max(0, p);
+  document.getElementById("price").textContent = p.toFixed(2);
+  document.getElementById("wan").textContent = (p*10).toFixed(1);
+}
+upd();
+</script></body></html>

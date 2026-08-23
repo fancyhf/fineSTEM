@@ -322,6 +322,15 @@ export const projectsApi = {
   // Q-017 记忆持久化：保存学生画像（年级/兴趣/方向/选题等），刷新后恢复避免 AI 失忆
   saveStudentProfile: (id: string, profile: Record<string, string[]>) =>
     api.post<ProjectProgress>(`/projects/${id}/student-profile`, { profile }),
+  // MVP2 P0-03：复制项目任务引导状态更新（intro_status / session_status / current_task）
+  updateCopyGuidance: (
+    id: string,
+    payload: {
+      intro_status?: 'pending' | 'dismissed' | 'started';
+      session_status?: 'idle' | 'active' | 'waiting_verify' | 'completed';
+      current_task?: Record<string, unknown> | null;
+    },
+  ) => api.post<ProjectProgress>(`/projects/${id}/copy-guidance`, payload),
   delete: (id: string) => api.delete<void>(`/projects/${id}`),
   advanceStage: (id: string) => api.post<ProjectProgress>(`/projects/${id}/advance`, {}),
   // 轻量项目步骤

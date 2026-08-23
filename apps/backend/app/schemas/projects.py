@@ -193,6 +193,12 @@ class LightProjectStep1Data(BaseModel):
     project_name: Optional[str] = None
     one_liner: Optional[str] = None
     core_features: List[str] = Field(default_factory=list)
+    # 2026-08-20（Q-050）：详情主体区表单字段（前端 LightProjectStep1 读写）。
+    # 此前后端只有 project_name/one_liner/core_features，前端读写 topic/goal——
+    # 字段名对不上导致所有 light 项目主体区永远为空。两套字段并存，
+    # 门禁（stage_advancer）按"任一套填齐"判定。
+    topic: Optional[str] = None
+    goal: Optional[str] = None
 
 
 class LightProjectStep2Data(BaseModel):
@@ -201,6 +207,9 @@ class LightProjectStep2Data(BaseModel):
     """
     code_url: Optional[str] = None
     key_screenshots: List[str] = Field(default_factory=list)
+    # 2026-08-20（Q-050）：同上，前端"实现步骤记录"字段；复制引导验证通过的任务
+    # 会自动追加到这里（verifier 同步写入）。
+    steps: List[str] = Field(default_factory=list)
 
 
 class LightProjectStep3Data(BaseModel):
@@ -208,6 +217,9 @@ class LightProjectStep3Data(BaseModel):
     轻项目 Step 3: 展示与反思
     """
     brief_reflection: Optional[str] = None
+    # 2026-08-20（Q-050）：同上，前端"项目成果/反思与收获"字段。
+    result: Optional[str] = None
+    reflection: Optional[str] = None
 
 
 class StandardProjectStepData(BaseModel):
@@ -332,6 +344,12 @@ class ProjectProgress(BaseModel):
         default=None,
         description="已收集的学生画像（选项标题→选中标签），用于 AI 记忆恢复",
     )
+    # MVP2 P0-03：复制项目任务引导状态。仅 from_demo_id 非空的项目会写入此字段，
+    # 自建项目保持 None（前端据此决定是否显示首次提醒与任务引导入口）。
+    copy_guidance: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="复制项目任务引导状态（intro_status/session_status/current_task 等）",
+    )
 
 
 class ProjectWorkspaceData(BaseModel):
@@ -358,6 +376,27 @@ class ProjectTeachingModeUpdate(BaseModel):
     teaching_mode: Literal['guided', 'demo', 'hands_on', 'lecture'] = Field(
         ...,
         description="教学模式：guided/demo/hands_on/lecture",
+    )
+
+
+class CopyGuidanceUpdate(BaseModel):
+    """
+    复制项目任务引导状态更新请求（MVP2 P0-03）。
+
+    允许更新 intro_status / session_status / current_task 的任意子集；
+    未传入的字段保持原值。状态流转由后端校验，非法流转返回 400。
+    """
+    intro_status: Optional[Literal['pending', 'dismissed', 'started']] = Field(
+        default=None,
+        description="首次提醒状态，只允许 pending → dismissed/started（不允许回退）",
+    )
+    session_status: Optional[Literal['idle', 'active', 'waiting_verify', 'completed']] = Field(
+        default=None,
+        description="引导会话状态，按 idle → active → waiting_verify → completed 推进",
+    )
+    current_task: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="当前任务快照，包含 id/title/acceptance_checks 等",
     )
 
 

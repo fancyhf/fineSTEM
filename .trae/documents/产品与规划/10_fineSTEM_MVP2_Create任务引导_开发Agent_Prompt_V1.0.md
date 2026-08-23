@@ -1,12 +1,13 @@
 # fineSTEM MVP2 Create 复制项目任务引导：开发 Agent Prompt
 
-version: v1.1.0
+version: v1.2.0
 created_at: 2026-08-13 00:00:00.000
-updated_at: 2026-08-13 00:00:00.000
+updated_at: 2026-08-16 00:00:00.000
 maintainer: 产品负责人
 status: 可直接复制给开发 Agent（v1.1 已校正主链路落点）
 
 change_log:
+  - 2026-08-16 00:00:00.000 v1.2 修正 v1.1 的两处语义错误（导致 2026-08-16 线上“点击开始任务引导后无反应”）：①“触发 copy_project_guidance 场景”明确为“调用聊天发送（handleSend）发出首条场景消息”，仅切换场景状态变量不算触发；②测试清单原“点击按钮不自动发 AI 消息”改为“提醒出现时不发送；点击后必须发送”——旧措辞把禁止自动发送的时机错挂到点击上，开发照做即产生该线上问题。新增 AC 回签与真实链路走查要求（对齐 09 文档 §9.4）。
   - 2026-08-13 00:00:00.000 v1.1 与代码现状对齐：场景以 zeroclaw_provider 主链路为准、orchestrator 同步回退；教学模式内嵌进场景 prompt；HTML 完成验证改为确定性结构检查 + AI 复核；补 MCP 工具数与前端降级同步；验证命令改为 Git Bash。
 
 ---
@@ -121,9 +122,10 @@ MVP2 不新建项目实验室页面，也不重做 Create 主界面。只对从 
 
 - 恢复 workspace 后，如果 `project.from_demo_id` 非空且 `progress.copy_guidance.intro_status === 'pending'`，显示首次提醒。
 - 提醒提供两个动作：`开始任务引导`、`先自己看看`。
-- 提醒出现时不得自动调用聊天接口。
-- `开始任务引导` 更新 `intro_status=started`，并触发 `copy_project_guidance` 场景。
-- `先自己看看` 更新 `intro_status=dismissed`。
+- 提醒出现时（学生点击之前）不得自动调用聊天接口——禁止的是未经点击的自动发送。
+- `开始任务引导` 更新 `intro_status=started`，**标记成功后必须调用现有聊天发送（`handleSend`，场景参数 `copy_project_guidance`）发出首条引导消息**，AI 应回复第一项任务和完成条件（09 文档 AC-06）。仅切换 `activeScene` 等本地状态、不发消息是错误实现。触发文案统一由 `apps/frontend/src/lib/copyGuidance.ts` 的 `buildCopyGuidanceTrigger()` 生成，不得在组件里散写。
+- `先自己看看` 更新 `intro_status=dismissed`，不发任何消息。
+- 状态接口失败时保持横幅不重复弹，但必须在聊天区给出可见失败反馈，不允许只打 console 日志。
 - 提醒关闭后，Create 快捷区仍显示“任务引导”入口。
 - 小屏快捷区收起时，使用固定小型图标按钮，并提供 tooltip。
 
@@ -219,7 +221,8 @@ apps/backend/app/services/copy_guidance_tasks.py
 - 复制项目 workspace 包含来源代码。
 - 自建项目不返回 `copy_guidance` 或返回 `None`。
 - 复制项目创建后 `copy_guidance.intro_status == "pending"`。
-- 首次提醒只出现一次；自建项目不渲染提醒；点击按钮不自动发 AI 消息。
+- 首次提醒只出现一次；自建项目不渲染提醒；**提醒渲染时不发消息，点击"开始任务引导"后必须发出一条 `copy_project_guidance` 场景消息**（v1.1 此处写成"点击按钮不自动发 AI 消息"，语义颠倒，勿回退）。
+- 触发内容用 `copyGuidance.test.ts` 锁定 `buildCopyGuidanceTrigger()`；`Create.tsx` 事件接线用 `src/pages/Create.copyGuidanceWiring.test.ts` 源码级守卫锁定（巨型组件暂无组件测试基建）；端到端用 `tests/specs/copy-guidance-intro.spec.ts`（Playwright，断言点击后用户气泡出现，不依赖 daemon）。
 - `copy_project_guidance` 场景：主链路 `SCENE_SYSTEM_PROMPTS` 含新键且回退 `_build_scene_instruction` 含分支，两处文本一致。
 - 完成验证通过/失败路径；HTML 的 `run_success` 走结构检查（不调 code_runner）；`code_changed` 用 hash 对比来源 Demo。
 - 证据保存。
@@ -277,6 +280,12 @@ export STORAGE_BASE_PATH='G:/mediaProjects/fineSTEM/apps/backend/tmp_test/upload
 cd apps/frontend && npm run test
 ```
 
+E2E（需要前端 5184 与后端 3200 都在运行；不依赖 ZeroClaw daemon）：
+
+```bash
+cd apps/frontend/tests && npx playwright test specs/copy-guidance-intro.spec.ts
+```
+
 注意：
 
 - 如果没有 `tmp_test` 目录，测试会创建；不要提交测试临时文件。
@@ -293,6 +302,8 @@ cd apps/frontend && npm run test
 - 后端 API / 状态结构变化。
 - 前端新增交互说明。
 - 测试结果摘要。
+- **AC 回签表（v1.2 起必需）**：对照 09 文档 §9.1 的 AC-01 至 AC-14，逐条给出“AC-XX → 自动化测试名 / 手测记录”。写不出验证方式的 AC 视为未完成，不得声称任务完成；单测全绿不等于验收通过。
+- **真实链路走查记录（v1.2 起必需）**：至少走通 AC-06（注册新号 → 复制 Demo → 点击 → AI 返回一项任务）一遍，注明日期、环境（daemon 是否重启）。无法执行时只能列为风险项，不得标记完成。
 - 未完成项或风险。
 - 没有提交 Git。
 
