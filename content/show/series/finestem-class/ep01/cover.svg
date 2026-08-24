@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" font-family="'Songti SC','STSong','SimSun',serif">
+  <rect width="1280" height="720" fill="#F7F5F1"/>
+  <rect x="36" y="36" width="1208" height="648" fill="none" stroke="#29251F" stroke-width="1.5" stroke-opacity="0.35"/>
+  <!-- 光线（入射） -->
+  <g stroke="#4E6E86" stroke-width="2" stroke-linecap="round" stroke-opacity="0.65">
+    <line x1="240" y1="170" x2="580" y2="428"/>
+    <line x1="340" y1="132" x2="650" y2="398"/>
+    <line x1="440" y1="104" x2="716" y2="372"/>
+  </g>
+  <!-- 凸透镜 -->
+  <ellipse cx="646" cy="430" rx="34" ry="122" fill="none" stroke="#29251F" stroke-width="2.5" stroke-opacity="0.8"/>
+  <!-- 汇聚光线 -->
+  <g stroke="#A8574C" stroke-width="2" stroke-linecap="round" stroke-opacity="0.7">
+    <line x1="684" y1="326" x2="930" y2="468"/>
+    <line x1="688" y1="430" x2="930" y2="470"/>
+    <line x1="684" y1="534" x2="930" y2="474"/>
+  </g>
+  <circle cx="960" cy="471" r="11" fill="#A8574C" fill-opacity="0.85"/>
+  <!-- 卷次方章 -->
+  <rect x="1020" y="128" width="64" height="64" fill="none" stroke="#1E4A66" stroke-width="2.5"/>
+  <text x="1052" y="174" text-anchor="middle" font-size="38" font-weight="bold" fill="#1E4A66">壹</text>
+  <!-- 标题 -->
+  <text x="170" y="596" font-size="48" font-weight="bold" fill="#29251F" letter-spacing="6">fineSTEM 课堂</text>
+  <text x="170" y="650" font-size="24" fill="#6E685D" letter-spacing="4">第一期 · 光的旅程：从影子到太阳灶</text>
+</svg>

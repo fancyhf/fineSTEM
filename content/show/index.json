@@ -1,0 +1,13 @@
+{
+  "site": {
+    "title": "放映室",
+    "subtitle": "STEM 与亲子共学 · 节目频道",
+    "description": "一次一个话题：互动演示、家长视频、儿童视频，与配套资料。鸡娃先自鸡 × fineSTEM 联合出品。",
+    "finestem_url": "https://wostemstudio.site"
+  },
+  "featured": {
+    "series": "recursive-beauty",
+    "episode": "ep01",
+    "note": "频道开播 · 第 1 集"
+  }
+}

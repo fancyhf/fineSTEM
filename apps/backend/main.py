@@ -16,6 +16,7 @@ import asyncio
 import logging
 import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -35,6 +36,7 @@ from app.api import (
     files,
     notifications,
     projects,
+    show,
     skills,
     system,
 )
@@ -146,6 +148,17 @@ app.include_router(capability_tags.router, prefix=API_PREFIX)
 app.include_router(code_execution.router, prefix=API_PREFIX)
 app.include_router(system.router, prefix=API_PREFIX)
 app.include_router(notifications.router, prefix=API_PREFIX)
+
+# 节目频道（Show 子系统，show.wostemstudio.site）只读接口
+app.include_router(show.router, prefix=API_PREFIX)
+
+# Show 内容静态资源（开发环境由后端直接服务；生产环境走 nginx location /content/）
+# main.py 位于 apps/backend/，上溯 2 级到仓库根
+_SHOW_CONTENT_DIR = settings.SHOW_CONTENT_DIR or str(
+    Path(__file__).resolve().parents[2] / "content" / "show"
+)
+if Path(_SHOW_CONTENT_DIR).is_dir():
+    app.mount("/content", StaticFiles(directory=_SHOW_CONTENT_DIR, html=True), name="show-content")
 
 DEMOS_STATIC_DIR = os.environ.get("DEMOS_STATIC_DIR", r"D:\data\finestem\demos")
 if os.path.isdir(DEMOS_STATIC_DIR):
