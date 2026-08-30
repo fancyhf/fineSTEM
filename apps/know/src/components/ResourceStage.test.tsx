@@ -33,7 +33,7 @@ function detail(resources: Partial<EpisodeResources>, extra: Partial<EpisodeDeta
 }
 
 describe('buildTabs', () => {
-  it('槽位顺序：儿童视频 → 互动 → 家长视频，缺资源不出现', () => {
+  it('槽位顺序：家长播客 → 互动 → 儿童视频，缺资源不出现', () => {
     const tabs = buildTabs(
       detail({
         interactive: { title: '互动', url: '/content/x.html', ratio: '16/9' },
@@ -42,7 +42,7 @@ describe('buildTabs', () => {
         ],
       })
     );
-    expect(tabs.map((t) => t.id)).toEqual(['interactive', 'parent-video']);
+    expect(tabs.map((t) => t.id)).toEqual(['parent-video', 'interactive']);
   });
 
   it('announce 为未上线槽位生成禁用 tab', () => {
@@ -71,7 +71,7 @@ describe('buildTabs', () => {
 });
 
 describe('pickDefaultTab', () => {
-  it('默认优先级：儿童视频 > 互动 > 家长视频', () => {
+  it('默认优先级：家长播客 > 互动 > 儿童视频', () => {
     const ep = detail({
       interactive: { title: '互动', url: '/x', ratio: '16/9' },
       videos: [
@@ -79,7 +79,7 @@ describe('pickDefaultTab', () => {
         { id: 'c1', audience: 'child', title: '儿童', embed_url: '//x' },
       ],
     });
-    expect(pickDefaultTab(ep, buildTabs(ep))).toBe('child-video');
+    expect(pickDefaultTab(ep, buildTabs(ep))).toBe('parent-video');
   });
 
   it('default_tab 覆盖默认优先级（仅当该 tab 可用）', () => {

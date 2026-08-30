@@ -32,7 +32,7 @@ export default function HomePage() {
   }, [params]);
 
   useEffect(() => {
-    document.title = '与孩子对话 · STEM 与亲子共学节目频道';
+    document.title = '与孩子对话 · 给家长的播客与节目频道';
   }, []);
 
   const episodes = useMemo(

@@ -13,7 +13,7 @@
   "status": "published",
   "published_at": "2026-09-01",
   "cover": "cover.jpg",
-  "default_tab": "child-video",
+  "default_tab": "parent-video",
   "announce": {},
   "resources": {
     "interactive": {

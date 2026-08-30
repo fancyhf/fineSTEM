@@ -15,19 +15,20 @@ interface TabDef {
 
 /**
  * Tab 生成规则（固定槽位，有资源才有 tab）：
- *   儿童视频 → 互动演示 → 家长视频 → 其余视频（audience 为空的通用视频）
+ *   家长播客 → 互动演示 → 儿童视频 → 其余视频（audience 为空的通用视频）
+ *   （频道面向家长：家长播客永远排第一、默认激活）
  * 未上线的槽位若在 announce 里声明，则渲染禁用 tab + 提示文案。
  */
 export function buildTabs(ep: EpisodeDetail): TabDef[] {
   const tabs: TabDef[] = [];
-  const findVideo = (audience: 'child' | 'parent') =>
+  const findVideo = (audience: 'parent' | 'child') =>
     ep.resources.videos.find((v) => v.audience === audience);
   const announce = ep.announce ?? {};
 
   const slots: { id: string; label: string; kind: TabDef['kind'] }[] = [
-    { id: 'child-video', label: '儿童视频', kind: 'video' },
+    { id: 'parent-video', label: '家长播客', kind: 'video' },
     { id: 'interactive', label: '互动演示', kind: 'interactive' },
-    { id: 'parent-video', label: '家长视频', kind: 'video' },
+    { id: 'child-video', label: '儿童视频', kind: 'video' },
   ];
 
   const usedVideoIds = new Set<string>();
@@ -36,7 +37,7 @@ export function buildTabs(ep: EpisodeDetail): TabDef[] {
       if (ep.resources.interactive) tabs.push({ ...slot });
       continue;
     }
-    const v = findVideo(slot.id === 'child-video' ? 'child' : 'parent');
+    const v = findVideo(slot.id === 'parent-video' ? 'parent' : 'child');
     if (v) {
       usedVideoIds.add(v.id);
       tabs.push({ ...slot, video: v });
@@ -70,7 +71,7 @@ export function pickDefaultTab(ep: EpisodeDetail, tabs: TabDef[]): string {
     const t = tabs.find((x) => x.id === ep.default_tab && !x.disabled);
     if (t) return t.id;
   }
-  for (const id of ['child-video', 'interactive', 'parent-video', 'video']) {
+  for (const id of ['parent-video', 'interactive', 'child-video', 'video']) {
     const t = tabs.find((x) => x.id === id && !x.disabled);
     if (t) return t.id;
   }

@@ -1,5 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="10" fill="#F7F5F1"/>
-  <rect x="16" y="16" width="32" height="32" fill="none" stroke="#1E4A66" stroke-width="2.5"/>
-  <text x="32" y="40" text-anchor="middle" font-family="'Songti SC','STSong','SimSun',serif" font-size="20" font-weight="bold" fill="#1E4A66">话</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <rect width="48" height="48" rx="10" fill="#F7F5F1"/>
+  <rect x="7" y="9" width="28" height="21" rx="8" fill="none" stroke="#29251F" stroke-width="3"/>
+  <path d="M 13 30 L 10 38 L 20 31 Z" fill="#29251F"/>
+  <rect x="26" y="25" width="15" height="12" rx="6" fill="#1E4A66"/>
+  <circle cx="15" cy="19.5" r="2" fill="#29251F"/>
+  <circle cx="21" cy="19.5" r="2" fill="#29251F"/>
+  <circle cx="27" cy="19.5" r="2" fill="#29251F"/>
 </svg>
