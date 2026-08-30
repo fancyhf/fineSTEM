@@ -8,9 +8,13 @@
 
 | 目录 | 技术栈 | 端口 | README | 说明 |
 |------|--------|------|--------|------|
-| `backend/` | FastAPI + SQLAlchemy + SQLite | `3200` | [→ README](./backend/README.md) | REST API（15 个路由） + MCP 工具服务（15 个工具暴露给 ZeroClaw） |
-| `frontend/` | React 18 + TypeScript + Vite + Tailwind | `5184` | [→ README](./frontend/README.md) | 用户界面，直连 ZeroClaw WebSocket |
+| `backend/` | FastAPI + SQLAlchemy + SQLite | `3200` | [→ README](./backend/README.md) | REST API（16 个路由） + MCP 工具服务（15 个工具暴露给 ZeroClaw） |
+| `frontend/` | React 18 + TypeScript + Vite + Tailwind | `5184` | [→ README](./frontend/README.md) | 主站用户界面，直连 ZeroClaw WebSocket |
+| `know/` | React 18 + TypeScript + Vite | `5185` | — | **Know 频道**前端（内容节目「与孩子对话」），生产 https://know.wostemstudio.site |
 | `public-web/` | 旧 MVP（Docker） | — | — | 非主开发栈，可忽略 |
+
+> `know/` 是**内容展示型**前端，不依赖 ZeroClaw、无用户态；
+> 数据来自 `content/know` 内容库（content-as-code）经后端 `/api/v1/know` 只读接口暴露。
 
 ---
 
@@ -37,6 +41,7 @@
 | `capability_tags.py` | `/api/v1/capability-tags` | 能力标签管理 | — |
 | `notifications.py` | `/api/v1/notifications` | 通知 CRUD | `notification_repo.py` |
 | `system.py` | `/api/v1/system` | 系统信息 | — |
+| `know.py` | `/api/v1/know` | **Know 频道**只读接口（内容节目） | `know_content.py` |
 
 ### 服务层（`app/services/`）
 
@@ -55,6 +60,7 @@
 | `storage_service.py` | 文件存储 | 改文件路径 |
 | `backup_service.py` | 数据库备份 | 改备份策略 |
 | `observability.py` | 可观测性 | 改监控 |
+| `know_content.py` | **Know 频道**内容服务（扫描 `content/know`，只读，无数据库） | 改 Know 内容读取 |
 | `orchestrator.py` | ⚠️ **退役死代码，勿改** | — |
 
 ### 数据层
@@ -147,12 +153,18 @@
 # 后端
 cd apps/backend && pip install -r requirements.txt && python main.py
 
-# 前端
+# 主站前端
 cd apps/frontend && npm install && npm run dev
+
+# Know 频道前端（内容节目）
+cd apps/know && npm install && npm run dev
+
+# 内容校验（发布新节目/新集前必做）
+npm run validate:content
 ```
 
 ---
-version: 3.0.0
+version: 3.1.0
 created_at: 2026-04-23
-last_updated: 2026-08-20
+last_updated: 2026-08-30
 maintainer: AI Agent

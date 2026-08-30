@@ -38,6 +38,8 @@ fineSTEM 不是"编程平台"，而是**教学生怎么完成一个项目**的�
 | **查产品需求** | [产品与规划](./.trae/documents/产品与规划/) | `04_fineSTEM_BS平台产品方案_V3.3.md`（基础） + `05~12_MVP2` 系列（最新） |
 | **查技术文档** | [技术与架构](./.trae/documents/技术与架构/) | `01-04` 四份核心文档 |
 | **查 ZeroClaw 配置** | [ZeroClaw 技术知识库](./.trae/documents/技术与架构/ZeroClaw_技术知识库_v1.0.0.md) | `H:\dev-env\zeroclaw\config\config.toml` |
+| **改 Know 频道（内容节目）** | [Know 部署指南](./deploy/Know子系统部署指南_v1.0.md) + [设计文档](./.trae/documents/产品与规划/13_内容节目展示子系统_产品与技术设计_V1.0.md) | `apps/know/` + `content/know/` + `apps/backend/app/api/know.py` |
+| **部署 / 运维生产环境** | [香港生产环境部署文档](./.trae/documents/技术与架构/香港生产环境部署文档_v1.0.0.md) | 服务器 `/opt/finestem/`（见该文档 §0/§2） |
 
 ### 按用户自然语言定位（功能 ↔ URL ↔ 代码）
 
@@ -81,6 +83,7 @@ fineSTEM 不是"编程平台"，而是**教学生怎么完成一个项目**的�
 | `/api/v1/capability-tags` | `app/api/capability_tags.py` | — | 能力标签管理 |
 | `/api/v1/notifications` | `app/api/notifications.py` | `notification_repo.py` | 通知 CRUD |
 | `/api/v1/system` | `app/api/system.py` | — | 系统信息（健康检查等） |
+| `/api/v1/know` | `app/api/know.py` | `know_content.py` | Know 频道只读接口（内容节目，content-as-code） |
 | WebSocket | — | ZeroClaw :42617 | `ws://127.0.0.1:42617/ws/chat` AI 对话流 |
 
 ---
@@ -117,7 +120,7 @@ fineSTEM 不是"编程平台"，而是**教学生怎么完成一个项目**的�
 |----|------|------|------|
 | **前端** | React 18 + TypeScript + Vite + Tailwind CSS + Monaco Editor | `5184` | 用户界面，直连 ZeroClaw WS |
 | **后端** | FastAPI + SQLAlchemy 2.0 + SQLite | `3200` | CRUD + MCP 工具服务，不参与 AI 编排 |
-| **AI 底座** | [ZeroClaw](https://github.com/zeroclaw-labs/zeroclaw) v0.8.3（Rust 二进制）+ DeepSeek/GLM | `42617` | AI 编排（对话/工具调用/记忆）全部由 ZeroClaw 承担 |
+| **AI 底座** | [ZeroClaw](https://github.com/zeroclaw-labs/zeroclaw) v0.8.4（Rust 二进制）+ DeepSeek / 百炼 qwen | `42617` | AI 编排（对话/工具调用/记忆）全部由 ZeroClaw 承担；高峰时段切百炼 qwen，夜间用 DeepSeek |
 
 > **架构要点**：前端直连 ZeroClaw WebSocket（`ws://127.0.0.1:42617/ws/chat`），AI 编排（对话/工具调用/记忆）全部由 ZeroClaw 承担。后端 FastAPI 仅负责 projects/evidence/documents 等 CRUD + 通过 MCP stdio 暴露 15 个 PBL 工具给 ZeroClaw 调用。后端 `orchestrator.py` 为退役死代码。
 
@@ -131,7 +134,7 @@ fineSTEM 不是"编程平台"，而是**教学生怎么完成一个项目**的�
 
 - Python 3.12+
 - Node.js 18+
-- ZeroClaw v0.8.3（部署在 `H:\dev-env\zeroclaw\`）
+- ZeroClaw v0.8.4（部署在 `H:\dev-env\zeroclaw\`）
 
 ### 一键启动
 
@@ -192,6 +195,7 @@ npm run dev             # 端口 5184
 | | `skill_registry.py` / `skill_loader.py` | Skill 注册与加载 |
 | | `storage_service.py` | 文件存储 |
 | | `backup_service.py` | 数据库每日备份 |
+| | `know_content.py` | Know 频道内容服务（扫描 `content/know`，content-as-code，只读） |
 | `app/repositories/` | 11 个 repo 文件 | 数据库 CRUD（project/user/demo/evidence/...） |
 | `app/db/` | `models.py` | SQLAlchemy 模型（9 张业务表） |
 | | `database.py` | 引擎 + Session + Base |
@@ -242,7 +246,10 @@ fineSTEM/
 ├── apps/
 │   ├── frontend/              # React 前端（端口 5184）→ 详见 apps/frontend/README.md
 │   ├── backend/               # FastAPI 后端（端口 3200）→ 详见 apps/backend/README.md
+│   ├── know/                  # Know 频道前端（内容节目「与孩子对话」，开发端口 5185）→ 生产 https://know.wostemstudio.site
 │   └── public-web/            # 旧 MVP（docker-compose 用，非主开发栈）
+├── content/                   # 内容库（content-as-code，随 git 分发，服务器 git pull 即生效）
+│   └── know/                  # Know 频道内容：series/<系列>/<集>/{episode.json,interactive/,docs/} + assets/
 ├── .trae/
 │   ├── skills/stem-pbl-guide/ # PBL 导师 AI 规范（SKILL.md + 8 个子 Skill）
 │   │   └── skills/00~08_*.md  # 00_bootstrap → 08_evaluator（8 个阶段 Skill）
@@ -273,10 +280,19 @@ fineSTEM/
 
 **已上线子系统**：
 
-| 子系统 | 地址 | 说明 |
-|--------|------|------|
-| 主站 fineSTEM | https://wostemstudio.site | 青少年 STEM 研学创作平台 |
-| Know 频道 | https://know.wostemstudio.site | 内容节目频道「与孩子对话」，只读（2026-08-30 上线） |
+| 子系统 | 地址 | 前端产物 | 后端 | 说明 |
+|--------|------|---------|------|------|
+| 主站 fineSTEM | https://wostemstudio.site | `/opt/finestem/frontend/dist` | 同一 backend 进程 | 青少年 STEM 研学创作平台 |
+| Know 频道 | https://know.wostemstudio.site | `/opt/finestem/know/dist` | 同一进程 `/api/v1/know/*` | 内容节目「与孩子对话」，只读（2026-08-30 上线） |
+
+**服务器路径速查**（⚠️ 后端是扁平布局，**不是** monorepo 直接 clone）：
+
+| 用途 | 服务器路径 | 对应仓库路径 |
+|------|-----------|-------------|
+| 后端运行目录 | `/opt/finestem/app` | `apps/backend` |
+| 代码来源（GitHub 克隆，仅取文件） | `/opt/finestem/repo` | 仓库根 |
+| Know 内容库 | `/opt/finestem/content/know` | `content/know` |
+| 主数据库 | `/opt/finestem/data/finestem.db` | — |
 
 - 部署文档：[香港生产环境部署文档](./.trae/documents/技术与架构/香港生产环境部署文档_v1.0.0.md)
 - Know 部署指南：[Know 子系统部署指南](./deploy/Know子系统部署指南_v1.0.md)
@@ -293,7 +309,8 @@ fineSTEM/
 | [模块说明](./.trae/documents/技术与架构/02_模块说明.md) | 前后端各模块职责 + AI 主链路 |
 | [技术架构](./.trae/documents/技术与架构/03_技术架构.md) | 技术栈 + 端口 + ZeroClaw 集成 |
 | [数据结构和数据架构](./.trae/documents/技术与架构/04_数据结构和数据架构.md) | 数据库表 + workspace + 数据关系 |
-| [香港生产环境部署文档](./.trae/documents/技术与架构/香港生产环境部署文档_v1.0.0.md) | **生产环境部署与运维（wostemstudio.site）** |
+| [香港生产环境部署文档](./.trae/documents/技术与架构/香港生产环境部署文档_v1.0.0.md) | **生产环境部署与运维（wostemstudio.site + Know 频道）** |
+| [内容节目展示子系统设计](./.trae/documents/产品与规划/13_内容节目展示子系统_产品与技术设计_V1.0.md) | Know 频道产品与技术设计（content-as-code） |
 | [问题清单（长期维护）](./.trae/documents/问题清单_长期维护.md) | Q-001~Q-048 已知问题与修复（回归必检） |
 | [ZeroClaw 技术知识库](./.trae/documents/技术与架构/ZeroClaw_技术知识库_v1.0.0.md) | AI 底座架构详解 |
 | [ZeroClaw 部署与运维指南](./.trae/documents/技术与架构/ZeroClaw部署与运维指南_v1.0.0.md) | ZeroClaw 服务端部署与 Key 配置 |
@@ -320,9 +337,11 @@ fineSTEM/
 - ✅ **阶段 3**：ZeroClaw 集成 + PBL 9 阶段引擎
 - 🔄 **阶段 4**：测试优化与稳定性（进行中）
 - 🔄 **阶段 5**：MVP2 增强（Create 任务引导、模型策略切换、文档沉淀）
+- ✅ **阶段 6**：生产环境上线（香港轻量云，wostemstudio.site）
+- ✅ **阶段 7**：内容节目子系统（Know 频道 know.wostemstudio.site，2026-08-30 上线）
 
 ---
-version: 4.0.0
+version: 4.1.0
 created_at: 2026-04-23
-last_updated: 2026-08-20
+last_updated: 2026-08-30
 maintainer: AI Agent
