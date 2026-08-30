@@ -132,3 +132,7 @@ test-failed-*.png
 *.trace.png
 apps/backend/tmp_test/*.png
 apps/backend/tmp_test/**/*.png
+
+# 例外：上面 Python 模板的 `lib/` 规则会误伤前端源码目录，必须放行
+!apps/know/src/lib/
+!apps/know/src/lib/**
