@@ -1,0 +1,29 @@
+{
+  "slug": "ep06",
+  "episode_no": 6,
+  "title": "编程书籍 · 儿童",
+  "summary": "儿童编程书单：启蒙读物与亲子共读书目。",
+  "description_md": "书是最慢也最扎实的入口。这份儿童向书单覆盖编程启蒙绘本、计算思维读物与亲子共读书目，按年龄排序。\n\n**完整书单见下方 FlowUs 原文**。",
+  "audience": "parent",
+  "tags": [
+    "编程",
+    "清单",
+    "资源"
+  ],
+  "status": "published",
+  "published_at": "2026-08-15",
+  "cover": "cover.svg",
+  "default_tab": null,
+  "announce": {},
+  "resources": {
+    "videos": [],
+    "docs": [
+      {
+        "title": "FlowUs 原文（完整清单 · 持续更新）",
+        "path": "https://flowus.cn/midclasseye/share/ae753196-2341-4dd7-adef-dc6e5c0cd1f6?code=0P9S22",
+        "format": "flowus"
+      }
+    ],
+    "projects": []
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "slug": "ep08",
+  "episode_no": 8,
+  "title": "编程书籍 · 少年",
+  "summary": "少年编程书单：语言、算法与项目实战。",
+  "description_md": "小学高年级到中学，可以开始啃真正的编程书了。这份少年向书单按「入门语言 → 算法思维 → 项目实战」整理。\n\n**完整书单见下方 FlowUs 原文**。",
+  "audience": "parent",
+  "tags": [
+    "编程",
+    "清单",
+    "资源"
+  ],
+  "status": "published",
+  "published_at": "2026-08-17",
+  "cover": "cover.svg",
+  "default_tab": null,
+  "announce": {},
+  "resources": {
+    "videos": [],
+    "docs": [
+      {
+        "title": "FlowUs 原文（完整清单 · 持续更新）",
+        "path": "https://flowus.cn/midclasseye/share/7d71c3db-d57d-421c-a48a-3e2388ededb6?code=0P9S22",
+        "format": "flowus"
+      }
+    ],
+    "projects": []
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "slug": "ep01",
+  "episode_no": 1,
+  "title": "少年 CS 网络课程清单",
+  "summary": "面向少年的 CS 网络课程一张清单：课程、方向、适配阶段，按需自取。",
+  "description_md": "初中到高中想系统学计算机，网络课怎么选？这份清单按方向整理了适合少年的 CS 网络课程：课程名、讲授内容、适合阶段一目了然。\n\n**完整清单见下方 FlowUs 原文**（表格可直接查看与检索）。",
+  "audience": "parent",
+  "tags": [
+    "编程",
+    "清单",
+    "资源"
+  ],
+  "status": "published",
+  "published_at": "2026-08-10",
+  "cover": "cover.svg",
+  "default_tab": null,
+  "announce": {},
+  "resources": {
+    "videos": [],
+    "docs": [
+      {
+        "title": "FlowUs 原文（完整清单 · 持续更新）",
+        "path": "https://flowus.cn/midclasseye/share/3f1d4e03-c291-4fa3-89cc-b6addc886e9c?code=0P9S22",
+        "format": "flowus"
+      }
+    ],
+    "projects": []
+  }
+}

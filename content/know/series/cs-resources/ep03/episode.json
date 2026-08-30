@@ -1,0 +1,29 @@
+{
+  "slug": "ep03",
+  "episode_no": 3,
+  "title": "儿童编程课程清单",
+  "summary": "儿童编程课程一张清单：课型、阶段与选择要点。",
+  "description_md": "给低龄孩子的编程课怎么挑？清单按课型整理了市面上的儿童编程课程：启蒙思维类、图形化编程、机器人科创，各自适合什么阶段、怎么比。\n\n**完整清单见下方 FlowUs 原文**。",
+  "audience": "parent",
+  "tags": [
+    "编程",
+    "清单",
+    "资源"
+  ],
+  "status": "published",
+  "published_at": "2026-08-12",
+  "cover": "cover.svg",
+  "default_tab": null,
+  "announce": {},
+  "resources": {
+    "videos": [],
+    "docs": [
+      {
+        "title": "FlowUs 原文（完整清单 · 持续更新）",
+        "path": "https://flowus.cn/midclasseye/share/aa8d16a1-c622-4eef-a711-16cd642bda9c?code=0P9S22",
+        "format": "flowus"
+      }
+    ],
+    "projects": []
+  }
+}

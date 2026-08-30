@@ -1,0 +1,29 @@
+{
+  "slug": "ep07",
+  "episode_no": 7,
+  "title": "儿童编程互动游戏",
+  "summary": "儿童编程互动游戏清单：在游戏里练计算思维。",
+  "description_md": "玩就是学：清单整理了带编程要素的互动游戏——序列、循环、条件判断都藏在关卡里，适合幼儿园到小学低年级。\n\n**完整清单见下方 FlowUs 原文**。",
+  "audience": "parent",
+  "tags": [
+    "编程",
+    "清单",
+    "资源"
+  ],
+  "status": "published",
+  "published_at": "2026-08-16",
+  "cover": "cover.svg",
+  "default_tab": null,
+  "announce": {},
+  "resources": {
+    "videos": [],
+    "docs": [
+      {
+        "title": "FlowUs 原文（完整清单 · 持续更新）",
+        "path": "https://flowus.cn/midclasseye/share/bd19f4e6-ca70-44f6-9355-163e1595cd16?code=0P9S22",
+        "format": "flowus"
+      }
+    ],
+    "projects": []
+  }
+}

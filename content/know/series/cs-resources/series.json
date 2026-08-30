@@ -1,0 +1,21 @@
+{
+  "slug": "cs-resources",
+  "title": "CS 资源清单",
+  "subtitle": "一张清单，解决一个选择",
+  "brand": "jiwa",
+  "audience": "parent",
+  "description": "课程、平台、工具、书单——学编程路上的每一张对照清单，照着选就行。源自「鸡娃先自鸡」知识库。",
+  "tags": [
+    "编程",
+    "清单",
+    "资源"
+  ],
+  "theme_color": "#5E8C5A",
+  "docs": [
+    {
+      "title": "cs资源清单表格（FlowUs 完整版）",
+      "path": "https://flowus.cn/midclasseye/share/25bbbfa1-5b1f-4863-aac7-cd3f87b33a46?code=0P9S22",
+      "format": "flowus"
+    }
+  ]
+}

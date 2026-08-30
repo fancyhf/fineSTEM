@@ -1,0 +1,29 @@
+{
+  "slug": "ep05",
+  "episode_no": 5,
+  "title": "低代码数据可视化工具",
+  "summary": "低代码数据可视化工具清单：不写代码，也能把数学和数据变成图。",
+  "description_md": "把抽象的数学和数据变成看得见的图，是最直观的数理启蒙方式之一。清单整理了低代码/免代码的可视化工具，按用途与上手难度分类。\n\n**完整清单见下方 FlowUs 原文**。",
+  "audience": "parent",
+  "tags": [
+    "编程",
+    "清单",
+    "资源"
+  ],
+  "status": "published",
+  "published_at": "2026-08-14",
+  "cover": "cover.svg",
+  "default_tab": null,
+  "announce": {},
+  "resources": {
+    "videos": [],
+    "docs": [
+      {
+        "title": "FlowUs 原文（完整清单 · 持续更新）",
+        "path": "https://flowus.cn/midclasseye/share/10106c5e-a743-462c-a8e9-2cbe1341b592?code=0P9S22",
+        "format": "flowus"
+      }
+    ],
+    "projects": []
+  }
+}

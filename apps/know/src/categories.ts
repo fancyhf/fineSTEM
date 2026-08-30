@@ -48,7 +48,7 @@ export const CATEGORIES: Category[] = [
     sub: '几岁学什么、怎么学不焦虑：编程、数理、哲思与工具',
     color: '#C9972E',
     icon: '</>',
-    series: ['stem-cs'],
+    series: ['stem-cs', 'cs-resources'],
   },
 ];
 

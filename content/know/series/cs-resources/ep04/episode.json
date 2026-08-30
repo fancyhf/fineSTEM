@@ -1,0 +1,29 @@
+{
+  "slug": "ep04",
+  "episode_no": 4,
+  "title": "AI 编程工具",
+  "summary": "AI 编程工具清单：辅助写作、解题、可视化——孩子和家长都能上手。",
+  "description_md": "AI 时代的编程学习工具：这份清单整理了可以辅助孩子学编程、做可视化、查资料的 AI 工具，每个都标了用途和上手门槛。\n\n**完整清单见下方 FlowUs 原文**。",
+  "audience": "parent",
+  "tags": [
+    "编程",
+    "清单",
+    "资源"
+  ],
+  "status": "published",
+  "published_at": "2026-08-13",
+  "cover": "cover.svg",
+  "default_tab": null,
+  "announce": {},
+  "resources": {
+    "videos": [],
+    "docs": [
+      {
+        "title": "FlowUs 原文（完整清单 · 持续更新）",
+        "path": "https://flowus.cn/midclasseye/share/405195e1-7e4b-4550-bdce-924af611de7b?code=0P9S22",
+        "format": "flowus"
+      }
+    ],
+    "projects": []
+  }
+}

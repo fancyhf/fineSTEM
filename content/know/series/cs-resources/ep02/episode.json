@@ -1,0 +1,29 @@
+{
+  "slug": "ep02",
+  "episode_no": 2,
+  "title": "线上编程平台清单",
+  "summary": "线上编程平台对照表：平台、分类、说明、网址，直接照着选。",
+  "description_md": "不花冤枉钱的免费路线：这份清单把线上编程平台按「平台 / 分类 / 说明 / 网址」整理成一张表，从图形化到代码环境都有覆盖。\n\n**完整清单见下方 FlowUs 原文**。",
+  "audience": "parent",
+  "tags": [
+    "编程",
+    "清单",
+    "资源"
+  ],
+  "status": "published",
+  "published_at": "2026-08-11",
+  "cover": "cover.svg",
+  "default_tab": null,
+  "announce": {},
+  "resources": {
+    "videos": [],
+    "docs": [
+      {
+        "title": "FlowUs 原文（完整清单 · 持续更新）",
+        "path": "https://flowus.cn/midclasseye/share/db0c87c0-cba9-4aea-aee5-b04e1d3c2ac9?code=0P9S22",
+        "format": "flowus"
+      }
+    ],
+    "projects": []
+  }
+}
