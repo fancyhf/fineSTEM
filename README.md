@@ -271,7 +271,15 @@ fineSTEM/
 | AI 底座 | ZeroClaw v0.8.4（高峰切百炼 qwen / 夜间 DeepSeek） |
 | 数据库 | SQLite WAL，605 用户 / 674 项目 |
 
+**已上线子系统**：
+
+| 子系统 | 地址 | 说明 |
+|--------|------|------|
+| 主站 fineSTEM | https://wostemstudio.site | 青少年 STEM 研学创作平台 |
+| Know 频道 | https://know.wostemstudio.site | 内容节目频道「与孩子对话」，只读（2026-08-30 上线） |
+
 - 部署文档：[香港生产环境部署文档](./.trae/documents/技术与架构/香港生产环境部署文档_v1.0.0.md)
+- Know 部署指南：[Know 子系统部署指南](./deploy/Know子系统部署指南_v1.0.md)
 - 决策记录：[ADR-001 香港部署方案](./.trae/documents/adr/ADR-001-hk-deployment.md)
 - ZeroClaw 运维：[ZeroClaw 部署与运维指南](./.trae/documents/技术与架构/ZeroClaw部署与运维指南_v1.0.0.md)
 
