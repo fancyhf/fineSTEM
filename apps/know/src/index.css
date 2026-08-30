@@ -1066,3 +1066,164 @@ button {
     min-width: 0;
   }
 }
+
+/* ── 门户首页 · 分栏目布局（对齐 FlowUs 知识库主页的分区习惯） ── */
+
+.home-section {
+  margin: 46px 0 6px;
+}
+
+.home-section__head {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  border-bottom: 1px solid var(--line-strong);
+  padding-bottom: 10px;
+  margin-bottom: 18px;
+}
+
+.home-section__head h2 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 26px;
+  letter-spacing: 3px;
+  flex: none;
+}
+
+.home-section__sub {
+  font-size: 13px;
+  color: var(--ink-mut);
+  letter-spacing: 1.5px;
+}
+
+.home-section__rule {
+  flex: 1;
+}
+
+/* FlowUs 式条目行 */
+.entry-list {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px 24px;
+}
+
+.entry-list--one {
+  grid-template-columns: 1fr;
+}
+
+.entry-list--tri {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.entry {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: var(--paper-raised);
+  transition: border-color 0.18s ease, transform 0.18s ease;
+}
+
+.entry:hover {
+  border-color: var(--theme);
+  transform: translateY(-1px);
+}
+
+.entry__main {
+  flex: 1;
+  min-width: 0;
+}
+
+.entry__title {
+  display: block;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 16.5px;
+  letter-spacing: 0.5px;
+  line-height: 1.4;
+}
+
+.entry__summary {
+  display: block;
+  font-size: 12.5px;
+  color: var(--ink-mut);
+  line-height: 1.6;
+  margin-top: 3px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.entry__arrow {
+  flex: none;
+  color: var(--ink-mut);
+  font-size: 15px;
+  margin-top: 2px;
+}
+
+/* 儿童互动视频栏目 */
+.kid-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+}
+
+/* 升学和学位：子系列分组双列 */
+.shengxue-cols {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 24px;
+}
+
+.shengxue-group__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 18px;
+  letter-spacing: 2px;
+  margin-bottom: 12px;
+}
+
+.shengxue-group__title .dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.shengxue-group__title .count {
+  font-size: 12px;
+  color: var(--ink-mut);
+  font-family: var(--font-body);
+  font-weight: 400;
+}
+
+@media (max-width: 960px) {
+  .kid-grid,
+  .shengxue-cols {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .entry-list--tri {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .kid-grid,
+  .shengxue-cols,
+  .entry-list,
+  .entry-list--tri {
+    grid-template-columns: 1fr;
+  }
+
+  .home-section__head {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+}
