@@ -5,7 +5,6 @@ import { showApi } from '../api';
 import { CATEGORIES, episodesOfCategory } from '../categories';
 import type { KnowHome } from '../types';
 import EpisodeCard from '../components/EpisodeCard';
-import EntryRow from '../components/EntryRow';
 
 /** 栏目独立首页：/c/:cid —— 栏目头（主题色）+ 按系列分组的全部节目 */
 export default function CategoryPage() {
@@ -48,10 +47,9 @@ export default function CategoryPage() {
 
   const eps = episodesOfCategory(cat, home.episodes);
   const seriesMeta = (slug: string) => home.series.find((s) => s.slug === slug);
-  const isKids = cat.series.length === 0;
 
   // 按系列分组（保持栏目定义顺序；kids 单组展示）
-  const groups = isKids
+  const groups = (cat.series.length === 0)
     ? [{ slug: '', title: cat.title, color: cat.color, desc: '', eps }]
     : cat.series
         .map((slug) => ({
@@ -79,28 +77,25 @@ export default function CategoryPage() {
 
       {eps.length === 0 && <div className="empty-state">本栏目内容筹备中，敬请期待</div>}
 
+      {/* 大图瀑布流：多系列时保留系列分组标题，单一系列直接铺卡片 */}
       {groups.map((g) => (
         <section className="cat-group" key={g.slug || 'kids'}>
-          <div className="cat-group__title">
-            <span className="dot" style={{ background: g.color }} />
-            {g.slug && <Link to={`/series/${g.slug}`}>{g.title}</Link>}
-            {!g.slug && g.title}
-            <span className="count">{g.eps.length} 集</span>
-          </div>
-          {g.desc && <p className="cat-group__desc">{g.desc}</p>}
-          {isKids ? (
-            <div className="kid-grid">
-              {g.eps.map((e) => (
-                <EpisodeCard key={e.url} episode={e} />
-              ))}
-            </div>
-          ) : (
-            <div className="entry-list">
-              {g.eps.map((e) => (
-                <EntryRow key={e.url} e={e} color={cat.color} />
-              ))}
-            </div>
+          {groups.length > 1 && (
+            <>
+              <div className="cat-group__title">
+                <span className="dot" style={{ background: g.color }} />
+                {g.slug && <Link to={`/series/${g.slug}`}>{g.title}</Link>}
+                {!g.slug && g.title}
+                <span className="count">{g.eps.length} 集</span>
+              </div>
+              {g.desc && <p className="cat-group__desc">{g.desc}</p>}
+            </>
           )}
+          <div className="ep-grid">
+            {g.eps.map((e) => (
+              <EpisodeCard key={e.url} episode={e} />
+            ))}
+          </div>
         </section>
       ))}
 
