@@ -1568,3 +1568,28 @@ button {
   padding-left: 3px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
 }
+
+/* ── 卡片标题色底条（ EpisodeCard + EntryRow 共用语言） ── */
+
+.ep-card__title {
+  display: inline-block;
+  background: color-mix(in srgb, var(--theme, var(--ink)) 82%, black);
+  color: var(--paper-raised);
+  padding: 4px 12px 5px;
+  border-radius: 3px;
+  line-height: 1.45;
+}
+
+.entry__title {
+  display: inline-block;
+  background: color-mix(in srgb, var(--theme, var(--ink)) 16%, var(--paper-raised));
+  color: color-mix(in srgb, var(--theme, var(--ink)) 80%, var(--ink));
+  padding: 3px 10px;
+  border-radius: 3px;
+  font-size: 15.5px;
+}
+
+.entry:hover .entry__title {
+  background: var(--theme, var(--ink));
+  color: var(--paper-raised);
+}
