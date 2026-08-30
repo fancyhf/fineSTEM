@@ -21,7 +21,7 @@
   <text x="1052" y="174" text-anchor="middle" font-size="38" font-weight="bold" fill="#1E4A66">壹</text>
   <!-- 标题 -->
   <text x="170" y="170" font-size="54" font-weight="bold" fill="#29251F" letter-spacing="6">递推之美</text>
-  <text x="170" y="228" font-size="26" fill="#6E685D" letter-spacing="4">第一集 · 搭积木：从 1 块到 21 层塔</text>
+  <text x="170" y="228" font-size="26" fill="#6E685D" letter-spacing="4">第一集 · 数学思维：花里藏数列</text>
   <!-- 面向标注 -->
   <g font-size="22" letter-spacing="4">
     <rect x="170" y="600" width="86" height="40" fill="none" stroke="#29251F" stroke-opacity="0.7" stroke-width="1.5"/>
