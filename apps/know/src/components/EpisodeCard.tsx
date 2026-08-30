@@ -6,13 +6,19 @@ import { AudienceBadges, ResourceBadges } from './Badges';
 
 const DEFAULT_COVER = '/content/assets/default-cover.svg';
 
-/** 节目卡：封面 + 标题 + 一句话 + 印章集数 + 面向/资源徽标 */
+/** 节目卡：封面 + 标题 + 一句话 + 印章集数 + 面向/资源徽标；有视频的封面加播放角标 */
 export default function EpisodeCard({ episode }: { episode: EpisodeSummary }) {
   const style = { '--theme': episode.theme_color } as React.CSSProperties;
+  const hasVideo = episode.video_audiences.length > 0;
   return (
     <Link to={episode.url} className="ep-card" style={style}>
       <div className="ep-card__cover">
         <img src={episode.cover ?? DEFAULT_COVER} alt="" loading="lazy" />
+        {hasVideo && (
+          <span className="ep-card__play" aria-label="含视频">
+            ▶
+          </span>
+        )}
       </div>
       <div className="ep-card__body">
         <div className="ep-card__title">{episode.title}</div>

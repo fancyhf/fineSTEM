@@ -1549,3 +1549,22 @@ button {
 .cat-back a:hover {
   color: var(--accent);
 }
+
+/* 封面播放角标（含视频的节目） */
+.ep-card__cover .ep-card__play {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(252, 251, 248, 0.92);
+  border: 2px solid var(--theme, var(--ink));
+  color: var(--theme, var(--ink));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  padding-left: 3px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+}
