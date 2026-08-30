@@ -1,0 +1,28 @@
+{
+  "slug": "ep01",
+  "episode_no": 1,
+  "title": "深圳学位和板块，看这篇就行了",
+  "summary": "学位梯队、人文板块、学位因子、小初报名节奏与风险同步——深圳择校的底层框架。",
+  "description_md": "孟母三迁，迁的是学位与板块。这篇把深圳择学位的框架一次讲清：\n\n- 认识学校梯队板块、名校楼盘\n- 学位因子逐项拆解\n- 小初报名：本周在做什么、风险同步\n- 中考、高考的衔接视角\n\n**完整内容见下方 FlowUs 原文**。",
+  "audience": "parent",
+  "tags": [
+    "学位",
+    "深圳"
+  ],
+  "status": "published",
+  "published_at": "2026-08-24",
+  "cover": "cover.svg",
+  "default_tab": null,
+  "announce": {},
+  "resources": {
+    "videos": [],
+    "docs": [
+      {
+        "title": "FlowUs 原文（完整版 · 持续更新）",
+        "path": "https://flowus.cn/midclasseye/share/db396a26-7a68-4114-bfef-258e048c1bdf?code=0P9S22",
+        "format": "flowus"
+      }
+    ],
+    "projects": []
+  }
+}

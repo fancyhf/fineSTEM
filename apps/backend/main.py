@@ -154,6 +154,9 @@ app.include_router(know.router, prefix=API_PREFIX)
 
 # Know 内容静态资源（开发环境由后端直接服务；生产环境走 nginx location /content/）
 # main.py 位于 apps/backend/，上溯 2 级到仓库根
+import mimetypes
+
+mimetypes.add_type("image/svg+xml", ".svg")  # Windows 默认表可能给 image/svg，Chrome 在 <img> 里拒渲染
 _KNOW_CONTENT_DIR = settings.KNOW_CONTENT_DIR or str(
     Path(__file__).resolve().parents[2] / "content" / "know"
 )

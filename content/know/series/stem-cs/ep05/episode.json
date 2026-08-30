@@ -1,0 +1,29 @@
+{
+  "slug": "ep05",
+  "episode_no": 5,
+  "title": "少年儿童学游戏编程",
+  "summary": "海外与国内两条路径：把数学、物理和游戏开发、编程一体化地学。",
+  "description_md": "游戏是孩子兴趣最浓的编程入口。这一篇分**海外攻略**与**国内攻略**两条路径，核心思路是把数学、物理和游戏开发、编程一体化。\n\n**完整内容见下方 FlowUs 原文**。",
+  "audience": "parent",
+  "tags": [
+    "STEM",
+    "编程",
+    "数理"
+  ],
+  "status": "published",
+  "published_at": "2026-08-28",
+  "cover": "cover.svg",
+  "default_tab": null,
+  "announce": {},
+  "resources": {
+    "videos": [],
+    "docs": [
+      {
+        "title": "FlowUs 原文（完整版 · 持续更新）",
+        "path": "https://flowus.cn/midclasseye/share/c95df53d-2649-4d30-b25f-4d099dcbfecb?code=0P9S22",
+        "format": "flowus"
+      }
+    ],
+    "projects": []
+  }
+}

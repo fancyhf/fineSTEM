@@ -1,0 +1,34 @@
+{
+  "slug": "ep03",
+  "episode_no": 3,
+  "title": "码农从小学点科学哲学",
+  "summary": "计算机与 AI 从一开始就深受哲学影响：认识论、本体论、伦理思辨，8-15 岁的系统启蒙路径。",
+  "description_md": "西方哲学为计算机与 AI 提供了认识论工具（逻辑分析）、方法论框架（实证主义）和伦理反思（主体性边界）——而 AI 的发展也反过来推动哲学问题的重新诠释。\n\n**给 8-15 岁孩子的四个维度**\n- 认识论与知识表示：从「知识如何被分类」讲到知识图谱\n- 本体论与系统建模：分类体系如何影响数据建模\n- 逻辑思维训练与伦理思辨培养\n\n**全文见下方资料**。",
+  "audience": "parent",
+  "tags": [
+    "STEM",
+    "编程",
+    "数理"
+  ],
+  "status": "published",
+  "published_at": "2026-08-26",
+  "cover": "cover.svg",
+  "default_tab": null,
+  "announce": {},
+  "resources": {
+    "videos": [],
+    "docs": [
+      {
+        "title": "全文 · 站内阅读",
+        "path": "docs/码农从小学点科学哲学.md",
+        "format": "md"
+      },
+      {
+        "title": "FlowUs 原文（完整版 · 持续更新）",
+        "path": "https://flowus.cn/midclasseye/share/cdab0422-acc5-4cc5-a97e-138ab0ea0915?code=0P9S22",
+        "format": "flowus"
+      }
+    ],
+    "projects": []
+  }
+}

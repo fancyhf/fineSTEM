@@ -1,0 +1,21 @@
+{
+  "slug": "stem-cs",
+  "title": "数智培才 · STEM 与编程",
+  "subtitle": "几岁学什么，一条不焦虑的路径",
+  "brand": "jiwa",
+  "audience": "parent",
+  "description": "少儿编程、数理根基、科学哲思与可视化工具：按年龄给路径，按兴趣给工具。源自「鸡娃先自鸡」知识库的 STEM & AI 内容域。",
+  "tags": [
+    "STEM",
+    "编程",
+    "数理"
+  ],
+  "theme_color": "#C9972E",
+  "docs": [
+    {
+      "title": "鸡娃知识库（FlowUs 完整版）",
+      "path": "https://flowus.cn/midclasseye/share/53a3cfe0-5ca1-477c-98bd-2ac2a1a245f5?code=0P9S22",
+      "format": "flowus"
+    }
+  ]
+}

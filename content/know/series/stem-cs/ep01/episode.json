@@ -1,0 +1,34 @@
+{
+  "slug": "ep01",
+  "episode_no": 1,
+  "title": "少儿该学编程吗？几岁开始学？",
+  "summary": "盲目砸钱、按少年的模式鸡娃学编程，不可取。按年龄给路径：低龄玩思维，五六年级机器人，初中打比赛拿证，中考后补算法。",
+  "description_md": "小孩太小，抽象思维还在发育，过早学 C、C++ 就是拔苗助长——但思维和对计算机、科学的热爱可以早培养。\n\n**分龄路径**\n- 低龄：计算机思维生活化（序列、方位、条件）\n- 五六年级：机器人编程，报班两个假期足够\n- 初中：选极简路径，参加比赛和拿证\n- 中考后到高一：补全算法等正式课程\n\n文中还给了一条循序渐进的六层启蒙路径，从 3-4 岁的生活序列建模到 ScratchJr 的事件响应。**全文见下方资料**。",
+  "audience": "parent",
+  "tags": [
+    "STEM",
+    "编程",
+    "数理"
+  ],
+  "status": "published",
+  "published_at": "2026-08-24",
+  "cover": "cover.svg",
+  "default_tab": null,
+  "announce": {},
+  "resources": {
+    "videos": [],
+    "docs": [
+      {
+        "title": "全文 · 站内阅读",
+        "path": "docs/少儿该学编程吗？几岁开始学？.md",
+        "format": "md"
+      },
+      {
+        "title": "FlowUs 原文（完整版 · 持续更新）",
+        "path": "https://flowus.cn/midclasseye/share/69b5b0ed-06ea-46fc-b8dd-b8dc226ffdbc?code=0P9S22",
+        "format": "flowus"
+      }
+    ],
+    "projects": []
+  }
+}

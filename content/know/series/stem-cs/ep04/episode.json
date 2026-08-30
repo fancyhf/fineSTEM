@@ -1,0 +1,29 @@
+{
+  "slug": "ep04",
+  "episode_no": 4,
+  "title": "免费学编程？Tools 一键 get",
+  "summary": "线上编程平台一张清单：平台名、分类、说明、网址，直接照着选，不花冤枉钱。",
+  "description_md": "一张持续维护的线上编程平台清单，按「平台 / 分类 / 说明 / 网址」整理，免费资源为主。\n\n清单是动态表格，**完整版见下方 FlowUs 原文**（含网址直达）。",
+  "audience": "parent",
+  "tags": [
+    "STEM",
+    "编程",
+    "数理"
+  ],
+  "status": "published",
+  "published_at": "2026-08-27",
+  "cover": "cover.svg",
+  "default_tab": null,
+  "announce": {},
+  "resources": {
+    "videos": [],
+    "docs": [
+      {
+        "title": "FlowUs 原文（完整版 · 持续更新）",
+        "path": "https://flowus.cn/midclasseye/share/aa022542-6ed3-4d3e-a014-2193bb9b2a3c?code=0P9S22",
+        "format": "flowus"
+      }
+    ],
+    "projects": []
+  }
+}

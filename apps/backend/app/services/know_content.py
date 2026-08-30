@@ -219,7 +219,11 @@ class KnowContentService:
         docs = [
             DocResource(
                 title=str(d.get("title") or d.get("path") or "资料"),
-                url=_content_url("series", sslug, edir, str(d.get("path") or "")),
+                url=(
+                    str(d["path"])
+                    if str(d.get("path", "")).startswith(("http://", "https://"))
+                    else _content_url("series", sslug, edir, str(d.get("path") or ""))
+                ),
                 format=str(d.get("format") or ""),
             )
             for d in (res.get("docs") or [])
@@ -332,7 +336,11 @@ class KnowContentService:
         docs = [
             DocResource(
                 title=str(d.get("title") or d.get("path") or "资料"),
-                url=_content_url("series", slug, str(d.get("path") or "")),
+                url=(
+                    str(d["path"])
+                    if str(d.get("path", "")).startswith(("http://", "https://"))
+                    else _content_url("series", slug, str(d.get("path") or ""))
+                ),
                 format=str(d.get("format") or ""),
             )
             for d in (rec.meta.get("docs") or [])

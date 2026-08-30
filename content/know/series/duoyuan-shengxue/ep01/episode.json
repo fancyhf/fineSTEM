@@ -1,0 +1,36 @@
+{
+  "slug": "ep01",
+  "episode_no": 1,
+  "title": "多元升学，规划之要",
+  "summary": "不要把未来锁死，路更多、境更大：中考一类自招、深中考升学、高考 DIY 填志愿、出国路径。",
+  "description_md": "人类有多元智能，世界有多元升学。这一集把升学的几条路摆到一张图上：\n\n- 中考一类自主招生\n- 深中考升学路径\n- 高考出分，DIY 填志愿\n- 高考、中考后，出国可以么\n\n配套视频讲「让路走宽」的规划思路。各专题的完整版在下方 FlowUs 原文，持续更新。",
+  "audience": "parent",
+  "tags": [
+    "升学",
+    "深圳"
+  ],
+  "status": "published",
+  "published_at": "2026-08-24",
+  "cover": "cover.svg",
+  "default_tab": null,
+  "announce": {},
+  "resources": {
+    "videos": [
+      {
+        "id": "main",
+        "audience": null,
+        "title": "让路走宽 · 升学规划视频",
+        "embed_url": "//player.bilibili.com/player.html?bvid=BV1BPwae7E1f&autoplay=0",
+        "page": "https://www.bilibili.com/video/BV1BPwae7E1f"
+      }
+    ],
+    "docs": [
+      {
+        "title": "FlowUs 原文（完整版 · 持续更新）",
+        "path": "https://flowus.cn/midclasseye/share/0f789bce-7e08-4c88-a6c7-c8fd029b238d?code=0P9S22",
+        "format": "flowus"
+      }
+    ],
+    "projects": []
+  }
+}

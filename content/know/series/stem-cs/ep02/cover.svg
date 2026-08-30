@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" font-family="'Noto Serif SC','Songti SC','STSong','SimSun',serif">
+  <rect width="1280" height="720" fill="#F7F5F1"/>
+  <rect x="30" y="30" width="1220" height="660" fill="none" stroke="#29251F" stroke-opacity="0.4" stroke-width="2"/>
+  <text x="90" y="150" font-size="30" fill="#6E685D" letter-spacing="8">数智培才 · STEM 与编程</text>
+  <line x1="90" y1="186" x2="560" y2="186" stroke="#C9972E" stroke-width="3"/>
+  <text x="90" y="330" font-size="60" font-weight="bold" fill="#29251F" letter-spacing="3">数学、物理从小学，高考、CS 齐赢</text>
+  <rect x="90" y="430" width="120" height="46" fill="none" stroke="#C9972E" stroke-width="2.5"/>
+  <text x="150" y="462" text-anchor="middle" font-size="28" font-weight="bold" fill="#C9972E">第2集</text>
+  <circle cx="1060" cy="240" r="72" fill="none" stroke="#C9972E" stroke-width="3"/>
+  <text x="1060" y="258" text-anchor="middle" font-size="46" font-weight="bold" fill="#C9972E">&lt;/&gt;</text>
+  <text x="90" y="640" font-size="24" fill="#6E685D" letter-spacing="4">与孩子对话 · 鸡娃先自鸡</text>
+</svg>

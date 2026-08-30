@@ -45,6 +45,7 @@ function mustString(obj, key, path) {
 
 function checkFileExists(baseDir, relPath, label, path, level = 'error') {
   if (!relPath) return;
+  if (/^https?:\/\//.test(relPath)) return; // 外链不做存在性检查
   const full = join(baseDir, relPath);
   if (!existsSync(full)) {
     (level === 'error' ? errors : warnings).push(
