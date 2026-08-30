@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, NavLink, useNavigate, useSearchParams } from 'react-router-dom';
+
+import { CATEGORIES } from '../categories';
 
 /**
- * 顶栏：印章台标 + 全站搜索（回车跳首页并携带 ?q=）+ fineSTEM 主站入口。
- * 搜索逻辑收敛在首页 FilterBar，本组件只负责入口。
+ * 顶栏：品牌台标 + 四栏目页签（第二行）+ 全站搜索 + fineSTEM 主站入口。
  */
 export default function Header() {
   const [params] = useSearchParams();
@@ -20,17 +21,17 @@ export default function Header() {
       <div className="container site-header__inner">
         <Link to="/" className="brand">
           <svg className="brand__icon" viewBox="0 0 48 48" aria-hidden>
-            <rect x="5" y="7" width="30" height="23" rx="9" fill="none" stroke="#29251F" strokeWidth="3"/>
-            <path d="M 12 30 L 9 38 L 20 31 Z" fill="#29251F"/>
-            <rect x="26" y="24" width="17" height="13" rx="6.5" fill="#1E4A66"/>
-            <path d="M 38 37 L 40 42 L 33 37.5 Z" fill="#1E4A66"/>
-            <circle cx="14" cy="18.5" r="2.2" fill="#29251F"/>
-            <circle cx="20" cy="18.5" r="2.2" fill="#29251F"/>
-            <circle cx="26" cy="18.5" r="2.2" fill="#29251F"/>
+            <rect x="5" y="7" width="30" height="23" rx="9" fill="none" stroke="#29251F" strokeWidth="3" />
+            <path d="M 12 30 L 9 38 L 20 31 Z" fill="#29251F" />
+            <rect x="26" y="24" width="17" height="13" rx="6.5" fill="#1E4A66" />
+            <path d="M 38 37 L 40 42 L 33 37.5 Z" fill="#1E4A66" />
+            <circle cx="14" cy="18.5" r="2.2" fill="#29251F" />
+            <circle cx="20" cy="18.5" r="2.2" fill="#29251F" />
+            <circle cx="26" cy="18.5" r="2.2" fill="#29251F" />
           </svg>
           <span>
             <span className="brand__name">与孩子对话</span>
-            <div className="brand__sub">给家长的播客与互动节目</div>
+            <span className="brand__sub">给家长的播客与互动节目</span>
           </span>
         </Link>
 
@@ -56,6 +57,24 @@ export default function Header() {
           </a>
         </nav>
       </div>
+
+      {/* 四栏目页签 */}
+      <nav className="site-tabs">
+        <div className="container site-tabs__inner">
+          <NavLink to="/" end className={({ isActive }) => (isActive ? 'active' : '')}>
+            首页
+          </NavLink>
+          {CATEGORIES.map((c) => (
+            <NavLink
+              key={c.cid}
+              to={`/c/${c.cid}`}
+              className={({ isActive }) => (isActive ? 'active' : '')}
+            >
+              {c.short}
+            </NavLink>
+          ))}
+        </div>
+      </nav>
     </header>
   );
 }

@@ -1314,3 +1314,238 @@ button {
     grid-template-columns: 1fr;
   }
 }
+
+/* ── 顶部四栏目页签 ── */
+
+.site-tabs {
+  border-bottom: 1px solid var(--line);
+  background: rgba(252, 251, 248, 0.92);
+}
+
+.site-tabs__inner {
+  display: flex;
+  gap: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.site-tabs__inner::-webkit-scrollbar {
+  display: none;
+}
+
+.site-tabs a {
+  flex: none;
+  padding: 10px 18px 11px;
+  font-size: 14.5px;
+  letter-spacing: 1.5px;
+  color: var(--ink-mut);
+  border-bottom: 2.5px solid transparent;
+  margin-bottom: -1px;
+  transition: color 0.15s ease;
+  white-space: nowrap;
+}
+
+.site-tabs a:hover {
+  color: var(--ink);
+}
+
+.site-tabs a.active {
+  color: var(--accent);
+  font-weight: 700;
+  border-bottom-color: var(--accent);
+}
+
+/* 品牌名/副标题改块级（台标改 svg 后结构变化） */
+.brand__name {
+  display: block;
+}
+
+.brand__sub {
+  display: block;
+}
+
+/* ── 栏目配色丰富化：每个栏目用自己的主题色 ── */
+
+.home-section {
+  background: color-mix(in srgb, var(--theme, transparent) 5%, transparent);
+  border: 1px solid color-mix(in srgb, var(--theme, transparent) 16%, transparent);
+  border-radius: 12px;
+  padding: 24px 24px 12px;
+  margin-top: 26px;
+}
+
+.home-section + .portal-nav {
+  margin-top: 20px;
+}
+
+.home-section__head {
+  border-bottom: none;
+  padding-bottom: 12px;
+  margin-bottom: 18px;
+}
+
+.home-section__head h2 {
+  color: var(--theme, var(--ink));
+  font-size: 25px;
+}
+
+.home-section__rule {
+  display: block;
+  height: 2px;
+  border: none;
+}
+
+.home-section__more {
+  flex: none;
+  font-size: 13px;
+  color: var(--theme, var(--ink));
+  letter-spacing: 1px;
+  border-bottom: 1px dashed color-mix(in srgb, var(--theme, currentColor) 60%, transparent);
+  padding-bottom: 2px;
+}
+
+/* 主打卡：主题色侧边 */
+.hero__card {
+  border-left: 5px solid var(--theme, var(--ink));
+}
+
+/* 入口磁贴：主题色填充 */
+.portal-tile {
+  border-color: color-mix(in srgb, var(--tile) 45%, transparent);
+}
+
+.portal-tile__icon {
+  background: var(--tile);
+  border-color: var(--tile);
+  color: #fcfbf8;
+}
+
+.portal-tile:hover {
+  border-color: var(--tile);
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--tile) 22%, transparent);
+}
+
+.portal-tile:hover .portal-tile__title {
+  color: var(--tile);
+}
+
+/* 条目行：主题色左边线 */
+.entry {
+  border-left: 3px solid var(--theme, var(--line));
+}
+
+.entry:hover {
+  border-color: var(--theme, var(--line-strong));
+}
+
+/* ── 栏目独立页（/c/:cid） ── */
+
+.cat-hero {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  border: 1px solid color-mix(in srgb, var(--theme) 30%, transparent);
+  background: color-mix(in srgb, var(--theme) 7%, var(--paper-raised));
+  border-radius: 12px;
+  padding: 28px 30px;
+  margin-top: 30px;
+}
+
+.cat-hero__icon {
+  flex: none;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--theme);
+  color: #fcfbf8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--serif);
+  font-size: 30px;
+  font-weight: 700;
+}
+
+.cat-hero__main {
+  flex: 1;
+}
+
+.cat-hero__main h1 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 32px;
+  letter-spacing: 2px;
+  color: var(--ink);
+  line-height: 1.3;
+}
+
+.cat-hero__main p {
+  font-size: 14.5px;
+  color: var(--ink-mut);
+  margin-top: 6px;
+  letter-spacing: 1px;
+}
+
+.cat-hero__count {
+  flex: none;
+  font-size: 14px;
+  color: var(--theme);
+  letter-spacing: 2px;
+  font-weight: 700;
+}
+
+.cat-group {
+  margin: 36px 0 10px;
+}
+
+.cat-group__title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 21px;
+  letter-spacing: 2px;
+}
+
+.cat-group__title a {
+  color: var(--ink);
+}
+
+.cat-group__title a:hover {
+  color: var(--theme);
+}
+
+.cat-group__title .dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.cat-group__title .count {
+  font-size: 12px;
+  color: var(--ink-mut);
+  font-family: var(--font-body);
+  font-weight: 400;
+}
+
+.cat-group__desc {
+  font-size: 13.5px;
+  color: var(--ink-mut);
+  margin: 8px 0 14px;
+  max-width: 44em;
+}
+
+.cat-back {
+  margin: 40px 0 10px;
+  font-size: 14px;
+}
+
+.cat-back a {
+  color: var(--ink-mut);
+}
+
+.cat-back a:hover {
+  color: var(--accent);
+}

@@ -3,6 +3,7 @@ import { Route, Routes, Outlet } from 'react-router-dom';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import HomePage from './pages/HomePage';
+import CategoryPage from './pages/CategoryPage';
 import SeriesPage from './pages/SeriesPage';
 import EpisodePage from './pages/EpisodePage';
 import PlayPage from './pages/PlayPage';
@@ -29,6 +30,7 @@ export default function App() {
         }
       >
         <Route index element={<HomePage />} />
+        <Route path="c/:cid" element={<CategoryPage />} />
         <Route path="series/:slug" element={<SeriesPage />} />
         <Route path="ep/:seriesSlug/:epSlug" element={<EpisodePage />} />
         <Route path="*" element={<NotFoundPage />} />

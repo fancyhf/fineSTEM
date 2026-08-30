@@ -2,46 +2,43 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 
 import { showApi } from '../api';
-import type { EpisodeSummary, KnowHome } from '../types';
+import { CATEGORIES, episodesOfCategory } from '../categories';
+import type { KnowHome } from '../types';
 import { emptyFilters, filterEpisodes, type EpisodeFilters } from '../lib/filter';
 import FilterBar from '../components/FilterBar';
 import EpisodeCard from '../components/EpisodeCard';
-import Seal from '../components/Seal';
+import EntryRow from '../components/EntryRow';
 import { AudienceBadges, ResourceBadges } from '../components/Badges';
 
 /**
- * 首页 = 门户布局（对齐 FlowUs 知识库主页的分区习惯）：
- *   ① 家长减负博客（与孩子互动）—— 大卡 + 集列表
- *   ② 儿童互动视频 —— 卡片
- *   ③ 升学和学位 —— 按子系列分组的条目列表
- *   ④ STEM 和 CS 学习 —— 条目列表
- * 搜索态（?q= 或筛选）下退回通用筛选结果流。
+ * 首页 = 门户布局：
+ *   ① 家长减负博客 大卡 → ② 四栏目大入口 → ③ 各栏目分区（预览）
+ * 搜索态（?q= 或筛选）退回通用筛选结果流。
  */
 const PODCAST_SERIES = 'recursive-beauty';
 const SHENGXUE_SERIES = ['duoyuan-shengxue', 'mengmu-xuewei'];
 const STEM_SERIES = 'stem-cs';
 
-function SectionHead({ title, sub }: { title: string; sub?: string }) {
+function SectionHead({
+  title,
+  sub,
+  cid,
+  color,
+}: {
+  title: string;
+  sub?: string;
+  cid: string;
+  color: string;
+}) {
   return (
     <header className="home-section__head">
-      <h2>{title}</h2>
+      <h2 style={{ color }}>{title}</h2>
       {sub && <span className="home-section__sub">{sub}</span>}
-      <span className="home-section__rule" />
+      <span className="home-section__rule" style={{ backgroundImage: `linear-gradient(90deg, ${color}66, var(--line))` }} />
+      <Link className="home-section__more" to={`/c/${cid}`}>
+        进入栏目 →
+      </Link>
     </header>
-  );
-}
-
-/** FlowUs 式条目行：卷次章 + 标题 + 一句话 + 箭头 */
-function EntryRow({ e }: { e: EpisodeSummary }) {
-  return (
-    <Link className="entry" to={e.url} style={{ '--theme': e.theme_color } as React.CSSProperties}>
-      <Seal no={e.episode_no} />
-      <span className="entry__main">
-        <span className="entry__title">{e.title}</span>
-        <span className="entry__summary">{e.summary}</span>
-      </span>
-      <span className="entry__arrow">→</span>
-    </Link>
   );
 }
 
@@ -120,38 +117,38 @@ export default function HomePage() {
     );
   }
 
-  // ── 门户态：分栏目展示 ──
-  const bySeries = (slugs: string[]) =>
-    home.episodes.filter((e) => slugs.includes(e.series_slug));
-  const podcastEps = bySeries([PODCAST_SERIES]);
-  const podcastMain = home.featured?.episode ?? podcastEps[0] ?? null;
-  const podcastRest = podcastEps.filter(
-    (e) => e.slug !== podcastMain?.slug
-  );
-  const kidEps = home.episodes.filter(
-    (e) => e.has_interactive || e.video_audiences.includes('child')
-  );
-  const shengxueEps = bySeries(SHENGXUE_SERIES);
-  const stemEps = bySeries([STEM_SERIES]);
-
+  // ── 门户态 ──
+  const cat = (cid: string) => CATEGORIES.find((c) => c.cid === cid)!;
+  const catEps = (cid: string) => episodesOfCategory(cat(cid), home.episodes);
   const seriesMeta = (slug: string) => home.series.find((s) => s.slug === slug);
 
-  // 4 个栏目大入口（主打位下方，锚点跳转到各栏目）
-  const tiles = [
-    { id: 'sec-podcast', title: '家长减负博客', sub: '家长播客 × 与孩子互动', count: podcastEps.length, icon: '◉' },
-    { id: 'sec-kids', title: '儿童互动视频', sub: '点一点、玩一玩', count: kidEps.length, icon: '▷' },
-    { id: 'sec-shengxue', title: '升学和学位', sub: '规划要趁早', count: shengxueEps.length, icon: '⇉' },
-    { id: 'sec-stem', title: 'STEM 和 CS 学习', sub: '按年龄给路径', count: stemEps.length, icon: '</>' },
-  ];
+  const podcastCat = cat('podcast');
+  const podcastEps = catEps('podcast');
+  const podcastMain = home.featured?.episode ?? podcastEps[0] ?? null;
+  const podcastRest = podcastEps.filter((e) => e.slug !== podcastMain?.slug);
+  const kidEps = catEps('kids');
+  const stemEps = catEps('stem');
+
+  const tiles = CATEGORIES.map((c) => ({
+    ...c,
+    count: catEps(c.cid).length,
+  }));
 
   return (
     <>
-      {/* ① 家长减负博客（与孩子互动） */}
+      {/* ① 家长减负博客 大卡 */}
       {podcastMain && (
-        <section className="home-section" id="sec-podcast" aria-label="家长减负博客">
+        <section
+          className="home-section"
+          id="sec-podcast"
+          aria-label="家长减负博客"
+          style={{ '--theme': podcastCat.color } as React.CSSProperties}
+        >
           <SectionHead
-            title="家长减负博客 · 与孩子互动"
-            sub="一期一个话题：家长播客讲清楚，互动演示一起玩"
+            title={podcastCat.title}
+            sub={podcastCat.sub}
+            cid="podcast"
+            color={podcastCat.color}
           />
           <div
             className="hero__card"
@@ -182,34 +179,42 @@ export default function HomePage() {
               />
             </Link>
           </div>
-          {podcastRest.length > 0 && (
-            <div className="entry-list">
-              {podcastRest.map((e) => (
-                <EntryRow key={e.url} e={e} />
-              ))}
-            </div>
-          )}
-
-          {/* 4 个栏目大入口 */}
-          <nav className="portal-nav" aria-label="栏目入口">
-            {tiles.map((t) => (
-              <a className="portal-tile" key={t.id} href={`#${t.id}`}>
-                <span className="portal-tile__icon" aria-hidden>{t.icon}</span>
-                <span className="portal-tile__main">
-                  <span className="portal-tile__title">{t.title}</span>
-                  <span className="portal-tile__sub">{t.sub}</span>
-                </span>
-                <span className="portal-tile__count">{t.count} 集</span>
-              </a>
-            ))}
-          </nav>
         </section>
       )}
 
-      {/* ② 儿童互动视频 */}
+      {/* ② 四栏目大入口 */}
+      <nav className="portal-nav" aria-label="栏目入口">
+        {tiles.map((t) => (
+          <Link
+            className="portal-tile"
+            key={t.cid}
+            to={`/c/${t.cid}`}
+            style={{ '--tile': t.color } as React.CSSProperties}
+          >
+            <span className="portal-tile__icon" aria-hidden>{t.icon}</span>
+            <span className="portal-tile__main">
+              <span className="portal-tile__title">{t.short}</span>
+              <span className="portal-tile__sub">{t.sub}</span>
+            </span>
+            <span className="portal-tile__count">{t.count} 集</span>
+          </Link>
+        ))}
+      </nav>
+
+      {/* ③ 儿童互动视频 */}
       {kidEps.length > 0 && (
-        <section className="home-section" id="sec-kids" aria-label="儿童互动视频">
-          <SectionHead title="儿童互动视频" sub="给孩子看的：点一点、玩一玩、跟着动画走" />
+        <section
+          className="home-section"
+          id="sec-kids"
+          aria-label="儿童互动视频"
+          style={{ '--theme': cat('kids').color } as React.CSSProperties}
+        >
+          <SectionHead
+            title={cat('kids').title}
+            sub={cat('kids').sub}
+            cid="kids"
+            color={cat('kids').color}
+          />
           <div className="kid-grid">
             {kidEps.map((e) => (
               <EpisodeCard key={`kid-${e.url}`} episode={e} />
@@ -218,14 +223,24 @@ export default function HomePage() {
         </section>
       )}
 
-      {/* ③ 升学和学位 */}
-      {shengxueEps.length > 0 && (
-        <section className="home-section" id="sec-shengxue" aria-label="升学和学位">
-          <SectionHead title="升学和学位" sub="路更多、境更大：规划要趁早，学位要看懂" />
+      {/* ④ 升学和学位 */}
+      {catEps('shengxue').length > 0 && (
+        <section
+          className="home-section"
+          id="sec-shengxue"
+          aria-label="升学和学位"
+          style={{ '--theme': cat('shengxue').color } as React.CSSProperties}
+        >
+          <SectionHead
+            title={cat('shengxue').title}
+            sub={cat('shengxue').sub}
+            cid="shengxue"
+            color={cat('shengxue').color}
+          />
           <div className="shengxue-cols">
             {SHENGXUE_SERIES.map((slug) => {
               const meta = seriesMeta(slug);
-              const eps = shengxueEps.filter((e) => e.series_slug === slug);
+              const eps = home.episodes.filter((e) => e.series_slug === slug);
               if (!meta || eps.length === 0) return null;
               return (
                 <div className="shengxue-group" key={slug}>
@@ -246,12 +261,19 @@ export default function HomePage() {
         </section>
       )}
 
-      {/* ④ STEM 和 CS 学习 */}
+      {/* ⑤ STEM 和 CS 学习 */}
       {stemEps.length > 0 && (
-        <section className="home-section" id="sec-stem" aria-label="STEM 和 CS 学习">
+        <section
+          className="home-section"
+          id="sec-stem"
+          aria-label="STEM 和 CS 学习"
+          style={{ '--theme': cat('stem').color } as React.CSSProperties}
+        >
           <SectionHead
-            title="STEM 和 CS 学习"
-            sub="几岁学什么、怎么学不焦虑：编程、数理、哲思与工具"
+            title={cat('stem').title}
+            sub={cat('stem').sub}
+            cid="stem"
+            color={cat('stem').color}
           />
           <div className="entry-list entry-list--tri">
             {stemEps.map((e) => (
