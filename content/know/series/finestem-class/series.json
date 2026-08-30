@@ -1,0 +1,11 @@
+{
+  "slug": "finestem-class",
+  "title": "fineSTEM 课堂",
+  "subtitle": "一个话题，一次讲透",
+  "brand": "finestem",
+  "description": "fineSTEM 出品的系列节目：一次一个 STEM 话题，一条讲解视频讲清楚，再带你看看平台上学员们围绕这个话题做出的项目。（示例系列，内容待排期）",
+  "tags": ["STEM", "PBL"],
+  "audience": "family",
+  "theme_color": "#0D9488",
+  "docs": []
+}

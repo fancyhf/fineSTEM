@@ -21,7 +21,7 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
-echo [0/5] Cleaning up old processes...
+echo [0/6] Cleaning up old processes...
 REM Kill leftover esbuild processes that cause "service is no longer running" errors
 taskkill /F /IM esbuild.exe >nul 2>&1
 REM Kill existing zeroclaw daemon if running
@@ -29,7 +29,7 @@ taskkill /F /IM zeroclaw.exe >nul 2>&1
 echo       Old processes cleaned.
 echo.
 
-echo [1/5] Checking ports...
+echo [1/6] Checking ports...
 netstat -ano | findstr ":42617 " | findstr "LISTENING" >nul 2>&1
 if %errorlevel% equ 0 (
     echo [WARN] Port 42617 (ZeroClaw) is still in use after cleanup
@@ -42,9 +42,13 @@ netstat -ano | findstr ":5184 " | findstr "LISTENING" >nul 2>&1
 if %errorlevel% equ 0 (
     echo [WARN] Port 5184 is still in use after cleanup
 )
+netstat -ano | findstr ":5185 " | findstr "LISTENING" >nul 2>&1
+if %errorlevel% equ 0 (
+    echo [WARN] Port 5185 is still in use after cleanup
+)
 echo.
 
-echo [2/5] Starting ZeroClaw Daemon (port 42617)...
+echo [2/6] Starting ZeroClaw Daemon (port 42617)...
 start "fineSTEM ZeroClaw" cmd /k "cd /d H:\dev-env\zeroclaw && set ZEROCLAW_CONFIG_DIR=H:\dev-env\zeroclaw\config && set ZEROCLAW_DATA_DIR=H:\dev-env\zeroclaw\data && .\bin\zeroclaw.exe daemon"
 
 REM ZeroClaw gateway has no /health HTTP endpoint (require_pairing=true, API-only).
@@ -70,7 +74,7 @@ if !ZEROCLAW_READY! equ 0 (
 endlocal
 echo.
 
-echo [3/5] Starting backend (port 3200)...
+echo [3/6] Starting backend (port 3200)...
 start "fineSTEM Backend" cmd /k "cd /d %~dp0apps\backend && python -m uvicorn main:app --host 0.0.0.0 --port 3200 --reload"
 
 echo       Probing backend /health (timeout 45s)...
@@ -93,20 +97,28 @@ if !BACKEND_READY! equ 0 (
 )
 endlocal
 
-echo [4/5] Starting frontend (port 5184)...
+echo [4/6] Starting frontend (port 5184)...
 start "fineSTEM Frontend" cmd /k "cd /d %~dp0apps\frontend && npm run dev"
 
 echo       Waiting for frontend (5s)...
 timeout /t 5 >nul
 
-echo [5/5] Opening browser...
+echo [5/6] Starting Know frontend (port 5185)...
+start "fineSTEM Know" cmd /k "cd /d %~dp0apps\know && npm run dev"
+
+echo       Waiting for Know frontend (5s)...
+timeout /t 5 >nul
+
+echo [6/6] Opening browser...
 start http://localhost:5184
+start http://localhost:5185
 
 echo.
 echo ==========================================
 echo       Dev server started!
 echo ==========================================
 echo   Frontend:  http://localhost:5184
+echo   Know:      http://localhost:5185
 echo   Backend:   http://localhost:3200/api
 echo   API Docs:  http://localhost:3200/docs
 echo   ZeroClaw:  http://localhost:42617

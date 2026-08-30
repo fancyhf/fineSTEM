@@ -4,11 +4,11 @@
   "private": true,
   "scripts": {
     "dev:web": "npm run dev --workspace=apps/frontend",
-    "dev:show": "npm run dev --workspace=apps/show",
+    "dev:know": "npm run dev --workspace=apps/know",
     "dev:backend": "cd apps/backend && python -m uvicorn main:app --reload --port 3200",
     "build:web": "npm run build --workspace=apps/frontend",
-    "build:show": "npm run build --workspace=apps/show",
-    "validate:content": "npm run validate:content --workspace=apps/show",
+    "build:know": "npm run build --workspace=apps/know",
+    "validate:content": "npm run validate:content --workspace=apps/know",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "npm run preview --workspace=apps/frontend",
     "test:create-smoke": "python scripts/run_create_smoke.py"

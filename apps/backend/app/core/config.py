@@ -91,9 +91,9 @@ class Settings(BaseSettings):
     STORAGE_EXPORTS_DIR: str = "exports"
     STORAGE_INDEX_FILE: str = "file_index.json"
 
-    # 节目频道（Show 子系统）内容目录：默认仓库 content/show，生产环境用环境变量
-    # 指向 /opt/finestem/show/content
-    SHOW_CONTENT_DIR: Optional[str] = None
+    # 节目频道（Know 子系统）内容目录：默认仓库 content/know，生产环境用环境变量
+    # 指向 /opt/finestem/know/content
+    KNOW_CONTENT_DIR: Optional[str] = None
 
     # JWT 配置（生产环境必须通过环境变量覆盖）
     SECRET_KEY: Optional[str] = None

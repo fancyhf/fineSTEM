@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" font-family="'Songti SC','STSong','SimSun',serif">
+  <rect width="1280" height="720" fill="#F7F5F1"/>
+  <rect x="36" y="36" width="1208" height="648" fill="none" stroke="#29251F" stroke-width="1.5" stroke-opacity="0.35"/>
+  <rect x="588" y="236" width="104" height="104" fill="none" stroke="#1E4A66" stroke-width="3"/>
+  <text x="640" y="310" text-anchor="middle" font-size="58" font-weight="bold" fill="#1E4A66">话</text>
+  <text x="640" y="440" text-anchor="middle" font-size="42" font-weight="bold" fill="#29251F" letter-spacing="8">与孩子对话</text>
+  <text x="640" y="492" text-anchor="middle" font-size="20" fill="#6E685D" letter-spacing="6">STEM 与亲子共学 · 节目频道</text>
+</svg>

@@ -1,0 +1,23 @@
+{
+  "slug": "ep01",
+  "episode_no": 1,
+  "title": "光的旅程：从影子到太阳灶",
+  "summary": "示例节目位：讲解视频 + 学员项目展示 + 动手资料，讲透一个光学话题。",
+  "description_md": "这是 fineSTEM 课堂的示例节目位，用于验证频道结构：讲解视频（B 站嵌入）+ 相关学员项目跳转 + 配套资料下载。\n\n正式内容排期后替换本文件即可，页面无需改动。",
+  "audience": "family",
+  "tags": ["STEM", "物理", "PBL"],
+  "status": "published",
+  "published_at": "2026-09-08",
+  "cover": "cover.svg",
+  "default_tab": null,
+  "announce": {
+    "video": "讲解视频 · 即将上线"
+  },
+  "resources": {
+    "videos": [],
+    "docs": [],
+    "projects": [
+      { "title": "学员项目精选 · 光学主题（探索页）", "url": "https://wostemstudio.site/explore", "note": "看完节目，去 fineSTEM 看看别人做了什么" }
+    ]
+  }
+}
