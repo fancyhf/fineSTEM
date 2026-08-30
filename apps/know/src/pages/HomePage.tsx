@@ -136,11 +136,19 @@ export default function HomePage() {
 
   const seriesMeta = (slug: string) => home.series.find((s) => s.slug === slug);
 
+  // 4 个栏目大入口（主打位下方，锚点跳转到各栏目）
+  const tiles = [
+    { id: 'sec-podcast', title: '家长减负博客', sub: '家长播客 × 与孩子互动', count: podcastEps.length, icon: '◉' },
+    { id: 'sec-kids', title: '儿童互动视频', sub: '点一点、玩一玩', count: kidEps.length, icon: '▷' },
+    { id: 'sec-shengxue', title: '升学和学位', sub: '规划要趁早', count: shengxueEps.length, icon: '⇉' },
+    { id: 'sec-stem', title: 'STEM 和 CS 学习', sub: '按年龄给路径', count: stemEps.length, icon: '</>' },
+  ];
+
   return (
     <>
       {/* ① 家长减负博客（与孩子互动） */}
       {podcastMain && (
-        <section className="home-section" aria-label="家长减负博客">
+        <section className="home-section" id="sec-podcast" aria-label="家长减负博客">
           <SectionHead
             title="家长减负博客 · 与孩子互动"
             sub="一期一个话题：家长播客讲清楚，互动演示一起玩"
@@ -181,12 +189,26 @@ export default function HomePage() {
               ))}
             </div>
           )}
+
+          {/* 4 个栏目大入口 */}
+          <nav className="portal-nav" aria-label="栏目入口">
+            {tiles.map((t) => (
+              <a className="portal-tile" key={t.id} href={`#${t.id}`}>
+                <span className="portal-tile__icon" aria-hidden>{t.icon}</span>
+                <span className="portal-tile__main">
+                  <span className="portal-tile__title">{t.title}</span>
+                  <span className="portal-tile__sub">{t.sub}</span>
+                </span>
+                <span className="portal-tile__count">{t.count} 集</span>
+              </a>
+            ))}
+          </nav>
         </section>
       )}
 
       {/* ② 儿童互动视频 */}
       {kidEps.length > 0 && (
-        <section className="home-section" aria-label="儿童互动视频">
+        <section className="home-section" id="sec-kids" aria-label="儿童互动视频">
           <SectionHead title="儿童互动视频" sub="给孩子看的：点一点、玩一玩、跟着动画走" />
           <div className="kid-grid">
             {kidEps.map((e) => (
@@ -198,7 +220,7 @@ export default function HomePage() {
 
       {/* ③ 升学和学位 */}
       {shengxueEps.length > 0 && (
-        <section className="home-section" aria-label="升学和学位">
+        <section className="home-section" id="sec-shengxue" aria-label="升学和学位">
           <SectionHead title="升学和学位" sub="路更多、境更大：规划要趁早，学位要看懂" />
           <div className="shengxue-cols">
             {SHENGXUE_SERIES.map((slug) => {
@@ -226,7 +248,7 @@ export default function HomePage() {
 
       {/* ④ STEM 和 CS 学习 */}
       {stemEps.length > 0 && (
-        <section className="home-section" aria-label="STEM 和 CS 学习">
+        <section className="home-section" id="sec-stem" aria-label="STEM 和 CS 学习">
           <SectionHead
             title="STEM 和 CS 学习"
             sub="几岁学什么、怎么学不焦虑：编程、数理、哲思与工具"

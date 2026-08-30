@@ -3,7 +3,7 @@
   "episode_no": 6,
   "title": "数学物理可视化：CS / AI / 游戏",
   "summary": "Pygame、Unity、低代码工具，把数学物理变成看得见的动画——5-8 岁启蒙到初中全覆盖。",
-  "description_md": "数学可视化编程工具集：\n- 5-8 岁：编程与数学可视化启蒙\n- 初中生：进阶可视化\n- 工具线：Pygame 做数学可视化、Unity 做数学可视化、低代码可视化工具\n\n**完整清单见下方 FlowUs 原文**。",
+  "description_md": "数学可视化编程工具集：\n- 5-8 岁：编程与数学可视化启蒙\n- 初中生：进阶可视化\n- 工具线：Pygame 做数学可视化、Unity 做数学可视化、低代码可视化工具\n\n下方视频是可视化效果的直观演示，**完整清单见 FlowUs 原文**。",
   "audience": "parent",
   "tags": [
     "STEM",
@@ -16,7 +16,15 @@
   "default_tab": null,
   "announce": {},
   "resources": {
-    "videos": [],
+    "videos": [
+      {
+        "id": "demo",
+        "audience": null,
+        "title": "数学物理可视化 · 演示视频",
+        "embed_url": "//player.bilibili.com/player.html?bvid=BV1Z8Tkz7EHa&autoplay=0",
+        "page": "https://www.bilibili.com/video/BV1Z8Tkz7EHa"
+      }
+    ],
     "docs": [
       {
         "title": "FlowUs 原文（完整版 · 持续更新）",
