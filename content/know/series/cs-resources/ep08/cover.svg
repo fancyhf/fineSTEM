@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720"
+     font-family="'Noto Serif SC','Songti SC','STSong','SimSun',serif">
+  <rect width="1280" height="720" fill="#5C3A57"/>
+  <rect x="30" y="30" width="1220" height="660" fill="none" stroke="#F7F5F1" stroke-opacity="0.5" stroke-width="2"/>
+  <rect x="40" y="40" width="1200" height="640" fill="none" stroke="#F7F5F1" stroke-opacity="0.18" stroke-width="1"/>
+
+  <!-- 左：文字 -->
+  <text x="90" y="140" font-size="28" fill="#E3B83A" letter-spacing="8" font-weight="bold">CS 资源清单</text>
+  <line x1="90" y1="172" x2="430" y2="172" stroke="#E3B83A" stroke-width="2.5"/>
+  <text x="90" y="306" font-size="66" font-weight="bold" fill="#F7F5F1" letter-spacing="3">编程书籍 · 少年</text>
+  <text x="92" y="378" font-size="27" fill="#F7F5F1" fill-opacity="0.72" letter-spacing="6">语言 · 算法 · 项目实战</text>
+
+  <!-- 清单纸：勾选行 -->
+  <g transform="translate(90 440)">
+    <rect x="0" y="0" width="380" height="176" rx="10" fill="#FFFFFF" fill-opacity="0.07" stroke="#F7F5F1" stroke-opacity="0.35" stroke-width="1.5"/>
+    <rect x="24" y="26" width="22" height="22" rx="5" fill="none" stroke="#E3B83A" stroke-width="3"/>
+    <path d="M 29 37 l 5 6 l 10 -12" fill="none" stroke="#E3B83A" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="66" y="30" width="280" height="10" rx="5" fill="#F7F5F1" fill-opacity="0.3"/><rect x="24" y="68" width="22" height="22" rx="5" fill="none" stroke="#E3B83A" stroke-width="3"/>
+    <path d="M 29 79 l 5 6 l 10 -12" fill="none" stroke="#E3B83A" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="66" y="72" width="220" height="10" rx="5" fill="#F7F5F1" fill-opacity="0.3"/><rect x="24" y="110" width="22" height="22" rx="5" fill="none" stroke="#E3B83A" stroke-width="3"/>
+    <path d="M 29 121 l 5 6 l 10 -12" fill="none" stroke="#E3B83A" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="66" y="114" width="160" height="10" rx="5" fill="#F7F5F1" fill-opacity="0.3"/>
+  </g>
+
+  <!-- 右：图标徽章 -->
+  <circle cx="960" cy="330" r="150" fill="#FFFFFF" fill-opacity="0.06" stroke="#F7F5F1" stroke-opacity="0.4" stroke-width="2"/>
+  <circle cx="960" cy="330" r="128" fill="none" stroke="#E3B83A" stroke-width="3" stroke-dasharray="4 10" stroke-linecap="round"/>
+  <g transform="translate(896 266)"><rect x="26" y="76" width="76" height="18" rx="3" fill="none" stroke="#F7F5F1" stroke-width="4"/>
+<rect x="32" y="58" width="70" height="18" rx="3" fill="none" stroke="#F7F5F1" stroke-width="4"/>
+<rect x="26" y="40" width="76" height="18" rx="3" fill="none" stroke="#F7F5F1" stroke-width="4"/>
+<text x="64" y="54" text-anchor="middle" font-size="14" font-weight="bold" fill="#E3B83A" font-family="monospace">&lt;/&gt;</text>
+<circle cx="106" cy="34" r="4" fill="#E3B83A"/></g>
+
+  <!-- 卷次章：金底墨字 -->
+  <rect x="1080" y="560" width="130" height="64" fill="#E3B83A"/>
+  <text x="1145" y="606" text-anchor="middle" font-size="34" font-weight="bold" fill="#29251F">第8期</text>
+
+  <text x="90" y="640" font-size="24" fill="#F7F5F1" fill-opacity="0.6" letter-spacing="4">与孩子对话 · 鸡娃先自鸡 · 学编程路上的每一张对照清单</text>
+</svg>
