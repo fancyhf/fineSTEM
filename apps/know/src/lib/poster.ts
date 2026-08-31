@@ -76,6 +76,16 @@ export function episodeHighlights(ep: EpisodeDetail): string[] {
   return items.slice(0, 4);
 }
 
+/** 加载图片（失败返回 null，不阻断海报生成） */
+function loadImage(src: string): Promise<HTMLImageElement | null> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = src;
+  });
+}
+
 /** 确保 webfont 就绪（canvas 使用前必须显式加载） */
 async function ensureFonts(): Promise<void> {
   try {
@@ -137,12 +147,17 @@ async function drawQR(
   }
 }
 
-/** 生成分享海报，返回 canvas（调用方 toDataURL / toBlob）。paletteIdx 选三套配色之一 */
+/** 生成分享海报，返回 canvas。paletteIdx 选配色；withCover 勾选时贴节目封面 */
 export async function buildPosterCanvas(
   ep: EpisodeDetail,
-  paletteIdx = 0
+  paletteIdx = 0,
+  withCover = true
 ): Promise<HTMLCanvasElement> {
   await ensureFonts();
+
+  // 节目封面（勾选时加载；加载失败自动退回无封面排版）
+  const coverImg = withCover && ep.cover ? await loadImage(ep.cover) : null;
+  const hasCover = !!coverImg;
 
   const canvas = document.createElement('canvas');
   canvas.width = W;
@@ -198,7 +213,7 @@ export async function buildPosterCanvas(
   ctx.fillText('给家长的播客与互动节目', LX + 84, y + 44);
 
   // 系列名（点缀色） + 线
-  y = 380;
+  y = hasCover ? 340 : 380;
   ctx.fillStyle = pal.accent;
   ctx.font = `700 34px ${serif}`;
   ctx.fillText(ep.series_title, LX, y);
@@ -209,12 +224,12 @@ export async function buildPosterCanvas(
   ctx.fillRect(LX, y + 26, 340, 5);
 
   // 主标题：优先单行（自动缩字号），实在放不下再换行，避免孤字
-  y = 540;
+  y = hasCover ? 452 : 540;
   ctx.fillStyle = PAPER;
   const maxTitleW = W - LX * 2 - 40;
-  let titleSize = 88;
+  let titleSize = hasCover ? 76 : 88;
   ctx.font = `700 ${titleSize}px ${serif}`;
-  while (titleSize > 60 && ctx.measureText(ep.title).width >= maxTitleW) {
+  while (titleSize > 56 && ctx.measureText(ep.title).width >= maxTitleW) {
     titleSize -= 8;
     ctx.font = `700 ${titleSize}px ${serif}`;
   }
@@ -225,63 +240,110 @@ export async function buildPosterCanvas(
     y += titleSize * 1.32;
   }
 
-  // 摘要（最多 3 行）
-  y += 26;
-  ctx.font = `400 34px ${serif}`;
+  // 摘要（最多 2 行）
+  y += 24;
+  ctx.font = `400 33px ${serif}`;
   ctx.fillStyle = 'rgba(247,245,241,0.78)';
-  const sumLines = wrapText(ctx, ep.summary || '', W - LX * 2 - 40, 3);
+  const sumLines = wrapText(ctx, ep.summary || '', W - LX * 2 - 40, 2);
   for (const line of sumLines) {
     ctx.fillText(line, LX, y);
-    y += 54;
+    y += 52;
   }
 
-  // ── 中部：本集包含 ──
-  y += 66;
-  ctx.fillStyle = pal.accent;
-  ctx.font = `700 30px ${serif}`;
-  ctx.fillText('本 集 包 含', LX, y);
-  y += 56;
-  ctx.font = `400 36px ${serif}`;
-  for (const item of episodeHighlights(ep)) {
-    // 勾选框
-    ctx.strokeStyle = pal.accent;
-    ctx.lineWidth = 5;
-    roundRect(ctx, LX, y - 34, 40, 40, 9);
+  if (hasCover && coverImg) {
+    // ── 节目封面块（16:9 圆角，cover-fit 裁切） ──
+    y += 34;
+    const cw = W - LX * 2;
+    const ch = Math.round((cw * 9) / 16);
+    ctx.save();
+    roundRect(ctx, LX, y, cw, ch, 22);
+    ctx.clip();
+    const iw = coverImg.naturalWidth || 16;
+    const ih = coverImg.naturalHeight || 9;
+    const s = Math.max(cw / iw, ch / ih);
+    ctx.drawImage(coverImg, LX + (cw - iw * s) / 2, y + (ch - ih * s) / 2, iw * s, ih * s);
+    ctx.restore();
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+    ctx.lineWidth = 3;
+    roundRect(ctx, LX, y, cw, ch, 22);
     ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(LX + 9, y - 15);
-    ctx.lineTo(LX + 17, y - 6);
-    ctx.lineTo(LX + 31, y - 24);
-    ctx.stroke();
-    ctx.fillStyle = PAPER;
-    ctx.fillText(item, LX + 64, y);
-    y += 76;
+    y += ch;
+
+    // ── 本集包含（两列紧凑） ──
+    y += 60;
+    ctx.fillStyle = pal.accent;
+    ctx.font = `700 30px ${serif}`;
+    ctx.fillText('本 集 包 含', LX, y);
+    y += 52;
+    ctx.font = `400 29px ${serif}`;
+    const colW = (W - LX * 2 - 24) / 2;
+    const items = episodeHighlights(ep);
+    items.forEach((item, idx) => {
+      const col = idx % 2;
+      const row = Math.floor(idx / 2);
+      const ix = LX + col * (colW + 24);
+      const iy = y + row * 74;
+      ctx.strokeStyle = pal.accent;
+      ctx.lineWidth = 5;
+      roundRect(ctx, ix, iy - 32, 38, 38, 9);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(ix + 8, iy - 14);
+      ctx.lineTo(ix + 16, iy - 5);
+      ctx.lineTo(ix + 29, iy - 23);
+      ctx.stroke();
+      ctx.fillStyle = PAPER;
+      ctx.fillText(item, ix + 56, iy);
+    });
+  } else {
+    // ── 中部：本集包含（单列） ──
+    y += 66;
+    ctx.fillStyle = pal.accent;
+    ctx.font = `700 30px ${serif}`;
+    ctx.fillText('本 集 包 含', LX, y);
+    y += 56;
+    ctx.font = `400 36px ${serif}`;
+    for (const item of episodeHighlights(ep)) {
+      ctx.strokeStyle = pal.accent;
+      ctx.lineWidth = 5;
+      roundRect(ctx, LX, y - 34, 40, 40, 9);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(LX + 9, y - 15);
+      ctx.lineTo(LX + 17, y - 6);
+      ctx.lineTo(LX + 31, y - 24);
+      ctx.stroke();
+      ctx.fillStyle = PAPER;
+      ctx.fillText(item, LX + 64, y);
+      y += 76;
+    }
   }
 
   // ── 底部：二维码 + 行动号召 ──
-  const panelY = H - 470;
+  const panelY = hasCover ? H - 400 : H - 470;
+  const panelH = hasCover ? 340 : 360;
   ctx.fillStyle = 'rgba(255,255,255,0.06)';
-  roundRect(ctx, 60, panelY, W - 120, 360, 20);
+  roundRect(ctx, 60, panelY, W - 120, panelH, 20);
   ctx.fill();
 
-  const qrSize = 270;
+  const qrSize = hasCover ? 240 : 270;
   const shareUrl = `${window.location.origin}${ep.url}`;
   await drawQR(ctx, shareUrl, LX, panelY + 45, qrSize);
 
   const tx = LX + qrSize + 56;
   ctx.fillStyle = PAPER;
-  ctx.font = `700 44px ${serif}`;
-  ctx.fillText('扫码直接收看', tx, panelY + 118);
-  ctx.font = `400 26px ${serif}`;
+  ctx.font = `700 42px ${serif}`;
+  ctx.fillText('扫码直接收看', tx, panelY + 108);
+  ctx.font = `400 25px ${serif}`;
   ctx.fillStyle = 'rgba(247,245,241,0.66)';
-  ctx.fillText('家长播客 × 互动演示 × 配套资料', tx, panelY + 172);
-  ctx.font = `400 22px monospace`;
+  ctx.fillText('家长播客 × 互动演示 × 配套资料', tx, panelY + 158);
+  ctx.font = `400 21px monospace`;
   ctx.fillStyle = 'rgba(247,245,241,0.45)';
-  ctx.fillText(shareUrl.slice(0, 42), tx, panelY + 214);
+  ctx.fillText(shareUrl.slice(0, 42), tx, panelY + 198);
 
   ctx.fillStyle = pal.accent;
-  ctx.font = `700 26px ${serif}`;
-  ctx.fillText('与孩子对话 × fineSTEM 出品', tx, panelY + 258);
+  ctx.font = `700 25px ${serif}`;
+  ctx.fillText('与孩子对话 × fineSTEM 出品', tx, panelY + 242);
 
   return canvas;
 }

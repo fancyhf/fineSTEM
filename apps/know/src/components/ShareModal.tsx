@@ -4,8 +4,8 @@ import { buildPosterCanvas, POSTER_PALETTES } from '../lib/poster';
 import type { EpisodeDetail } from '../types';
 
 /**
- * 分享海报弹窗：生成 1080×1920 竖版海报（带二维码），三种鲜亮配色可选。
- * 手机：长按图片保存 → 发朋友圈；桌面：点「下载海报」。
+ * 分享海报弹窗：1080×1920 竖版海报（带二维码），三种鲜亮配色可选，
+ * 可勾选是否贴上节目封面。手机长按保存发朋友圈；桌面点下载。
  */
 export default function ShareModal({
   episode,
@@ -15,13 +15,16 @@ export default function ShareModal({
   onClose: () => void;
 }) {
   const [paletteIdx, setPaletteIdx] = useState(0);
+  const [withCover, setWithCover] = useState(true);
   const [dataUrl, setDataUrl] = useState('');
   const [error, setError] = useState('');
+
+  const hasCover = !!episode.cover;
 
   useEffect(() => {
     let alive = true;
     setDataUrl('');
-    buildPosterCanvas(episode, paletteIdx)
+    buildPosterCanvas(episode, paletteIdx, withCover && hasCover)
       .then((canvas) => {
         if (alive) setDataUrl(canvas.toDataURL('image/png'));
       })
@@ -31,7 +34,7 @@ export default function ShareModal({
     return () => {
       alive = false;
     };
-  }, [episode, paletteIdx]);
+  }, [episode, paletteIdx, withCover, hasCover]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
@@ -60,7 +63,7 @@ export default function ShareModal({
           ✕
         </button>
 
-        {/* 配色选择 */}
+        {/* 配色选择 + 封面勾选 */}
         <div className="share-palettes" role="group" aria-label="选择海报配色">
           {POSTER_PALETTES.map((p, i) => (
             <button
@@ -75,6 +78,16 @@ export default function ShareModal({
             </button>
           ))}
         </div>
+
+        <label className={`share-cover-toggle${hasCover ? '' : ' is-disabled'}`}>
+          <input
+            type="checkbox"
+            checked={withCover && hasCover}
+            disabled={!hasCover}
+            onChange={(e) => setWithCover(e.target.checked)}
+          />
+          在海报中展示节目封面
+        </label>
 
         {error ? (
           <div className="share-error">海报生成失败：{error}</div>

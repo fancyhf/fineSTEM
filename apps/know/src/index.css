@@ -1701,3 +1701,28 @@ button {
   border-color: var(--ink);
   box-shadow: 0 0 0 3px rgba(41, 37, 31, 0.18), 0 2px 8px rgba(0, 0, 0, 0.15);
 }
+
+/* 封面勾选 */
+.share-cover-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--ink);
+  margin-bottom: 14px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.share-cover-toggle input {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.share-cover-toggle.is-disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
