@@ -1593,3 +1593,10 @@ button {
   background: var(--theme, var(--ink));
   color: var(--paper-raised);
 }
+
+/* 手机端隐藏品牌副标题（须晚于前述 display:block 规则，否则被覆盖） */
+@media (max-width: 720px) {
+  .brand__sub {
+    display: none;
+  }
+}
