@@ -199,6 +199,22 @@ validate → commit → push → 服务器同步。
 
 ### 2.3 服务器同步（更新部署）
 
+先判断本次改动落在哪一层，只做需要的步骤：
+
+```bash
+cd /opt/finestem/repo
+git pull --ff-only
+git diff --name-status <上次HEAD>..HEAD              # 看改了哪些文件
+git diff --stat <上次HEAD>..HEAD -- apps/backend     # 空 = 后端无改动
+git diff --stat <上次HEAD>..HEAD -- content/know     # 空 = 内容无改动
+```
+
+| 改动落在 | 要做的 | 是否重启后端 |
+|---------|--------|-------------|
+| 仅内容 `content/know` | 同步内容库 | 否（自动重扫） |
+| 仅前端 `apps/know` | 安装依赖（如 package.json 变了）+ 重建 + 部署 dist | 否 |
+| 后端 `apps/backend` | 按 §0 对应关系复制文件 | **是** |
+
 ```bash
 # 1) 取最新代码
 cd /opt/finestem/repo && git pull --ff-only
@@ -206,14 +222,26 @@ cd /opt/finestem/repo && git pull --ff-only
 # 2) 内容库（内容改动走这一步，无需重启后端）
 cp -r /opt/finestem/repo/content/know/* /opt/finestem/content/know/
 
-# 3) 前端有改动时重新构建
-cd /opt/finestem/repo/apps/know && npm run build \
-  && cp -r dist/* /opt/finestem/know/dist/
+# 3) 前端有改动时：package.json 变了先装依赖，再重建
+cd /opt/finestem/repo/apps/know
+npm install --no-audit --no-fund
+npm run build && cp -r dist/* /opt/finestem/know/dist/
 
 # 4) 后端有改动时：按 §0 的对应关系复制文件，再重启
-cp /opt/finestem/repo/apps/backend/app/api/know.py /opt/finestem/app/app/api/know.py
+cp /opt/finestem/repo/apps/backend/app/services/know_content.py \
+   /opt/finestem/app/app/services/know_content.py
 systemctl restart finestem-backend
+
+# 5) 收尾：还原 npm install 对 lock 文件的改动（见下方说明）
+cd /opt/finestem/repo && git checkout -- package-lock.json
 ```
+
+> ⚠️ **`npm install` 会改动仓库里的 `package-lock.json`，导致下次 `git pull` 被拒**
+> （报错 `Please commit your changes or stash them before you merge`）。
+> 处理：先 `git checkout -- package-lock.json` 再 pull；部署结束后也还原一次，
+> 保持 `git status` 干净。仓库的 lock 文件是权威版本，服务器的改动不需要保留。
+
+> 浏览器验证新前端时记得 `Ctrl+F5` 强制刷新，避免旧资源缓存。
 
 ---
 
