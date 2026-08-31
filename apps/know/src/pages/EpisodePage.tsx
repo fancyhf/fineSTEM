@@ -8,12 +8,14 @@ import ResourceStage from '../components/ResourceStage';
 import Seal from '../components/Seal';
 import { AudienceBadges } from '../components/Badges';
 import { DocList, ProjectList } from '../components/DocList';
+import ShareModal from '../components/ShareModal';
 
 /** 节目详情页（核心页面）：资源 tabs + 说明 + 资料 + 相关项目 + 上下集 */
 export default function EpisodePage() {
   const { seriesSlug, epSlug } = useParams<{ seriesSlug: string; epSlug: string }>();
   const [episode, setEpisode] = useState<EpisodeDetail | null>(null);
   const [error, setError] = useState('');
+  const [sharing, setSharing] = useState(false);
 
   useEffect(() => {
     setEpisode(null);
@@ -67,6 +69,13 @@ export default function EpisodePage() {
                 #{t}
               </Link>
             ))}
+            <button
+              className="btn-ghost ep-share-btn"
+              onClick={() => setSharing(true)}
+              style={{ marginLeft: 'auto' }}
+            >
+              分享海报 ⤴
+            </button>
           </div>
         </div>
       </div>
@@ -88,6 +97,8 @@ export default function EpisodePage() {
           <ProjectList projects={episode.resources.projects} />
         </>
       )}
+
+      {sharing && <ShareModal episode={episode} onClose={() => setSharing(false)} />}
 
       {(episode.prev || episode.next) && (
         <nav className="ep-nav">

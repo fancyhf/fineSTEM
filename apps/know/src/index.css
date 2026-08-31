@@ -1600,3 +1600,75 @@ button {
     display: none;
   }
 }
+
+/* ── 分享海报弹窗 ── */
+
+.share-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(41, 37, 31, 0.72);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.share-panel {
+  position: relative;
+  background: var(--paper-raised);
+  border-radius: 12px;
+  padding: 18px;
+  max-width: min(460px, 92vw);
+  max-height: 94vh;
+  overflow-y: auto;
+}
+
+.share-poster {
+  width: 100%;
+  display: block;
+  border-radius: 8px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35);
+}
+
+.share-hint {
+  margin-top: 14px;
+  text-align: center;
+}
+
+.share-hint__main {
+  font-size: 14px;
+  color: var(--ink);
+  margin-bottom: 10px;
+  letter-spacing: 0.5px;
+}
+
+.share-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 1;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: rgba(41, 37, 31, 0.55);
+  color: #fff;
+  font-size: 15px;
+}
+
+.share-loading,
+.share-error {
+  padding: 70px 40px;
+  text-align: center;
+  color: var(--ink-mut);
+  letter-spacing: 2px;
+}
+
+.share-error {
+  color: var(--cinnabar, #a8574c);
+}
+
+.share-panel {
+  max-width: min(480px, 92vw);
+}
