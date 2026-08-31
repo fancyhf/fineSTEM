@@ -18,18 +18,6 @@ const H = 1920;
 const PAPER = '#F7F5F1';
 const GOLD = '#E3B83A';
 
-/** hex 加深（乘系数），保证任意系列主题色做底都够深 */
-function darken(hex: string, factor: number): string {
-  const m = hex.replace('#', '');
-  const n = m.length === 3
-    ? m.split('').map((c) => c + c).join('')
-    : m;
-  const r = Math.round(parseInt(n.slice(0, 2), 16) * factor);
-  const g = Math.round(parseInt(n.slice(2, 4), 16) * factor);
-  const b = Math.round(parseInt(n.slice(4, 6), 16) * factor);
-  return `#${[r, g, b].map((v) => Math.min(255, v).toString(16).padStart(2, '0')).join('')}`;
-}
-
 function roundRect(
   ctx: CanvasRenderingContext2D,
   x: number, y: number, w: number, h: number, r: number
@@ -101,6 +89,21 @@ async function ensureFonts(): Promise<void> {
   }
 }
 
+export interface PosterPalette {
+  id: string;
+  name: string;
+  bgTop: string;
+  bgBottom: string;
+  accent: string; // 高亮点缀（系列行/勾选框）
+}
+
+/** 三套鲜亮活泼配色（朋友圈海报可选） */
+export const POSTER_PALETTES: PosterPalette[] = [
+  { id: 'orange', name: '活力橙', bgTop: '#FF8A3D', bgBottom: '#F5532C', accent: '#FFEDB8' },
+  { id: 'blue', name: '清新蓝', bgTop: '#2BB3B0', bgBottom: '#1E7EC8', accent: '#FFF3C4' },
+  { id: 'pink', name: '莓果粉', bgTop: '#FF6B9D', bgBottom: '#F0426E', accent: '#FFF3C4' },
+];
+
 async function drawQR(
   ctx: CanvasRenderingContext2D,
   text: string,
@@ -134,8 +137,11 @@ async function drawQR(
   }
 }
 
-/** 生成分享海报，返回 canvas（调用方 toDataURL / toBlob） */
-export async function buildPosterCanvas(ep: EpisodeDetail): Promise<HTMLCanvasElement> {
+/** 生成分享海报，返回 canvas（调用方 toDataURL / toBlob）。paletteIdx 选三套配色之一 */
+export async function buildPosterCanvas(
+  ep: EpisodeDetail,
+  paletteIdx = 0
+): Promise<HTMLCanvasElement> {
   await ensureFonts();
 
   const canvas = document.createElement('canvas');
@@ -143,18 +149,33 @@ export async function buildPosterCanvas(ep: EpisodeDetail): Promise<HTMLCanvasEl
   canvas.height = H;
   const ctx = canvas.getContext('2d')!;
 
-  const bg = darken(ep.theme_color || '#3E6B8C', 0.52);
+  const pal = POSTER_PALETTES[paletteIdx] ?? POSTER_PALETTES[0];
   const serif = '"Noto Serif SC", "Songti SC", "STSong", "SimSun", serif';
 
-  // 底色 + 双线框
-  ctx.fillStyle = bg;
+  // 鲜亮渐变底
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, pal.bgTop);
+  grad.addColorStop(1, pal.bgBottom);
+  ctx.fillStyle = grad;
   ctx.fillRect(0, 0, W, H);
-  ctx.strokeStyle = 'rgba(247,245,241,0.5)';
-  ctx.lineWidth = 4;
-  ctx.strokeRect(30, 30, W - 60, H - 60);
-  ctx.strokeStyle = 'rgba(247,245,241,0.18)';
-  ctx.lineWidth = 2;
-  ctx.strokeRect(44, 44, W - 88, H - 88);
+
+  // 活泼装饰：大半透明圆
+  ctx.fillStyle = 'rgba(255,255,255,0.10)';
+  ctx.beginPath();
+  ctx.arc(W - 60, 210, 190, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(40, 780, 120, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(W - 120, 1160, 90, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 内框（细白线）
+  ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+  ctx.lineWidth = 3;
+  roundRect(ctx, 36, 36, W - 72, H - 72, 28);
+  ctx.stroke();
 
   const LX = 90; // 左边距
 
@@ -176,15 +197,15 @@ export async function buildPosterCanvas(ep: EpisodeDetail): Promise<HTMLCanvasEl
   ctx.fillStyle = 'rgba(247,245,241,0.66)';
   ctx.fillText('给家长的播客与互动节目', LX + 84, y + 44);
 
-  // 系列名（金） + 金线
+  // 系列名（点缀色） + 线
   y = 380;
-  ctx.fillStyle = GOLD;
+  ctx.fillStyle = pal.accent;
   ctx.font = `700 34px ${serif}`;
   ctx.fillText(ep.series_title, LX, y);
   const sw = ctx.measureText(ep.series_title).width;
-  ctx.fillStyle = 'rgba(247,245,241,0.55)';
+  ctx.fillStyle = 'rgba(255,255,255,0.8)';
   ctx.fillText(`第 ${ep.episode_no} 集`, LX + sw + 28, y);
-  ctx.fillStyle = GOLD;
+  ctx.fillStyle = pal.accent;
   ctx.fillRect(LX, y + 26, 340, 5);
 
   // 主标题：优先单行（自动缩字号），实在放不下再换行，避免孤字
@@ -216,14 +237,14 @@ export async function buildPosterCanvas(ep: EpisodeDetail): Promise<HTMLCanvasEl
 
   // ── 中部：本集包含 ──
   y += 66;
-  ctx.fillStyle = GOLD;
+  ctx.fillStyle = pal.accent;
   ctx.font = `700 30px ${serif}`;
   ctx.fillText('本 集 包 含', LX, y);
   y += 56;
   ctx.font = `400 36px ${serif}`;
   for (const item of episodeHighlights(ep)) {
-    // 金色勾选框
-    ctx.strokeStyle = GOLD;
+    // 勾选框
+    ctx.strokeStyle = pal.accent;
     ctx.lineWidth = 5;
     roundRect(ctx, LX, y - 34, 40, 40, 9);
     ctx.stroke();
@@ -258,9 +279,9 @@ export async function buildPosterCanvas(ep: EpisodeDetail): Promise<HTMLCanvasEl
   ctx.fillStyle = 'rgba(247,245,241,0.45)';
   ctx.fillText(shareUrl.slice(0, 42), tx, panelY + 214);
 
-  ctx.fillStyle = GOLD;
+  ctx.fillStyle = pal.accent;
   ctx.font = `700 26px ${serif}`;
-  ctx.fillText('与孩子对话 × fineSTEM 出品', LX, panelY + 330);
+  ctx.fillText('与孩子对话 × fineSTEM 出品', tx, panelY + 258);
 
   return canvas;
 }

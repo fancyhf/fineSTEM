@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 
-import { buildPosterCanvas } from '../lib/poster';
+import { buildPosterCanvas, POSTER_PALETTES } from '../lib/poster';
 import type { EpisodeDetail } from '../types';
 
 /**
- * 分享海报弹窗：生成 1080×1920 竖版海报（带二维码）。
+ * 分享海报弹窗：生成 1080×1920 竖版海报（带二维码），三种鲜亮配色可选。
  * 手机：长按图片保存 → 发朋友圈；桌面：点「下载海报」。
  */
 export default function ShareModal({
@@ -14,12 +14,14 @@ export default function ShareModal({
   episode: EpisodeDetail;
   onClose: () => void;
 }) {
+  const [paletteIdx, setPaletteIdx] = useState(0);
   const [dataUrl, setDataUrl] = useState('');
   const [error, setError] = useState('');
 
   useEffect(() => {
     let alive = true;
-    buildPosterCanvas(episode)
+    setDataUrl('');
+    buildPosterCanvas(episode, paletteIdx)
       .then((canvas) => {
         if (alive) setDataUrl(canvas.toDataURL('image/png'));
       })
@@ -29,7 +31,7 @@ export default function ShareModal({
     return () => {
       alive = false;
     };
-  }, [episode]);
+  }, [episode, paletteIdx]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
@@ -44,7 +46,10 @@ export default function ShareModal({
   const download = () => {
     const a = document.createElement('a');
     a.href = dataUrl;
-    a.download = `与孩子对话-${episode.series_title}-${episode.title}.png`.replace(/[\\/:*?"<>|]/g, '');
+    a.download = `与孩子对话-${episode.series_title}-${episode.title}.png`.replace(
+      /[\\/:*?"<>|]/g,
+      ''
+    );
     a.click();
   };
 
@@ -54,6 +59,22 @@ export default function ShareModal({
         <button className="share-close" onClick={onClose} aria-label="关闭">
           ✕
         </button>
+
+        {/* 配色选择 */}
+        <div className="share-palettes" role="group" aria-label="选择海报配色">
+          {POSTER_PALETTES.map((p, i) => (
+            <button
+              key={p.id}
+              className={`share-palette${i === paletteIdx ? ' is-active' : ''}`}
+              onClick={() => setPaletteIdx(i)}
+              style={{
+                background: `linear-gradient(135deg, ${p.bgTop}, ${p.bgBottom})`,
+              }}
+            >
+              {p.name}
+            </button>
+          ))}
+        </div>
 
         {error ? (
           <div className="share-error">海报生成失败：{error}</div>
