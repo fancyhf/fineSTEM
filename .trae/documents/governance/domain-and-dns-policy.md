@@ -14,6 +14,7 @@
 | wostemstudio.site | A @ | 43.128.8.131 | Let's Encrypt（主站，2026-11 到期自动续签） | ✅ 在用 |
 | www.wostemstudio.site | A www | 43.128.8.131 | 同上（含在主站证书内） | ✅ 在用 |
 | know.wostemstudio.site | A know | 43.128.8.131 | Let's Encrypt 独立一张（自动续签） | ✅ 已上线（2026-08-31） |
+| show.zmengya.cn（Know 境内镜像） | A show @ zmengya.cn（myMiddle/DNSPod） | myMiddle 境内服务器 122.51.71.4 | myMiddle 侧证书 | ✅ 已登记（页面壳镜像；数据反代 know.wostemstudio.site） |
 | （预留） | — | — | — | 新入口按 §3 流程申请 |
 
 > 分发原则：一切部署所需（代码+内容+说明）进 git 仓库，服务器只从 GitHub 拿；视频以 B 站链接形态存于 episode.json，不进仓库（ADR-002）。
@@ -25,6 +26,10 @@
 | `wostemstudio.site`（fineSTEM 主站） | 平台主站 | `apps/frontend` + `apps/backend` | `/opt/finestem/frontend/dist` + backend:8001 | `finestem.conf`（已在服务器） | ✅ 在用 |
 | `know.wostemstudio.site`（Know 节目频道，代号 Know，品牌名"与孩子对话"） | 契约②（独立 Web 应用）+ 契约①（内容库）+ 契约③（只读 API `/api/v1/know/*`） | `apps/know`（前端）、`app/api/know.py`（后端）、`content/know/`（内容） | `$REPO/apps/know/dist` + `$REPO/content/know`（随 git 仓库分发，服务器 git pull 即生效） | `deploy/know.conf` | ✅ 已上线（2026-08-31） |
 | 《递推之美》互动动画等内容产物 | 契约① | 生产于 `G:\buddyspace\鸡娃先自鸡\`（创作工作区，技术不限），产物复制进 `content/know/series/.../interactive/` | 同上 `/opt/finestem/know/content` | 同上（`/content/` 静态区） | ✅ 第 1 集已接入 |
+
+| `show.zmengya.cn`（Know 境内镜像，zmengya.cn 备案域） | 契约②镜像（前端壳） | 源=fineSTEM `apps/know`；镜像仓库 myMiddle `show/` | myMiddle 境内服务器 `show/dist`（数据反代香港源站） | myMiddle 仓库 `deploy/nginx_prod.conf` | ✅ 已登记，待部署 |
+
+：全部 B 站嵌入
 
 > 视频承载：全部 B 站嵌入（`player.bilibili.com` iframe），服务器不存视频（ADR-002 原则 1）。
 
