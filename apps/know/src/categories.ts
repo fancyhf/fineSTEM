@@ -21,7 +21,7 @@ export const CATEGORIES: Category[] = [
     sub: '一期一个话题：家长播客讲清楚，互动演示一起玩',
     color: '#3E6B8C',
     icon: '◉',
-    series: ['recursive-beauty'],
+    series: ['recursive-beauty', 'family-english'],
   },
   {
     cid: 'kids',
@@ -48,7 +48,7 @@ export const CATEGORIES: Category[] = [
     sub: '几岁学什么、怎么学不焦虑：编程、数理、哲思与工具',
     color: '#C9972E',
     icon: '</>',
-    series: ['stem-cs', 'cs-resources'],
+    series: ['stem-cs', 'cs-resources', 'finestem-class'],
   },
 ];
 
@@ -57,6 +57,15 @@ export function episodesOfCategory<T extends EpisodeSummaryLike>(
   cat: Category,
   episodes: T[]
 ): T[] {
+  if (cat.cid === 'kids') {
+    // 儿童互动视频：动态口径（互动演示 / 儿童观众）+ 少年讲解系列（显式纳入）
+    return episodes.filter(
+      (e) =>
+        e.has_interactive ||
+        e.video_audiences.includes('child') ||
+        e.series_slug === 'finestem-class'
+    );
+  }
   if (cat.series.length > 0) {
     return episodes.filter((e) => cat.series.includes(e.series_slug));
   }

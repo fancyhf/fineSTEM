@@ -1,0 +1,43 @@
+{
+ "slug": "ep01",
+ "episode_no": 1,
+ "title": "拆开一个单词游戏：看懂编程的六个概念",
+ "summary": "从「题目从哪里来」的好奇出发，用一个真实的单词闯关游戏讲透程序、数据、变量、算法、判断与循环、保存，最后看 AI 怎么帮忙把想法做成工具。",
+ "description_md": "这一集拆的是平台上一个真实的学员项目：背单词的闯关小游戏。每轮十道题、顺序每次不同——这些题目是怎么来的？\n\n**六个概念，一条视频讲透**\n\n- 程序 = 指令清单（教机器人做三明治）\n- 数据 = 材料（词库是一排卡片）\n- 变量 = 会变化的盒子（经验条读的就是它）\n- 算法 = 提前规划好的步骤（洗牌为什么公平）\n- 判断与循环（答错进错词本，连对三次才毕业）\n- 保存（关掉页面，进度不丢）\n\n最后还讲了 **AI 怎么帮忙编程**：用大白话描述需求，AI 出代码，你来检查和提问——想法、检查、说明白，永远是人的部分。\n\n**适合谁**：零基础的初中生（家长可旁听）。看完可以打开项目的代码，把词库换成自己正在背的单词。",
+ "audience": "family",
+ "tags": [
+  "编程科普",
+  "PBL",
+  "AI 编程"
+ ],
+ "status": "published",
+ "published_at": "2026-09-01",
+ "cover": "cover.jpg",
+ "default_tab": null,
+ "announce": {},
+ "resources": {
+  "videos": [
+   {
+    "id": "explain-video",
+    "audience": "family",
+    "title": "讲解视频 · 拆开一个单词游戏",
+    "embed_url": "//player.bilibili.com/player.html?bvid=BV1qTtG6NEaD&autoplay=0",
+    "page": "https://www.bilibili.com/video/BV1qTtG6NEaD"
+   }
+  ],
+  "docs": [
+   {
+    "title": "讲解文稿 · 全文",
+    "path": "docs/讲解文稿_单词闯关游戏.md",
+    "format": "md"
+   }
+  ],
+  "projects": [
+   {
+    "title": "源项目 · 英语单词闯关助手 Pro",
+    "url": "https://wostemstudio.site/explore/inspiration/7a27aa15-ec02-4b00-84bd-2c47111eafdd",
+    "note": "可试玩 · 可打开全部代码 · 可 fork 改成自己的"
+   }
+  ]
+ }
+}

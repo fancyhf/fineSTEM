@@ -1,13 +1,13 @@
 {
-  "site": {
-    "title": "与孩子对话",
-    "subtitle": "STEM 与亲子共学 · 节目频道",
-    "description": "一期一个话题：家长播客讲清楚，互动演示一起玩，资料拿走就用。鸡娃先自鸡 × fineSTEM 联合出品。",
-    "finestem_url": "https://wostemstudio.site"
-  },
-  "featured": {
-    "series": "recursive-beauty",
-    "episode": "ep01",
-    "note": "频道开播 · 第 1 集"
-  }
+ "site": {
+  "title": "与孩子对话",
+  "subtitle": "STEM 与亲子共学 · 节目频道",
+  "description": "一期一个话题：家长播客讲清楚，互动演示一起玩，资料拿走就用。鸡娃先自鸡 × fineSTEM 联合出品。",
+  "finestem_url": "https://wostemstudio.site"
+ },
+ "featured": {
+  "series": "family-english",
+  "episode": "ep01",
+  "note": "新节目 · 第 1 集"
+ }
 }

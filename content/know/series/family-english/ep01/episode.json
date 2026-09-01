@@ -1,0 +1,43 @@
+{
+ "slug": "ep01",
+ "episode_no": 1,
+ "title": "一家人一起学英语：爸妈不用先学会",
+ "summary": "从「戴着字幕的英语」聊到四件套：一起看、一起读、一起说、一起背。晚饭后十五分钟，全家泡进英语里。",
+ "description_md": "我们这代家长的英语本钱是真的：读文档、回邮件、看带字幕的剧都没问题，缺的是开口的机会和长期练习。孩子这代起点更高——原版书、AI 陪练、剑桥考试一条龙。\n\n**这一集聊透四件事**\n\n- 一起看：放映夜 + 字幕三步（中文版 → 英文字幕 → 撤字幕），短视频切片和脱口秀也是好输入\n- 一起读、一起说：交换着读，家里开英语角，晚饭后十五分钟\n- 一起背：孩子当出题官考家长，错词本连对三次才「毕业」\n- 孩子在 AI 辅助下做了一个背单词的闯关小程序——编程和英语，一个项目一起长\n\n**适合谁**：想陪孩子学英语、又不想先把自己逼成老师的家长。",
+ "audience": "parent",
+ "tags": [
+  "英语启蒙",
+  "家庭共学",
+  "AI 辅助学习"
+ ],
+ "status": "published",
+ "published_at": "2026-09-01",
+ "cover": "cover.jpg",
+ "default_tab": null,
+ "announce": {},
+ "resources": {
+  "videos": [
+   {
+    "id": "parent-video",
+    "audience": "parent",
+    "title": "家长播客 · 一家人一起学英语：爸妈不用先学会",
+    "embed_url": "//player.bilibili.com/player.html?bvid=BV1ZPtG6KEX1&autoplay=0",
+    "page": "https://www.bilibili.com/video/BV1ZPtG6KEX1"
+   }
+  ],
+  "docs": [
+   {
+    "title": "播客文稿 · 全文",
+    "path": "docs/播客文稿_一家人一起学英语.md",
+    "format": "md"
+   }
+  ],
+  "projects": [
+   {
+    "title": "节目里的小程序 · 单词闯关助手",
+    "url": "https://wostemstudio.site/explore/inspiration/7a27aa15-ec02-4b00-84bd-2c47111eafdd",
+    "note": "孩子在 AI 辅助下做的背单词工具 · 全家互相考"
+   }
+  ]
+ }
+}

@@ -109,16 +109,18 @@ button {
 
 .brand__name {
   font-family: var(--font-display);
-  font-size: 22px;
-  font-weight: 700;
-  letter-spacing: 6px;
+  font-size: 24px;
+  font-weight: 900;
+  letter-spacing: 5px;
+  color: var(--ink);
 }
 
 .brand__sub {
-  font-size: 11.5px;
-  color: #5c564c;
-  letter-spacing: 1.5px;
-  margin-top: 1px;
+  font-size: 12.5px;
+  color: #57513f;
+  font-weight: 500;
+  letter-spacing: 2px;
+  margin-top: 2px;
 }
 
 .site-header__search {
@@ -161,11 +163,16 @@ button {
   flex: none;
 }
 
+.site-header__nav a.external {
+  color: var(--ink);
+  font-weight: 600;
+}
+
 .site-header__nav a.external::after {
   content: '↗';
   font-size: 11px;
   margin-left: 3px;
-  color: var(--ink-mut);
+  color: var(--accent);
 }
 
 /* ── 首页主打位 ─────────────────────────── */
@@ -349,7 +356,7 @@ button {
 
 .ep-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 28px;
   padding-bottom: 24px;
 }
@@ -1112,7 +1119,7 @@ button {
 }
 
 .entry-list--tri {
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
 }
 
 .entry {
@@ -1167,7 +1174,7 @@ button {
 /* 儿童互动视频栏目 */
 .kid-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 24px;
 }
 
@@ -1335,25 +1342,27 @@ button {
 
 .site-tabs a {
   flex: none;
-  padding: 11px 18px 12px;
-  font-size: 15px;
-  font-weight: 500;
-  letter-spacing: 1.5px;
-  color: #55503f;
+  padding: 12px 20px 12px;
+  font-size: 15.5px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  color: #332f24;
   border-bottom: 3px solid transparent;
   margin-bottom: -1px;
-  transition: color 0.15s ease;
+  transition: color 0.15s ease, background 0.15s ease;
   white-space: nowrap;
 }
 
 .site-tabs a:hover {
-  color: var(--ink);
+  color: var(--accent-deep);
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
 }
 
 .site-tabs a.active {
-  color: var(--accent);
-  font-weight: 700;
-  border-bottom-color: var(--accent);
+  color: var(--accent-deep);
+  font-weight: 800;
+  border-bottom-color: var(--accent-deep);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
 }
 
 /* 品牌名/副标题改块级（台标改 svg 后结构变化） */
