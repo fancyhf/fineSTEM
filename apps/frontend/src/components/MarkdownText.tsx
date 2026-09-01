@@ -26,7 +26,7 @@ function isProjectPath(text: string): boolean {
 
 function splitInline(text: string, projectId?: string | null, onOpenFile?: (path: string) => void): React.ReactNode[] {
   const result: React.ReactNode[] = [];
-  const pattern = /(`[^`]+`|\*\*[^*]+\*\*)/g;
+  const pattern = /(`[^`]+`|\*\*[^*]+\*\*|https?:\/\/[^\s)]+)/g;
   let lastIndex = 0;
   let match: RegExpExecArray | null = pattern.exec(text);
 
@@ -37,6 +37,18 @@ function splitInline(text: string, projectId?: string | null, onOpenFile?: (path
     const token = match[0];
     if (token.startsWith('**')) {
       result.push(<strong key={`strong-${match.index}`} className="font-semibold">{token.slice(2, -2)}</strong>);
+    } else if (token.startsWith('http')) {
+      result.push(
+        <a
+          key={`url-${match.index}`}
+          href={token}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-teal-700 underline decoration-teal-300 underline-offset-2 hover:text-teal-800 break-all"
+        >
+          {token}
+        </a>
+      );
     } else if (token.startsWith('`')) {
       const inlineCode = token.slice(1, -1);
       if (projectId && isProjectPath(inlineCode)) {

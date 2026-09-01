@@ -260,6 +260,40 @@ export default function AchievementDetail() {
                     </Button>
                   </div>
 
+{/* 常驻：相关视频卡片（点击进入节目主页） */}
+                  {(() => {
+                    const KNOW = (import.meta as any).env?.VITE_KNOW_URL || 'https://know.wostemstudio.site';
+                    const refl = card.reflection || '';
+                    const videos = [
+                      { bvid: 'BV1qTtG6NEaD', to: `${KNOW}/ep/finestem-class/ep01`, cover: '/videos/explain-cover.jpg',
+                        title: '讲解视频 · 拆开一个单词游戏：六个编程基本概念', tag: 'fineSTEM 课堂 · 第 1 讲' },
+                      { bvid: 'BV1ZPtG6KEX1', to: `${KNOW}/ep/family-english/ep01`, cover: '/videos/podcast-cover.jpg',
+                        title: '家长播客 · 一家人一起学英语：爸妈不用先学会', tag: '家长播客 · 第 1 期' },
+                    ].filter((v) => refl.includes(v.bvid));
+                    if (videos.length === 0) return null;
+                    return (
+                      <div className="mt-4">
+                        <div className="text-sm font-semibold text-gray-900 mb-2">📺 相关视频</div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          {videos.map((v) => (
+                            <a key={v.bvid} href={v.to} className="group block bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow">
+                              <div className="relative aspect-video">
+                                <img src={v.cover} alt={v.title} className="w-full h-full object-cover" />
+                                <span className="absolute inset-0 flex items-center justify-center">
+                                  <span className="w-11 h-11 rounded-full bg-black/55 group-hover:bg-black/70 group-hover:scale-105 transition-all flex items-center justify-center text-white text-lg">▶</span>
+                                </span>
+                              </div>
+                              <div className="p-3">
+                                <div className="text-sm font-semibold text-gray-900 group-hover:text-teal-700">{v.title}</div>
+                                <div className="text-xs text-gray-500 mt-1">{v.tag} · 点击进入节目主页</div>
+                              </div>
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
                   {activeTab === 'intro' && (
                     <div className="p-4 bg-gray-50 border rounded-lg space-y-3">
                       {screenshots.length > 0 ? (
