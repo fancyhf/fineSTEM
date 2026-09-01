@@ -144,6 +144,10 @@ apps/backend/tmp_test/**/*.png
 .obsidian/
 运营/**/*.jpg
 运营/**/*.jpeg
+运营/**/*.png
+运营/**/*.gif
+运营/**/*.webp
+运营/**/*.bmp
 运营/**/*.wav
 运营/**/*.mp3
 运营/**/*.mp4
