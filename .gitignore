@@ -139,3 +139,16 @@ apps/backend/tmp_test/**/*.png
 # 例外：上面 Python 模板的 `lib/` 规则会误伤前端源码目录，必须放行
 !apps/know/src/lib/
 !apps/know/src/lib/**
+
+# 运营资料：只入库文档与代码，音视频/素材图留本地（ADR-002）
+.obsidian/
+运营/**/*.jpg
+运营/**/*.jpeg
+运营/**/*.wav
+运营/**/*.mp3
+运营/**/*.mp4
+运营/**/*.m4a
+运营/**/*.mov
+运营/**/*.avi
+运营/**/*.mkv
+运营/**/_skip

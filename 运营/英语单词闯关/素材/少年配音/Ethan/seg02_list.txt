@@ -1,0 +1,4 @@
+file 'G:\mediaProjects\fineSTEM\运营\英语单词闯关\素材\少年配音\Ethan\seg02_c01.wav'
+file 'G:\mediaProjects\fineSTEM\运营\英语单词闯关\素材\少年配音\Ethan\seg02_c02.wav'
+file 'G:\mediaProjects\fineSTEM\运营\英语单词闯关\素材\少年配音\Ethan\seg02_c03.wav'
+file 'G:\mediaProjects\fineSTEM\运营\英语单词闯关\素材\少年配音\Ethan\seg02_c04.wav'

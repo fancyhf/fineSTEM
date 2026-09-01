@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="UTF-8">
+<title>拆开一个单词游戏</title>
+<style>
+:root{--paper:#F5EFE2;--ink:#2B2622;--red:#C0392B;--ivory:#ECE3D2;--dark:#14111C;--line:#C9BFA9}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:1920px;height:1080px;overflow:hidden;background:var(--dark);font-family:"Microsoft YaHei",sans-serif}
+#stage{position:relative;width:1920px;height:1080px}
+.scene{position:absolute;inset:0;opacity:0;pointer-events:none}
+.scene.on{pointer-events:auto}
+.paper{background:var(--paper)}
+.kicker{position:absolute;top:60px;left:96px;font-size:30px;letter-spacing:6px;color:var(--red);font-weight:700}
+.h1{position:absolute;top:106px;left:96px;font-size:64px;font-weight:900;color:var(--ink)}
+.frame{position:absolute;inset:44px;border-bottom:4px solid var(--ink);pointer-events:none}
+.frame i{position:absolute;width:46px;height:46px;border:4px solid var(--ink);opacity:.5}
+.frame i.c1{top:0;left:0;border-right:0;border-bottom:0}
+.frame i.c2{top:0;right:0;border-left:0;border-bottom:0}
+#dots{position:absolute;top:66px;right:178px;display:flex;gap:14px;z-index:60}
+#dots b{width:16px;height:16px;border-radius:50%;background:transparent;border:3px solid var(--ink);opacity:.4}
+#dots b.f{background:var(--red);border-color:var(--red);opacity:1}
+.ondark #dots b{border-color:var(--ivory)}
+.ondark #dots b.f{background:var(--red);border-color:var(--red)}
+#cap{position:absolute;left:0;right:0;bottom:30px;text-align:center;font-size:37px;font-weight:700;z-index:70;letter-spacing:1px}
+#cap span{padding:8px 26px;border-radius:10px}
+.onpaper #cap span{color:var(--ink)}
+.ondark #cap span{color:var(--ivory);background:rgba(0,0,0,.4)}
+.ondark{background:var(--dark)}
+.gwrap{position:absolute;left:170px;top:76px;width:860px;height:930px;background:#0d0d1a;border:1px solid #2a2740;border-radius:18px;overflow:hidden}
+.gwrap iframe{width:860px;height:930px;border:0}
+.gnote{background:var(--paper);border-radius:16px;padding:24px 28px;margin-bottom:20px;box-shadow:0 6px 0 rgba(0,0,0,.35)}
+.gnote .t{font-size:25px;font-weight:900;color:var(--red);margin-bottom:8px;letter-spacing:2px}
+.gnote .d{font-size:30px;font-weight:700;color:var(--ink);line-height:1.45}
+#cur{position:absolute;z-index:80;width:34px;opacity:0;left:900px;top:500px}
+#wm{position:absolute;top:16px;right:24px;width:106px;opacity:.30;z-index:90;pointer-events:none}
+.code{background:#191627;border-radius:16px;font-family:"Cascadia Mono",Consolas,monospace;color:#cfcbe6;overflow:hidden;border:1px solid #2a2740}
+.code .bar{height:44px;background:#221e36;display:flex;align-items:center;padding:0 18px;gap:10px}
+.code .bar b{width:14px;height:14px;border-radius:50%;background:#3a3556;display:inline-block}
+.code .bar span{color:#8f89ad;font-size:20px;margin-left:8px}
+.code pre{padding:22px 30px;font-size:26px;line-height:1.62;white-space:pre}
+.k{color:#c792ea}.s{color:#a5d6a7}.n{color:#f7c66a}.c{color:#7d77a0}.f{color:#82aaff}
+.hl{background:rgba(199,146,234,.24);border-radius:6px}
+.bigcard{position:absolute;background:#FFFDF6;border:3px solid var(--ink);border-radius:18px;box-shadow:10px 10px 0 rgba(43,38,34,.16)}
+.note{font-size:27px;color:#6f675a;font-weight:700}
+.chip{display:inline-block;border:3px solid var(--ink);border-radius:999px;padding:8px 26px;font-size:30px;font-weight:900;color:var(--ink);background:#FFFDF6;margin-right:16px}
+.chip.red{border-color:var(--red);color:var(--red)}
+.wcard{position:absolute;width:190px;height:120px;border-radius:14px;border:3px solid var(--ink);display:flex;align-items:center;justify-content:center;font-weight:900;background:#FFFDF6}
+.wcard .en{font-size:28px}.wcard .zh{font-size:26px;color:var(--red)}
+#aiBar{position:absolute;top:76px;left:120px;right:120px;height:56px;background:#221e36;border-radius:12px;display:flex;align-items:center;padding:0 24px;color:var(--ivory);font-size:24px;font-weight:700}
+#aiChat{position:absolute;left:120px;top:158px;width:820px;height:860px;background:var(--paper);border-radius:16px;padding:24px}
+.msg{max-width:94%;margin:0 0 16px;padding:14px 20px;border-radius:14px;font-size:26px;font-weight:700;line-height:1.4}
+.msg.u{background:#2B2622;color:var(--paper);margin-left:auto}
+.msg.a{background:#FFFDF6;border:2px solid var(--ink);color:var(--ink)}
+.msg.a .step{color:var(--red);font-weight:900}
+.plan{margin-top:8px}
+.plan li{list-style:none;font-size:25px;font-weight:700;margin:5px 0;color:var(--ink);opacity:.25}
+.plan li.on{opacity:1}
+.plan li.on::before{content:"▸ ";color:var(--red)}
+#aiCode{position:absolute;right:120px;top:158px;width:760px;height:520px}
+#aiConsole{position:absolute;right:120px;top:706px;width:760px;height:312px;background:#0C0A12;border-radius:16px;border:2px solid #2a2740;padding:20px 24px;font-family:"Cascadia Mono",Consolas,monospace;font-size:25px;color:#8f89ad;line-height:1.6}
+.err{color:#ff5252;font-weight:700}
+.okc{color:#69f0ae}
+#endCard{position:absolute;inset:0;background:var(--dark);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:30px}
+#endCard .a{font-size:100px;font-weight:900;color:var(--ivory);letter-spacing:4px}
+#endCard .b{font-size:40px;color:#8f89ad;letter-spacing:8px}
+#endCard .c{font-size:30px;color:var(--red);letter-spacing:4px;font-weight:900}
+</style></head>
+<body>
+<div id="stage" class="ondark">
+  <div class="scene" id="s1">
+    <div class="gwrap"><iframe id="game" src="单词闯关_s1.html"></iframe></div>
+    <div id="g1note" style="position:absolute;right:96px;top:150px;width:640px"></div>
+  </div>
+  <div class="scene paper" id="s2">
+    <div class="frame"><i class="c1"></i><i class="c2"></i></div>
+    <div class="kicker">概念一 · 程序</div>
+    <div class="h1">程序，是一份指令清单</div>
+    <div class="bigcard" style="left:96px;top:250px;width:760px;height:670px;padding:34px">
+      <div style="font-size:30px;font-weight:900;color:#6f675a;margin-bottom:20px">教机器人做三明治 ——</div>
+      <div id="s2list"></div>
+      <div class="note" style="margin-top:24px">写得多清楚，它就做得多准确。</div>
+    </div>
+    <div class="code" style="position:absolute;right:96px;top:250px;width:900px;height:670px">
+      <div class="bar"><b></b><b></b><b></b><span>index.html — 这个游戏真正的指令</span></div>
+      <pre id="s2code"></pre>
+    </div>
+  </div>
+  <div class="scene paper" id="s3">
+    <div class="frame"><i class="c1"></i><i class="c2"></i></div>
+    <div class="kicker">概念二 · 数据</div>
+    <div class="h1">词库，是一排卡片</div>
+    <div class="bigcard" style="left:96px;top:250px;width:1050px;height:670px;padding:34px">
+      <div id="s3cards" style="position:relative;height:270px"></div>
+      <div id="s3labels" style="position:relative;margin-top:6px;height:76px"></div>
+      <div id="s3count" style="font-size:52px;font-weight:900;color:var(--ink);margin-top:4px;height:70px"></div>
+      <div class="note">指令是做法，数据是材料 —— 就像菜谱和食材。</div>
+    </div>
+    <div class="code" style="position:absolute;right:96px;top:250px;width:620px;height:670px">
+      <div class="bar"><b></b><b></b><b></b><span>WORD_BANK（真实词库节选）</span></div>
+      <pre id="s3code"></pre>
+    </div>
+  </div>
+  <div class="scene" id="s4">
+    <div class="gwrap"><iframe id="game2" src="单词闯关_s4.html"></iframe></div>
+    <div id="s4note" style="position:absolute;right:96px;top:130px;width:640px"></div>
+    <div class="code" style="position:absolute;right:96px;bottom:110px;width:640px">
+      <div class="bar"><b></b><b></b><b></b><span>addXP —— 盒子里的数，加十再放回去</span></div>
+      <pre id="s4code"></pre>
+    </div>
+  </div>
+  <div class="scene paper" id="s5">
+    <div class="frame"><i class="c1"></i><i class="c2"></i></div>
+    <div class="kicker">概念三 · 算法</div>
+    <div id="s5a">
+      <div class="h1">随便抓，有两个漏洞</div>
+      <div class="bigcard" style="left:96px;top:266px;width:1728px;height:620px;padding:38px">
+        <div id="s5dup" style="position:relative;height:250px"></div>
+        <div id="s5bias" style="position:relative;height:240px"></div>
+      </div>
+    </div>
+    <div id="s5b">
+      <div class="h1">先洗牌：从最后一张开始，逐张交换</div>
+      <div id="s5shuffle" style="position:absolute;left:96px;top:300px;width:1728px;height:430px"></div>
+      <div id="s5ptr" style="position:absolute;left:96px;top:756px;width:1728px;height:56px;font-size:29px;font-weight:900;color:var(--red)"></div>
+      <div id="s5deal" style="position:absolute;left:96px;top:826px;width:1728px;height:110px;font-size:34px;font-weight:900;color:var(--ink)"></div>
+    </div>
+    <div id="s5c">
+      <div class="h1">算法 = 先想清楚的步骤</div>
+      <div id="s5steps" style="position:absolute;left:96px;top:280px;width:1728px"></div>
+    </div>
+  </div>
+  <div class="scene" id="s6">
+    <div class="gwrap"><iframe id="game3" src="单词闯关_s6.html"></iframe></div>
+    <div id="s6note" style="position:absolute;right:96px;top:130px;width:640px"></div>
+    <div id="s6loop" style="position:absolute;right:96px;top:560px;width:640px;height:400px;background:var(--paper);border-radius:16px;padding:26px;opacity:0"></div>
+  </div>
+  <div class="scene" id="s7">
+    <div style="position:absolute;left:150px;top:66px;width:1620px;height:944px;background:#1b1826;border-radius:18px;overflow:hidden;border:1px solid #2a2740">
+      <div style="height:58px;background:#221e36;display:flex;align-items:center;padding:0 20px;gap:14px">
+        <div id="tab" style="width:430px;height:42px;background:#322c4e;border-radius:10px;display:flex;align-items:center;padding:0 16px;color:var(--ivory);font-size:21px;overflow:hidden;white-space:nowrap">🎮 英语单词学习助手 — 中考冲刺</div>
+        <span style="color:#8f89ad;font-size:24px">＋</span>
+      </div>
+      <div style="position:relative;width:1620px;height:886px;background:#0d0d1a">
+        <iframe id="game4" src="单词闯关_s7.html" style="width:1620px;height:886px;border:0"></iframe>
+        <div id="shade" style="position:absolute;inset:0;background:#08070d;display:flex;align-items:center;justify-content:center;color:#46405f;font-size:40px;letter-spacing:8px;opacity:0">标签页已关闭</div>
+      </div>
+    </div>
+  </div>
+  <div class="scene" id="s8">
+    <div id="aiBar">🤖 fineSTEM · AI 工作台 —— 左边：和 AI 导师的对话 ｜ 右边：代码编辑器</div>
+    <div id="aiChat"></div>
+    <div class="code" id="aiCode">
+      <div class="bar"><b></b><b></b><b></b><span>index.html — 导师写入的代码</span></div>
+      <pre id="aiPre"></pre>
+    </div>
+    <div id="aiConsole"><div>› 页面已加载</div><div id="conLine2"></div><div id="conLine3"></div></div>
+  </div>
+  <div class="scene paper" id="s9">
+    <div class="frame"><i class="c1"></i><i class="c2"></i></div>
+    <div class="kicker">回顾</div>
+    <div class="h1">六个概念，一个游戏</div>
+    <div id="s9icons" style="position:absolute;left:96px;top:272px;width:1728px;display:flex;gap:24px"></div>
+    <div class="code" style="position:absolute;left:96px;top:520px;width:1728px;height:420px">
+      <div class="bar"><b></b><b></b><b></b><span>动手：把词库换成正在背的单词</span></div>
+      <pre id="s9code"></pre>
+    </div>
+  </div>
+  <div class="scene" id="s10"><div id="endCard">
+    <div class="c">fineSTEM 课堂 · 第 1 讲</div>
+    <div class="a">拆开一个单词游戏</div>
+    <div class="b">试玩 · 改词库 · 做你自己的工具</div>
+  </div></div>
+  <img id="wm" src="爱住家水印.png" alt="">
+  <div id="dots"></div>
+  <div id="cap"><span id="capText"></span></div>
+  <svg id="cur" viewBox="0 0 24 24"><path d="M4 2 L20 13 L12.5 14.2 L16 22 L13.4 23 L10 15.4 L4 20 Z" fill="#FFF" stroke="#000" stroke-width="1.2"/></svg>
+</div>
+<script>
+const TL = __TIMELINE__;
+const STARTS = TL.starts, DURS = TL.durations, BANK = TL.bank;
+const N = STARTS.length;
+const $ = id => document.getElementById(id);
+const clamp01 = x => Math.max(0, Math.min(1, x));
+const ease = x => x<.5 ? 2*x*x : 1 - Math.pow(-2*x+2,2)/2;
+const lerp = (a,b,x) => a + (b-a)*x;
+
+/* 进度点 */
+const dots = $('dots');
+for (let i=0;i<N;i++){ dots.appendChild(document.createElement('b')); }
+
+/* 字幕（段内按字数比例） */
+const subIndex = TL.cues;
+
+/* S2 */
+const s2items = ['第一步，拿两片面包','第二步，涂上黄油','第三步，合在一起'];
+$('s2list').innerHTML = s2items.map((s,i)=>`<div id="s2i${i}" style="font-size:38px;font-weight:900;margin:22px 0;color:var(--ink)">${s}　<b style="color:var(--red)"></b></div>`).join('');
+$('s2code').innerHTML =
+'<span class="c">// 点「开始测试」之后，程序依次执行：</span>\n<span class="f">function</span> <span class="hl">startQuiz</span>() {\n  <span class="k">const</span> pool = <span class="hl">shuffle</span>(WORD_BANK).slice(<span class="n">0</span>, <span class="n">10</span>);  <span class="c">// ① 挑词</span>\n  questions = pool.map(makeQuestion);   <span class="c">// ② 出题</span>\n  currentIndex = <span class="n">0</span>;                     <span class="c">// ③ 从第一题开始</span>\n  <span class="hl">renderQuiz</span>();                        <span class="c">// ④ 显示题目</span>\n}\n<span class="c">// 每答一题：</span>\ncheckAnswer();  addXP(<span class="n">10</span>);  <span class="hl">setTimeout</span>(next, <span class="n">1500</span>);';
+
+/* S3 */
+const s3cards = [];
+for (let i=0;i<6;i++){
+  const d = document.createElement('div'); d.className='wcard';
+  d.innerHTML = '<span class="en">'+BANK[i].en+'</span>';
+  $('s3cards').appendChild(d); s3cards.push(d);
+}
+$('s3code').innerHTML =
+'<span class="k">const</span> <span class="f">WORD_BANK</span> = [\n  { <span class="n">en</span>:<span class="s">"accept"</span>, <span class="n">zh</span>:<span class="s">"接受"</span> },\n  { <span class="n">en</span>:<span class="s">"achieve"</span>, <span class="n">zh</span>:<span class="s">"实现；达到"</span> },\n  { <span class="n">en</span>:<span class="s">"active"</span>, <span class="n">zh</span>:<span class="s">"积极的"</span> },\n  { <span class="n">en</span>:<span class="s">"advice"</span>, <span class="n">zh</span>:<span class="s">"建议"</span> },\n  <span class="c">// ……</span>\n  { <span class="n">en</span>:<span class="s">"wonder"</span>, <span class="n">zh</span>:<span class="s">"想知道"</span> }\n];  <span class="c">// 一共 108 张</span>';
+
+/* S4 */
+$('s4code').innerHTML =
+'<span class="f">function</span> <span class="hl">addXP</span>(amount) {\n  state.xp += amount;   <span class="c">// 打开盒子，加十，放回去</span>\n  <span class="k">if</span> (state.xp >= nextLevelXp) levelUp();\n  updateHeader();  <span class="c">// 经验条读的就是这个盒子</span>\n}';
+
+/* S5 洗牌 */
+const s5n = 10, s5cards = [];
+for (let i=0;i<s5n;i++){
+  const d=document.createElement('div'); d.className='wcard';
+  d.style.cssText='width:152px;height:96px';
+  d.innerHTML='<span class="en" style="font-size:23px">'+BANK[i].en+'</span>';
+  $('s5shuffle').appendChild(d); s5cards.push(d);
+}
+let seed = 7; const rnd = ()=>{ seed = (seed*9301+49297)%233280; return seed/233280; };
+const swaps = [];
+for (let i=s5n-1;i>0;i--){ const j=Math.floor(rnd()*i); swaps.push([i,j]); }
+const SWAP_DUR = 1.7, SHUF_BASE = 6;
+
+/* S6 */
+$('s6loop').innerHTML = '<div style="font-size:30px;font-weight:900;color:var(--ink);margin-bottom:14px">循环：同样的四步，重复十次</div><div style="display:flex;gap:12px;flex-wrap:wrap" id="s6steps"></div><div style="margin-top:18px;font-size:44px;font-weight:900;color:var(--red)" id="s6count"></div>';
+['出题','等回答','做判断','下一题'].forEach(s=>{ const c=document.createElement('span'); c.className='chip'; c.style.fontSize='25px'; c.textContent=s; $('s6steps').appendChild(c); });
+
+/* S9 */
+const six = [['程序','一份指令清单'],['数据','一排卡片'],['变量','会变的盒子'],['算法','想清楚的步骤'],['判断·循环','会分岔 会重复'],['保存','进度不丢']];
+six.forEach((x,i)=>{ const d=document.createElement('div'); d.className='bigcard'; d.id='s9i'+i;
+  d.style.cssText='position:relative;flex:1;padding:26px 22px;text-align:center';
+  d.innerHTML='<div style="font-size:40px">'+('①②③④⑤⑥'[i])+'</div><div style="font-size:34px;font-weight:900;color:var(--ink);margin-top:10px">'+x[0]+'</div><div class="note" style="margin-top:8px">'+x[1]+'</div>';
+  $('s9icons').appendChild(d); });
+$('s9code').innerHTML =
+'<span class="k">const</span> <span class="f">WORD_BANK</span> = [\n  { <span class="n">en</span>:<span class="s">"accept"</span>, <span class="n">zh</span>:<span class="s">"接受"</span> },   <span class="c">// ← 换成你正在背的词</span>\n  { <span class="n">en</span>:<span class="s">"honest"</span>, <span class="n">zh</span>:<span class="s">"诚实的"</span> },\n  { <span class="n">en</span>:<span class="s">"ancient"</span>, <span class="n">zh</span>:<span class="s">"古代的"</span> },\n  <span class="c">// …… 改着改着，自己的工具就做出来了</span>\n];';
+
+/* S8 */
+$('aiChat').innerHTML = [
+'<div class="msg u">我上初三，喜欢阅读，想做一个背单词的工具。</div>',
+'<div class="msg a">好方向！先确认：结合英语学习，做成网页游戏，可以吗？<br>📌 选题已锁定：<b>英语单词学习助手</b></div>',
+'<div class="msg a">📋 开题报告：目标 = 混合测试 + 拼写判对错 + 错词本复习；技术 = HTML + CSS + JavaScript</div>',
+'<div class="msg a">🗺️ 分步计划：<ul class="plan" id="aiPlan"><li>第一步，搭建页面</li><li>第二步，做词库和出题</li><li>第三步，做题的交互</li><li>第四步，加经验值和等级</li><li>第五步，测试验收</li></ul></div>',
+'<div class="msg a"><span class="step">📖 第一步讲解：</span>做什么——三个页面；怎么做——HTML 骨架 + CSS 样式；为什么——先看见，再完善。代码已写入右边编辑器。</div>',
+'<div class="msg u">所有按钮都没有反应。</div>',
+'<div class="msg a">打开控制台，看第一行红字。<b>第三百一十二行，多了一个字符</b>。删掉它——修好了 ✅</div>',
+].join('');
+$('aiPre').innerHTML =
+'<span class="k">const</span> <span class="f">WORD_BANK</span> = [ <span class="c">/* 108 个词 */</span> ];\n<span class="f">function</span> <span class="hl">startQuiz</span>() { shuffle(); mix(); renderQuiz(); }\n<span class="f">function</span> <span class="hl">checkAnswer</span>() { <span class="k">if</span> (pick===key) addXP(<span class="n">10</span>); <span class="k">else</span> wrongBook(); }\n<span class="f">function</span> <span class="hl">saveState</span>() { localStorage.setItem(KEY, JSON.stringify(state)); }';
+
+/* 场景 */
+const scenes = [...document.querySelectorAll('.scene')];
+function sceneAt(T){
+  if (T >= STARTS[N-1] + DURS[N-1] + 0.3) return N;
+  for (let i=N-1;i>=0;i--) if (T >= STARTS[i] - 0.2) return i;
+  return 0;
+}
+
+/* 光标 */
+const cur = $('cur'); cur.dataset.x='960'; cur.dataset.y='560';
+let curTarget = null, curHold = 0;
+function cursorInGame(frid, sel){
+  try{
+    const f = document.getElementById(frid);
+    const el = f.contentDocument.querySelector(sel);
+    if(!el) return false;
+    const r = el.getBoundingClientRect();
+    curTarget = [170 + r.left + r.width/2, 76 + r.top + r.height/2];
+    curHold = 1.2;
+    return true;
+  }catch(e){ return false; }
+}
+
+/* 游戏动作 */
+function gdoc(id){ return document.getElementById(id).contentDocument; }
+function answerOnce(frid){
+  const doc = gdoc(frid);
+  if (!doc.querySelector('.q-word')) { const b = doc.querySelector('.btn-start'); if (b) b.click(); return; }
+  if (doc.querySelector('.spell-input')){
+    const zh = doc.querySelector('.q-word').textContent.trim();
+    const hit = BANK.find(w => w.zh === zh || zh.indexOf(w.zh) === 0);
+    doc.querySelector('.spell-input').value = hit ? hit.en : 'accept';
+    doc.querySelector('.spell-submit').click();
+  } else {
+    const en = doc.querySelector('.q-word').textContent.trim();
+    const hit = BANK.find(w => w.en === en);
+    const opts = [...doc.querySelectorAll('.q-opt')];
+    (opts.find(o => hit && o.textContent.trim() === hit.zh) || opts[0]).click();
+  }
+}
+function goHome(frid){ const b = gdoc(frid).querySelector('#navHome'); if (b) b.click(); }
+function openWrong(frid){ const b = gdoc(frid).querySelector('#navWb'); if (b) b.click(); }
+
+const actions = [];
+function at(t, fn){ actions.push({t, fn, done:false}); }
+function buildActions(){
+  const s1=STARTS[0], s4=STARTS[3], s6=STARTS[5], s7=STARTS[6];
+  at(s1+5.0, ()=>{ cursorInGame('game','.btn-start'); });
+  at(s1+6.4, ()=>{ const b=gdoc('game').querySelector('.btn-start'); if(b) b.click(); });
+  at(s1+12.0, ()=>{ answerOnce('game'); });
+  at(s4+8.0, ()=>{ answerOnce('game2'); });
+  at(s4+16.0, ()=>{ answerOnce('game2'); });
+  at(s4+24.0, ()=>{ goHome('game2'); });
+  at(s6+5.5, ()=>{ cursorInGame('game3','.q-opt'); answerOnce('game3'); });
+  at(s6+13.5, ()=>{ answerOnce('game3'); });
+  at(s6+21.5, ()=>{ openWrong('game3'); });
+  at(s7+3.0, ()=>{ answerOnce('game4'); });
+  at(s7+8.0, ()=>{ answerOnce('game4'); });
+  at(s7+15.0, ()=>{ const g=document.getElementById('game4'); g.src='about:blank'; });
+  at(s7+22.0, ()=>{ const g=document.getElementById('game4'); g.src='单词闯关_s7.html?back=1'; });
+}
+
+/* S5a 漏洞卡 */
+function buildS5a(){
+  const dup = $('s5dup'), bias = $('s5bias');
+  dup.innerHTML = '<div style="font-size:32px;font-weight:900;color:var(--ink)">漏洞一：可能抓到同一张两次</div>';
+  const mk=(label,en,x,y,red)=>{ const d=document.createElement('div'); d.className='wcard';
+    d.style.cssText='left:'+x+'px;top:'+y+'px;width:300px;height:112px;'+(red?'border-color:var(--red)':'');
+    d.innerHTML='<div style="text-align:center"><div class="en">'+en+'</div><div style="font-size:22px;font-weight:900;color:'+(red?'var(--red)':'#6f675a')+'">'+label+'</div></div>';
+    dup.appendChild(d); };
+  mk('第 1 题', BANK[0].en, 60, 86, false);
+  mk('第 5 题', BANK[0].en, 470, 86, true);
+  const warn=document.createElement('div');
+  warn.style.cssText='position:absolute;left:870px;top:108px;font-size:42px;font-weight:900;color:var(--red)';
+  warn.textContent='同一张卡，出了两次题'; dup.appendChild(warn);
+  bias.innerHTML = '<div style="font-size:32px;font-weight:900;color:var(--ink);margin-bottom:14px">漏洞二：动作可能有偏好</div><div style="font-size:29px;font-weight:700;color:#6f675a">有的词总是先被抓到 —— 每一轮都有它，有的词永远轮不到。</div>';
+}
+
+/* 渲染 */
+let lastT = -1;
+function render(T){
+  if (lastT >= 0) for (const a of actions) if (!a.done && a.t > lastT && a.t <= T){ a.done = true; try{ a.fn(); }catch(e){} }
+  lastT = T;
+  const si = sceneAt(T);
+  scenes.forEach((sc,i)=>{ show(sc, i===si ? 1 : 0); });
+  stage.className = [0,3,5,6,7,N].includes(si) ? 'ondark' : '';
+  stage.classList.toggle('onpaper', scenes[si] && scenes[si].classList.contains('paper'));
+  [...dots.children].forEach((b,i)=>b.classList.toggle('f', i===Math.min(si,N-1)));
+  const st = subIndex.find(s=>T>=s.a && T<s.b);
+  $('capText').textContent = st ? st.t : '';
+  const lt = i => T - STARTS[i];
+
+  if (si===0){ const t=lt(0);
+    $('g1note').innerHTML = t>18 ? '<div class="gnote"><div class="t">想一想</div><div class="d">计算机自己不会做决定。让计算机做决定的，是一段一段的程序。</div></div>' : (t>9 ? '<div class="gnote"><div class="t">注意看</div><div class="d">每一轮十道题，有选择题，有拼写题。</div></div>' : '');
+  }
+  if (si===1){ const t=lt(1);
+    s2items.forEach((s,i)=>{ const it=$('s2i'+i);
+      it.style.opacity = t>2.5+i*4.2 ? 1 : .12;
+      it.querySelector('b').textContent = t>4.5+i*4.2 ? '✓' : ''; });
+  }
+  if (si===2){ const t=lt(2);
+    s3cards.forEach((d,i)=>{ d.style.transform='translate('+(40+i*165)+'px,'+(70+7*Math.sin(t*1.3+i))+'px)';
+      if (t>6.5 && i===2){ d.innerHTML='<span class="zh">'+BANK[2].zh+'</span>'; d.style.borderColor='var(--red)'; } });
+    $('s3labels').innerHTML = t>6.5 ? '<span class="chip red" style="position:absolute;left:430px;top:2px">一张卡片 = 一个「对象」</span>' : '';
+    const cnt = Math.floor(clamp01((t-11)/11)*BANK.length);
+    $('s3count').innerHTML = t>11 ? '一百零八张卡片，排成一排 = 一个「列表」　<b style="color:var(--red)">'+cnt+'</b>' : '';
+  }
+  if (si===3){ const t=lt(3);
+    $('s4note').innerHTML =
+      '<div class="gnote"><div class="t">变量 = 会变化的盒子</div><div class="d">盒子上写着名字，里面放着一个数。程序随时可以打开盒子：把数拿出来，加上，再放回去。</div></div>'+
+      '<div class="gnote" style="opacity:'+(t>18?1:.22)+'"><div class="t">经验条</div><div class="d">屏幕顶上的经验条，读的就是「经验值」盒子里的数。</div></div>';
+  }
+  if (si===4){ const t=lt(4);
+    const a=$('s5a'), b=$('s5b'), c=$('s5c');
+    a.style.opacity = t<22?1:0; b.style.opacity = (t>=22&&t<62)?1:0; c.style.opacity = t>=62?1:0;
+    if (t>=22 && t<62){
+      const et = t-22-SHUF_BASE;
+      let pos = [...Array(s5n).keys()];
+      let anim = null;
+      if (et >= 0){
+        for (let k=0;k<swaps.length;k++){
+          const st = k*SWAP_DUR;
+          if (et >= st + SWAP_DUR){ const [i,j]=swaps[k]; const tmp=pos[i]; pos[i]=pos[j]; pos[j]=tmp; }
+          else if (et >= st){ const [i,j]=swaps[k]; anim={i,j,p:ease(clamp01((et-st)/SWAP_DUR))}; break; }
+        }
+      }
+      s5cards.forEach((d,i)=>{
+        let slot = pos[i], x = 60+slot*168, y = 110;
+        if (anim && (anim.i===i || anim.j===i)){
+          const mySlot = anim.i===i ? pos[anim.i] : pos[anim.j];
+          const otherSlot = anim.i===i ? pos[anim.j] : pos[anim.i];
+          x = lerp(60+mySlot*168, 60+otherSlot*168, anim.p);
+          y = 110 - 110*Math.sin(Math.PI*anim.p);
+        }
+        d.style.transform = 'translate('+x+'px,'+y+'px)';
+      });
+      $('s5ptr').textContent = et>=0 ? 'i = 从最后一张开始 ｜ j = 它前面随机的一张 ｜ 交换' : '';
+      $('s5deal').innerHTML = et > swaps.length*SWAP_DUR+0.5 ? '洗完，从最前面拿十张 —— 每一张都是公平的。' : '';
+    }
+    if (t>=62){ const st=t-62;
+      $('s5steps').innerHTML = ['① 明确目标：一轮十题，不重复、不偏心','② 设计公平过程：洗牌 → 取前十张 → 真实释义做干扰项 → 顺序再洗一次','③ 检查漏洞：规律会被猜到吗？会 —— 所以出完题，再整体洗一遍']
+        .map((s,i)=>'<div class="bigcard" style="position:relative;padding:26px 34px;margin-bottom:24px;opacity:'+(st>i*5?1:.12)+'"><span style="font-size:35px;font-weight:900;color:var(--ink)">'+s+'</span></div>').join('');
+    }
+  }
+  if (si===5){ const t=lt(5);
+    $('s6note').innerHTML = '<div class="gnote"><div class="t">判断：「如果怎样，就怎样」</div><div class="d">把提交的答案，和卡片背面的正确答案放在一起比。一样 → 答对这条路：经验值加十。不一样 → 答错这条路：单词进错词本。</div></div>';
+    $('s6loop').style.opacity = t>23 ? 1 : 0;
+    if (t>23){
+      const k = Math.max(0, t-25);
+      const idx = Math.floor(k/2.0)%4, cyc = Math.min(10, Math.floor(k/8.0)+1);
+      [...$('s6steps').children].forEach((c,i)=>{ c.style.background = i===idx ? '#fff' : '#FFFDF6'; c.style.borderColor = i===idx ? 'var(--red)' : 'var(--ink)'; });
+      $('s6count').textContent = '已重复 ' + cyc + ' 轮 / 10';
+    }
+  }
+  if (si===6){ const t=lt(6);
+    const sh=$('shade'), tb=$('tab'), g=$('game4');
+    if (t>15 && t<24){ sh.style.opacity=1; tb.style.transform='scaleX(.05)'; tb.style.opacity=0; }
+    else { sh.style.opacity=0; tb.style.transform='scaleX(1)'; tb.style.opacity=1; }
+    if (t>=22 && !g.dataset.back){ g.dataset.back='1'; g.src='单词闯关_s7.html?back=1'; }
+  }
+  if (si===7){ const t=lt(7);
+    const marks=[1.2, 8, 15, 22, 34, 46, 62];
+    [...$('aiChat').children].forEach((m,i)=>{ m.style.opacity = t>marks[i]?1:0; });
+    if ($('aiPlan')) [...$('aiPlan').children].forEach((li,i)=>li.classList.toggle('on', t>24.5+i*1.7));
+    const c2=$('conLine2'), c3=$('conLine3');
+    c2.innerHTML = (t>47&&t<62) ? '<span class="err">Uncaught SyntaxError: Unexpected token \']\'</span>' : (t>=62?'<span class="okc">› 页面已加载 · 按钮全部正常 ✅</span>':'');
+    c3.innerHTML = (t>50&&t<62) ? '<span class="err">at index.html:312</span>　第三百一十二行，多了一个字符' : '';
+    $('aiConsole').style.borderColor = (t>47&&t<62) ? 'var(--red)' : '#2a2740';
+  }
+  if (si===8){ const t=lt(8);
+    six.forEach((x,i)=>{ const d=$('s9i'+i); const on=t>1.5+i*2;
+      d.style.opacity=on?1:.15; d.style.transform='translateY('+(on?0:14)+'px)'; });
+  }
+  /* 光标 */
+  if (curHold > 0) curHold -= (lastT>=0 ? 0.04 : 0);
+  if (curTarget){
+    const nx = lerp(parseFloat(cur.dataset.x), curTarget[0], 0.3), ny = lerp(parseFloat(cur.dataset.y), curTarget[1], 0.3);
+    cur.dataset.x=nx; cur.dataset.y=ny;
+    cur.style.left=(nx-10)+'px'; cur.style.top=(ny-4)+'px';
+    cur.style.opacity = curHold>0 ? .95 : 0;
+    if (curHold<=0) curTarget=null;
+  } else cur.style.opacity=0;
+}
+function show(el,o){ el.style.opacity=o; el.style.pointerEvents = o>0.02?'auto':'none'; }
+window.SEEK = function(t){ render(Math.max(0,t)); };
+buildS5a(); buildActions();
+render(0);
+</script></body></html>

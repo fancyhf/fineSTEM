@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="UTF-8">
+<title>一家人一起学英语 · 家长播客</title>
+<style>
+:root{--charcoal:#241F1B;--ivory:#ECE3D2;--gold:#C9A24B;--red:#C0392B;--paper:#F7F3EA;--ink:#2B2622;--mut:#8A8175}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:1080px;height:1920px;overflow:hidden;background:var(--charcoal);font-family:"Microsoft YaHei",sans-serif}
+#stage{position:relative;width:1080px;height:1920px}
+#prog{position:absolute;top:0;left:0;height:8px;background:var(--gold);width:0}
+/* 顶栏 */
+#brand{position:absolute;top:96px;left:90px}
+#brand .n{font-family:"Noto Serif SC","SimSun",serif;font-size:58px;font-weight:900;color:var(--ivory);letter-spacing:10px}
+#brand .n i{display:inline-block;width:14px;height:14px;border-radius:50%;background:var(--red);margin-left:6px}
+#brand .s{font-size:25px;color:var(--gold);letter-spacing:6px;margin-top:16px;font-weight:700}
+#wm{position:absolute;top:40px;right:36px;width:96px;opacity:.28}
+#wave{position:absolute;left:90px;top:420px;width:900px;height:160px}
+#wave .bar{position:absolute;bottom:50%;width:12px;border-radius:6px;background:var(--ivory);opacity:.9}
+#wave .bar.g{background:var(--gold)}
+#waveCaps{position:absolute;left:90px;top:560px;width:900px;text-align:center;font-size:26px;color:#7d7568;letter-spacing:4px}
+/* 中栏卡片 */
+#cardZone{position:absolute;left:70px;top:660px;width:940px;height:600px}
+.pcard{position:absolute;inset:0;background:var(--paper);border-radius:26px;box-shadow:0 14px 0 rgba(0,0,0,.35);padding:44px 50px;opacity:0}
+.pcard .lab{font-size:30px;font-weight:900;color:var(--red);letter-spacing:3px;margin-bottom:20px}
+.pcard .big{font-size:44px;font-weight:900;color:var(--ink);line-height:1.4}
+/* 底栏 */
+#chipRow{position:absolute;left:90px;top:1310px}
+#chip{display:inline-block;border-radius:999px;padding:10px 34px;font-size:32px;font-weight:900;letter-spacing:4px}
+#capScreen{position:absolute;left:70px;top:1348px;width:940px;height:500px;font-weight:900;color:var(--ivory);letter-spacing:2px}
+.scr{position:absolute;inset:0;display:flex}
+.scr.center{align-items:center;justify-content:center;text-align:center}
+.scr.left{align-items:center;justify-content:flex-start;text-align:left}
+.scr.right{align-items:center;justify-content:flex-end;text-align:right}
+.scr.stagger{flex-direction:column;justify-content:center;align-items:flex-start}
+.scr.stagger .row{line-height:1.5;white-space:nowrap}
+.scr.topline{flex-direction:column;justify-content:center;gap:16px;text-align:center;align-items:center}
+.scr.lshape{justify-content:space-between;align-items:flex-start}
+.scr.lshape .h{font-size:62px;line-height:1.3}
+.scr.lshape .vcol{writing-mode:vertical-rl;font-size:38px;line-height:1.35;height:400px;color:var(--gold);letter-spacing:6px}
+.scr.bigword{flex-direction:column;align-items:center;justify-content:center;gap:14px}
+.scr.bigword .big{font-size:112px;color:var(--gold);line-height:1.05}
+.scr.twocol{gap:28px}
+.scr.twocol .col{flex:1;line-height:1.5}
+.kw{color:var(--gold)}
+#tail{position:absolute;inset:0;background:var(--charcoal);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:34px;opacity:0}
+#tail .a{font-size:76px;font-weight:900;color:var(--ivory);letter-spacing:6px}
+#tail .b{font-size:34px;color:var(--gold);letter-spacing:8px}
+.panel{position:absolute;left:0;top:640px;width:1080px;height:640px;background:var(--charcoal);opacity:0;padding:30px 70px}
+.panel .lab{font-size:29px;font-weight:900;color:var(--red);letter-spacing:3px;margin-bottom:16px;text-align:center}
+/* 开场主画面 */
+.op-title{font-size:62px;font-weight:900;color:var(--ivory);text-align:center;margin:0 0 22px;letter-spacing:6px}
+.op-title .r{color:var(--gold)}
+.op-scene{position:relative;height:280px}
+.tv{position:absolute;left:190px;top:6px;width:290px;height:180px;background:#3a332c;border-radius:14px;padding:12px}
+.tvscreen{width:100%;height:100%;background:#181410;border-radius:8px;display:flex;align-items:center;justify-content:center}
+.tvscreen span{font-size:42px;font-weight:900;color:var(--gold);font-family:Consolas,monospace}
+.tvleg{width:90px;height:14px;background:#3a332c;margin:5px auto 0;border-radius:4px}
+.sofa{position:absolute;right:160px;top:110px;width:320px;height:120px;background:#4a4034;border-radius:24px 24px 12px 12px}
+.sofa::before{content:'';position:absolute;left:20px;top:-32px;width:280px;height:42px;background:#4a4034;border-radius:16px}
+.book{position:absolute;left:80px;top:190px;width:160px;height:74px;transform:rotate(-6deg)}
+.book b{position:absolute;top:0;width:76px;height:74px;background:var(--paper);border:3px solid var(--ink)}
+.book b:first-child{left:0;border-radius:8px 0 0 8px;transform-origin:right;transform:skewY(4deg)}
+.book b:last-child{right:0;border-radius:0 8px 8px 0;transform-origin:left;transform:skewY(-4deg);border-left:0}
+.bub{position:absolute;right:215px;top:8px;background:var(--paper);color:var(--ink);font-weight:900;font-size:28px;padding:12px 24px;border-radius:18px 18px 18px 4px}
+.bub::after{content:'';position:absolute;left:-12px;bottom:0;border:8px solid transparent;border-right-color:var(--paper)}
+.opchips{display:flex;gap:20px;justify-content:center;margin-top:26px}
+.opchips span{font-size:27px;font-weight:900;color:#5c554a;border:3px solid #4a4438;border-radius:999px;padding:10px 26px;opacity:.45}
+.opchips span.on{color:var(--ink);border-color:var(--gold);background:rgba(201,162,75,.14);opacity:1}
+/* AI 面板 */
+.aichat{background:var(--paper);border-radius:16px;padding:16px 22px;margin-bottom:14px}
+.mu{background:#2B2622;color:var(--paper);border-radius:12px;padding:10px 16px;font-size:25px;font-weight:900;display:inline-block}
+.ma{background:#fff;border:3px solid var(--ink);border-radius:12px;padding:10px 16px;font-size:24px;font-weight:700;color:var(--ink);margin-top:10px}
+.aicode{background:#191627;border:1px solid #2a2740;border-radius:14px;padding:14px 22px;font-family:"Cascadia Mono",Consolas,monospace;font-size:23px;color:#cfcbe6;line-height:1.65;min-height:150px}
+.aicon{margin-top:12px;font-size:24px;font-weight:900;color:#69f0ae;font-family:Consolas,monospace}
+/* 收尾四件套 */
+.endgrid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.eg{background:var(--paper);border-radius:16px;padding:16px 20px;text-align:center;font-size:34px;opacity:.25;transform:translateY(12px)}
+.eg b{display:block;font-size:30px;font-weight:900;color:var(--ink);margin-top:4px}
+.eg i{display:block;font-style:normal;font-size:22px;color:#6f675a;font-weight:700;margin-top:4px}
+.eg.on{opacity:1;transform:translateY(0)}
+.endsub{text-align:center;font-size:32px;font-weight:900;color:var(--gold);margin-top:20px;letter-spacing:2px}
+/* 大字幕版式 */
+
+</style></head>
+<body>
+<div id="stage">
+  <div id="prog"></div>
+  <div id="brand">
+    <div class="n">与孩子对话<i></i></div>
+    <div class="s">家长播客 · 一家人一起学英语</div>
+  </div>
+  <img id="wm" src="爱住家水印.png" alt="">
+  <div id="wave"></div>
+  <div id="waveCaps">主 持 人 ◈ 小 雅 ｜ 声 波 随 对 谈 起 伏</div>
+  <div id="cardZone"></div>
+  <div id="chipRow"><span id="chip">主持</span></div>
+  <div id="openPanel" class="panel">
+    <div class="op-title">一家人<span class="r">一起学英语</span></div>
+    <div class="op-scene">
+      <div class="tv"><div class="tvscreen"><span id="tvword">Hello!</span></div><div class="tvleg"></div></div>
+      <div class="sofa"></div>
+      <div class="book"><b></b><b></b></div>
+      <div class="bub">Let's talk!</div>
+    </div>
+    <div class="opchips">
+      <span id="oc0">👀 一起看</span><span id="oc1">📖 一起读</span><span id="oc2">🗣️ 一起说</span><span id="oc3">🃏 一起背</span>
+    </div>
+  </div>
+  <div id="aiPanel" class="panel">
+    <div class="lab">AI 工作台 · 把想法做成程序</div>
+    <div class="aichat">
+      <div class="mu">我想要一个背单词的闯关游戏</div>
+      <div class="ma">好的！分步计划：① 搭建页面 ② 词库和出题 ③ 答题交互 ④ 经验和等级 ⑤ 测试验收</div>
+    </div>
+    <div class="aicode" id="aiCodeLines"></div>
+    <div class="aicon" id="aiCon">› 页面已加载 · 按钮全部正常 ✅</div>
+  </div>
+  <div id="endPanel" class="panel">
+    <div class="lab">四件套 · 从今天开始</div>
+    <div class="endgrid">
+      <div class="eg" id="eg0">👀<b>一起看</b><i>放映夜 · 字幕三步</i></div>
+      <div class="eg" id="eg1">📖<b>一起读</b><i>交换着读 · 标题猜猜猜</i></div>
+      <div class="eg" id="eg2">🗣️<b>一起说</b><i>英语角 · 每晚十五分钟</i></div>
+      <div class="eg" id="eg3">🃏<b>一起背</b><i>互相考 · 错词本毕业</i></div>
+    </div>
+    <div class="endsub">英语，从一门课，变成家里的背景声。</div>
+  </div>
+  <div id="cap">
+    <div id="capScreen"></div>
+  </div>
+  <div id="tail"><div class="b">与孩子对话 · 家长播客</div><div class="a">一家人，一起学英语</div></div>
+</div>
+<script>
+const PC = __PODCAST__;
+const TOTAL = __VTOTAL__;
+const stage = document.getElementById('stage');
+const $ = id => document.getElementById(id);
+const clamp01 = x => Math.max(0, Math.min(1, x));
+const fade = 0.45;
+function op(el, o){ el.style.opacity = o; }
+
+/* 进度 */
+/* 声波线 */
+const wave = $('wave'), NB = 44, bars = [];
+for (let i=0;i<NB;i++){ const b = document.createElement('div'); b.className='bar'+(i%7===3?' g':''); wave.appendChild(b); bars.push(b); }
+const RMS = PC.rms; // 每帧能量(0..1)
+/* 说话人 chip */
+function setChip(role){
+  const c = $('chip');
+  if (role === '小雅'){ c.style.background = 'var(--gold)'; c.style.color = '#241F1B'; c.style.border='none'; c.textContent = '小雅'; }
+  else { c.style.background = 'transparent'; c.style.color = 'var(--ivory)'; c.style.border='3px solid var(--ivory)'; c.textContent = '主持'; }
+}
+/* 卡片 */
+const CARD_SEC = {1:1, 2:2, 3:3, 4:4, 5:5};
+const zone = $('cardZone');
+function el(html){ const d = document.createElement('div'); d.innerHTML = html; const e = d.firstElementChild; zone.appendChild(e); return e; }
+const cardEls = {};
+cardEls[1] = el(`<div class="pcard" id="c1"><div class="lab">家底盘点</div>
+  <div style="display:flex;gap:50px;align-items:center;height:380px">
+    <div style="position:relative;width:380px;height:340px">
+      <div style="position:absolute;left:30px;top:30px;width:300px;height:84px;background:#fff;border:3px solid var(--ink);border-radius:12px;transform:rotate(-4deg);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:30px;color:var(--ink)">四级证书 ✓</div>
+      <div style="position:absolute;left:14px;top:130px;width:300px;height:84px;background:#fff;border:3px solid var(--ink);border-radius:12px;transform:rotate(2deg);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:30px;color:var(--ink)">六级证书 ✓</div>
+      <div style="position:absolute;left:24px;top:230px;width:300px;height:84px;background:#fff;border:3px solid var(--ink);border-radius:12px;transform:rotate(-2deg);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:30px;color:var(--ink)">成绩单 ✓</div>
+    </div>
+    <div style="flex:1">
+      <div style="height:150px;border-radius:0 0 90px 90px;border:4px solid var(--ink);border-top:0;position:relative;overflow:hidden">
+        <svg viewBox="0 0 300 60" style="position:absolute;inset:0;width:100%;height:100%"><path d="M0 30 Q 25 12 50 30 T 100 30 T 150 30 T 200 30 T 250 30 T 300 30" fill="none" stroke="#2B2622" stroke-width="4"/><path d="M0 46 Q 25 30 50 46 T 100 46 T 150 46 T 200 46 T 250 46 T 300 46" fill="none" stroke="#2B2622" stroke-width="3" opacity=".5"/></svg>
+      </div>
+      <div style="text-align:center;margin-top:14px;font-size:30px;font-weight:900;color:var(--ink)">泳池的水，还没泡够</div>
+    </div>
+  </div>
+  <div style="text-align:center;font-size:34px;font-weight:900;color:var(--red)">证书是真的 · 缺的是开口和长期练习</div></div>`);
+
+cardEls[2] = el(`<div class="pcard" id="c2"><div class="lab">选材的标准</div>
+  <div style="display:flex;height:400px;align-items:flex-end;justify-content:center;gap:60px">
+    <div style="position:relative;width:120px;height:360px">
+      <div style="position:absolute;left:52px;top:0;bottom:0;width:8px;background:var(--ink);border-radius:4px"></div>
+      <div id="c2l1" style="position:absolute;left:0;right:0;top:70px;border-top:4px dashed #6f675a"></div>
+      <div id="c2l2" style="position:absolute;left:0;right:0;top:170px;border-top:4px dashed var(--red)"></div>
+      <div style="position:absolute;left:36px;top:210px;font-size:26px;font-weight:900;color:#6f675a">现在的水平</div>
+      <div style="position:absolute;left:36px;top:110px;font-size:26px;font-weight:900;color:var(--red)">踮脚线</div>
+    </div>
+    <div id="c2fruits" style="position:relative;width:420px;height:360px"></div>
+  </div>
+  <div style="text-align:center;font-size:34px;font-weight:900;color:var(--red)">高一点，踮踮脚够得着，才有长进</div></div>`);
+{ const fz = $('c2fruits');
+  [[90,120],[210,80],[330,150]].forEach((p,i)=>{ const f=document.createElement('div');
+    f.id='c2f'+i; f.style.cssText=`position:absolute;left:${p[0]}px;top:${p[1]}px;width:64px;height:64px;border-radius:50%;background:var(--red);opacity:0`;
+    fz.appendChild(f); });
+  const st=document.createElement('div'); st.style.cssText='position:absolute;left:30px;bottom:10px;font-size:28px;font-weight:900;color:#6f675a';
+  st.textContent='太难＝听天书　太易＝原地踏步'; fz.appendChild(st); }
+
+cardEls[3] = el(`<div class="pcard" id="c3"><div class="lab">一起看 · 三个步骤</div>
+  <div id="c3steps" style="display:flex;gap:26px;justify-content:center;margin-top:40px"></div>
+  <div style="text-align:center;margin-top:46px;font-size:34px;font-weight:900;color:var(--ink)">中文字幕一开，眼睛就把耳朵的活儿全做了</div>
+  <div style="text-align:center;margin-top:18px;font-size:30px;font-weight:900;color:var(--red)">一集看十遍 ＞ 十集看一遍</div></div>`);
+['看过中文版','换英文字幕','撤掉字幕'].forEach((s,i)=>{ const c=document.createElement('div');
+  c.id='c3s'+i; c.style.cssText='width:250px;padding:26px 0;border:4px solid var(--ink);border-radius:16px;text-align:center;font-size:30px;font-weight:900;color:var(--ink);background:#fff';
+  c.innerHTML = `<div style="font-size:24px;color:#6f675a;margin-bottom:8px">第${'一二三'[i]}步</div>${s}`;
+  $('c3steps').appendChild(c); });
+
+cardEls[4] = el(`<div class="pcard" id="c4"><div class="lab">家庭英语角</div>
+  <div id="c4week" style="display:flex;gap:14px;justify-content:center;margin-top:30px"></div>
+  <div style="text-align:center;margin-top:34px;font-size:34px;font-weight:900;color:var(--ink)">晚饭后 · 客厅那个角 · 十五分钟</div>
+  <div style="text-align:center;margin-top:16px;font-size:30px;font-weight:900;color:var(--red)">说英文的赢一枚贴纸 · 轮流当主持</div></div>`);
+['一','二','三','四','五','六','日'].forEach((d,i)=>{ const c=document.createElement('div');
+  c.style.cssText='width:110px;padding:18px 0;border:3px solid var(--ink);border-radius:14px;text-align:center;background:#fff';
+  c.innerHTML=`<div style="font-size:30px;font-weight:900;color:var(--ink)">周${d}</div><div style="font-size:24px;color:#6f675a;margin-top:6px">15 分钟</div>`;
+  $('c4week').appendChild(c); });
+
+cardEls[5] = el(`<div class="pcard" id="c5"><div class="lab">错词本 · 毕业规则</div>
+  <div style="display:flex;align-items:center;justify-content:center;gap:60px;margin-top:30px;height:300px">
+    <div style="width:330px;padding:30px;border:4px solid var(--ink);border-radius:18px;background:#fff;text-align:center">
+      <div style="font-size:44px;font-weight:900;color:var(--ink)">important</div>
+      <div style="font-size:28px;color:#6f675a;margin-top:10px">重要的</div>
+    </div>
+    <div>
+      <div id="c5dots" style="display:flex;gap:18px"></div>
+      <div id="c5stamp" style="margin-top:26px;font-size:40px;font-weight:900;color:var(--red);border:5px solid var(--red);border-radius:12px;padding:8px 26px;display:inline-block;transform:rotate(-8deg);opacity:0">毕业！</div>
+    </div>
+  </div>
+  <div style="text-align:center;font-size:32px;font-weight:900;color:var(--ink)">连对三次，才算真的记住 —— 忘了不可怕，再约一次</div></div>`);
+for (let i=0;i<3;i++){ const d=document.createElement('div'); d.id='c5d'+i;
+  d.style.cssText='width:52px;height:52px;border-radius:50%;border:5px solid var(--ink);background:#fff'; $('c5dots').appendChild(d); }
+
+/* ---------- 渲染 ---------- */
+let lastT = -1; let curScr = null;
+function render(T){
+  $('prog').style.width = (clamp01(T/TOTAL)*1080) + 'px';
+  // 声波
+  const fi = Math.min(RMS.length-1, Math.floor(T*24));
+  for (let i=0;i<NB;i++){
+    const w0 = RMS[Math.max(0, fi - (NB-i)*2)] || 0;
+    const h = 8 + w0*260;
+    const b = bars[i];
+    b.style.left = (i*20.2)+'px'; b.style.height = h+'px'; b.style.marginBottom = (h/2)+'px';
+  }
+  // 纯字幕系统：逐屏 ≤13 字 + 8 版式轮换
+  const scr = curScreen(T);
+  if (scr){
+    setChip(scr.role);
+    if (curScr !== scr.id){
+      curScr = scr.id;
+      $('capScreen').innerHTML = layoutHTML(scr.kind, scr.text, scr.fs);
+    }
+  }
+  // 面板显隐（纯函数）
+  const secs = PC.sections;
+  const op = (a,b,T2)=>Math.min(clamp01((T2-(a-0.3))/0.4), clamp01((b+0.3-T2)/0.4));
+  op($('openPanel'), 0, 0) ;
+  $('openPanel').style.opacity = op(secs[0].a, secs[0].b, T);
+  const oc = [15,30,45,58];
+  for (let i=0;i<4;i++) $('oc'+i).classList.toggle('on', T > secs[0].a + oc[i]);
+  $('endPanel').style.opacity = op(secs[6].a, secs[6].b + 2, T);
+  for (let i=0;i<4;i++) $('eg'+i).classList.toggle('on', T > secs[6].a + 6 + i*6);
+  // AI 面板：幕5 中含「AI」的轮次窗口
+  const aiTurns = PC.turns.filter(x => x.text.indexOf('AI 帮了很多忙') >= 0 || x.text.indexOf('AI 的工具用好了') >= 0);
+  let aiO = 0, aiT0 = 0;
+  if (aiTurns.length){
+    const a0 = aiTurns[0].a - 0.6, b0 = aiTurns[aiTurns.length-1].b + 1.2;
+    aiO = Math.min(clamp01((T-a0)/0.4), clamp01((b0-T)/0.4)); aiT0 = a0;
+  }
+  $('aiPanel').style.opacity = aiO;
+  if (aiO > 0){
+    const lines = ['const WORD_BANK = [ /* 108 个词 */ ];',
+      'function startQuiz() { shuffle(); renderQuiz(); }',
+      'function checkAnswer() { if (pick===key) addXP(10); }',
+      'function saveState() { localStorage.setItem(KEY, …); }'];
+    const shown = Math.min(lines.length, 1 + Math.floor((T - aiT0)/1.6));
+    $('aiCodeLines').innerHTML = lines.slice(0, shown).map(l=>'<div>'+l+'</div>').join('');
+  }
+  // AI 窗口期间压暗常规卡
+  PC.sections.forEach((s,i)=>{ const elc = cardEls[i]; if (!elc) return;
+    let o = Math.min(clamp01((T-(s.a-0.2))/0.45), clamp01(((s.b+0.2)-T)/0.45));
+    if (aiO > 0.5) o = o * (1 - aiO);
+    elc.style.opacity = o; });
+  // 卡片
+  PC.sections.forEach((s,i)=>{
+    const elc = cardEls[i];
+    if (!elc) return;
+    // 无状态淡入淡出：透明度是 T 的纯函数（帧步进渲染下确定性收敛）
+    const fi = clamp01((T - (s.a - 0.2)) / 0.45);
+    const fo = clamp01(((s.b + 0.2) - T) / 0.45);
+    elc.style.opacity = Math.min(fi, fo);
+  });
+  // 卡内小动画
+  if (si2(T) === 2){ const t = T - PC.sections[2].a;
+    $('c2f0').style.opacity = t>6?1:0; $('c2f1').style.opacity = t>9?1:0; $('c2f2').style.opacity = t>12?1:0;
+    $('c2l2').style.opacity = t>4?1:0; }
+  if (si2(T) === 3){ const t = T - PC.sections[3].a;
+    for (let i=0;i<3;i++){ const c=$('c3s'+i);
+      c.style.borderColor = (t> 8+i*7) ? 'var(--red)' : 'var(--ink)';
+      c.style.background = (t> 8+i*7) ? '#fff' : '#f2ede1'; } }
+  if (si2(T) === 5){ const t = T - PC.sections[5].a;
+    for (let i=0;i<3;i++){ $('c5d'+i).style.background = t>14+i*5 ? 'var(--gold)' : '#fff'; }
+    $('c5stamp').style.opacity = t>29?1:0; }
+  // 尾屏
+  const tailOp = clamp01((T - (PC.total_audio + 0.3))/0.5);
+  op($('tail'), tailOp);
+  $('tail').style.pointerEvents = 'none';
+}
+function si2(T){ let r = 0; PC.sections.forEach((s,i)=>{ if (T >= s.a) r = i; }); return r; }
+/* ---------- 纯字幕系统 ---------- */
+const SCREEN_LAYOUTS = ['center','stagger','topline','lshape','left','right','bigword','twocol'];
+function esc(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+function kw(E){ return E.replace(/([A-Za-z]+|\d+)/g, '<span class="kw">$1</span>'); }
+function splitScreens(text){
+  const parts = []; let buf = '';
+  for (const seg of text.split(/(?<=[，。？！、：])/)){
+    if ((buf + seg).length > 15 && buf){ parts.push(buf); buf = seg.replace(/[，、]$/,''); } else buf += seg;
+  }
+  if (buf) parts.push(buf);
+  // 碎屏回填：≤4 字的屏并入前屏
+  const merged = [];
+  for (const p of parts){
+    if (p.length <= 4 && merged.length && merged[merged.length-1].length + p.length <= 15) merged[merged.length-1] += p;
+    else merged.push(p);
+  }
+  return merged;
+}
+function fsFor(s){ return s.length <= 8 ? 66 : (s.length <= 11 ? 58 : 50); }
+function layoutHTML(kind, s, fs){
+  const E = esc(s);
+  if (kind === 'stagger'){
+    const rows = []; let buf = '';
+    for (const seg of s.split(/(?<=[，。？！、：])/)){
+      if ((buf + seg).length > 8 && buf){ rows.push(buf); buf = seg; } else buf += seg;
+    }
+    if (buf) rows.push(buf);
+    return '<div class="scr stagger">' + rows.slice(0,6).map((r,i)=>'<div class="row" style="margin-left:'+(i*62)+'px;font-size:'+(fs-4)+'px">'+esc(r)+'</div>').join('') + '</div>';
+  }
+  if (kind === 'topline'){
+    const cut = s.length > 8 ? 8 : Math.ceil(s.length/2);
+    return '<div class="scr topline"><div style="font-size:'+(fs+12)+'px">'+kw(esc(s.slice(0,cut)))+'</div><div style="font-size:'+Math.max(34,fs-18)+'px;color:#d8d2c2">'+esc(s.slice(cut))+'</div></div>';
+  }
+  if (kind === 'lshape'){
+    const cut = s.length > 6 ? 6 : Math.ceil(s.length/2);
+    return '<div class="scr lshape"><div class="h">'+kw(esc(s.slice(0,cut)))+'</div><div class="vcol">'+esc(s.slice(cut))+'</div></div>';
+  }
+  if (kind === 'bigword'){
+    const tokens = s.match(/[A-Za-z]{2,}|\d+/g);
+    if (!tokens) return '<div class="scr center" style="font-size:'+fs+'px">'+kw(E)+'</div>';
+    let big = tokens[0]; for (const w of tokens) if (w.length > big.length) big = w;
+    const idx = s.indexOf(big);
+    const rest = (s.slice(0, idx) + ' … ' + s.slice(idx + big.length)).replace(/^ … | … $/g,'').trim();
+    return '<div class="scr bigword"><div class="big">'+esc(big)+'</div><div style="font-size:34px;color:#d8d2c2">'+esc(rest)+'</div></div>';
+  }
+  if (kind === 'twocol'){
+    const half = Math.ceil(s.length/2);
+    return '<div class="scr twocol"><div class="col" style="font-size:'+(fs-6)+'px">'+kw(esc(s.slice(0,half)))+'</div><div class="col" style="font-size:'+(fs-6)+'px">'+kw(esc(s.slice(half)))+'</div></div>';
+  }
+  return '<div class="scr '+kind+'" style="font-size:'+fs+'px">'+kw(E)+'</div>';
+}
+const screens = [];
+{
+  let gi = 0, lastKind = '';
+  PC.turns.forEach((turn, ti) => {
+    const parts = splitScreens(turn.text);
+    const total = parts.reduce((a,p)=>a+p.length,0);
+    const rot = (ti * 3) % SCREEN_LAYOUTS.length;
+    const order = SCREEN_LAYOUTS.slice(rot).concat(SCREEN_LAYOUTS.slice(0, rot));
+    let acc = 0;
+    parts.forEach((p, j) => {
+      const d = p.length / total * (turn.b - turn.a);
+      let kind = order[gi % order.length];
+      if (kind === lastKind) kind = order[(gi + 1) % order.length];
+      screens.push({a: turn.a + acc, b: turn.a + acc + d, text: p, kind, role: turn.role, fs: fsFor(p), id: ti + '_' + j});
+      lastKind = kind; acc += d; gi++;
+    });
+  });
+}
+function curScreen(T){
+  let c = screens[0];
+  for (const s of screens){ if (T >= s.a - 0.02) c = s; else break; }
+  return c;
+}
+window.SEEK = function(t){ render(Math.max(0, Math.min(t, TOTAL))); };
+render(0);
+</script></body></html>

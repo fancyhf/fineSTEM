@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🎮 英语单词学习助手 — 中考冲刺</title>
+<style>
+:root {
+  --bg: #0d0d1a; --surface: #1a1a2e; --surface2: #222240;
+  --primary: #b388ff; --primary-glow: rgba(179,136,255,0.4);
+  --gold: #ffd54f; --gold-glow: rgba(255,213,79,0.4);
+  --success: #69f0ae; --danger: #ff5252;
+  --text: #e0e0ff; --text-dim: #8888aa;
+  --radius: 14px; --radius-sm: 8px;
+  --transition: 0.25s cubic-bezier(0.4,0,0.2,1);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+body::before{content:'';position:fixed;top:0;left:0;width:100%;height:100%;background:radial-gradient(ellipse at 50% 0%, rgba(179,136,255,0.08) 0%, transparent 60%),radial-gradient(ellipse at 80% 80%, rgba(255,213,79,0.05) 0%, transparent 50%);pointer-events:none;z-index:0}
+#app{position:relative;z-index:1;max-width:600px;margin:0 auto;padding:16px;min-height:100vh;display:flex;flex-direction:column}
+header{padding:12px 0;display:flex;align-items:center;gap:12px}
+main{flex:1;display:flex;flex-direction:column}
+.header-left{display:flex;align-items:center;gap:8px}
+.lvl-badge{width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,var(--primary),#7c4dff);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:13px;box-shadow:0 0 16px var(--primary-glow)}
+.xp-wrap{flex:1}
+.xp-label{display:flex;justify-content:space-between;font-size:11px;color:var(--text-dim);margin-bottom:4px}
+.xp-bar{height:8px;border-radius:4px;background:var(--surface2);overflow:hidden}
+.xp-fill{height:100%;border-radius:4px;background:linear-gradient(90deg,var(--primary),var(--gold));transition:width 0.5s ease}
+.streak-badge{display:flex;align-items:center;gap:4px;font-size:14px;font-weight:700;padding:4px 10px;border-radius:20px;background:rgba(255,82,82,0.15);color:var(--danger);transition:var(--transition)}
+.streak-badge.active{background:rgba(255,213,79,0.2);color:var(--gold);animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 8px var(--gold-glow)}50%{box-shadow:0 0 20px var(--gold-glow)}}
+.view{display:none;flex-direction:column;flex:1}
+.view.active{display:flex}
+.hero-card{background:var(--surface);border-radius:var(--radius);padding:24px;text-align:center;border:1px solid rgba(179,136,255,0.2);margin-bottom:16px}
+.hero-card .title{font-size:28px;font-weight:900;margin:12px 0 4px}
+.hero-card .subtitle{color:var(--text-dim);font-size:14px;margin-bottom:16px}
+.btn-start{display:inline-block;padding:14px 48px;border-radius:30px;border:none;background:linear-gradient(135deg,var(--primary),#7c4dff);color:#fff;font-size:18px;font-weight:700;cursor:pointer;box-shadow:0 4px 20px var(--primary-glow);transition:var(--transition)}
+.btn-start:hover{transform:translateY(-2px);box-shadow:0 6px 28px var(--primary-glow)}
+.btn-start:active{transform:scale(0.96)}
+.stats-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px}
+.stat-card{background:var(--surface);border-radius:var(--radius-sm);padding:14px 10px;text-align:center;border:1px solid rgba(255,255,255,0.06)}
+.stat-card .num{font-size:22px;font-weight:900;color:var(--gold)}
+.stat-card .lbl{font-size:11px;color:var(--text-dim);margin-top:2px}
+.wrongbook-entry{background:var(--surface);border-radius:var(--radius);padding:16px 20px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;border:1px solid rgba(255,82,82,0.2);margin-bottom:16px;transition:var(--transition)}
+.wrongbook-entry:hover{border-color:rgba(255,82,82,0.5)}
+.wrongbook-entry .badge-dot{width:10px;height:10px;border-radius:50%;background:var(--danger);display:inline-block;margin-right:6px}
+.achievements{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px}
+.ach-badge{background:var(--surface);border-radius:var(--radius-sm);padding:12px;text-align:center;border:1px solid rgba(255,255,255,0.06);transition:var(--transition);font-size:13px}
+.ach-badge.unlocked{border-color:rgba(255,213,79,0.4);background:rgba(255,213,79,0.08)}
+.ach-badge .icon{font-size:28px;display:block;margin-bottom:4px}
+.ach-badge.locked{opacity:0.4;filter:grayscale(1)}
+.quiz-top{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.quiz-pg{font-size:13px;color:var(--text-dim)}
+.quiz-pg-bar{flex:1;height:6px;border-radius:3px;background:var(--surface2);overflow:hidden}
+.quiz-pg-fill{height:100%;border-radius:3px;background:var(--primary);transition:width 0.3s}
+.quiz-score{font-weight:700;color:var(--gold);font-size:16px}
+.q-card{background:var(--surface);border-radius:var(--radius);padding:24px;border:1px solid rgba(179,136,255,0.15);flex:1;display:flex;flex-direction:column;justify-content:center}
+.q-type{font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:2px;margin-bottom:12px}
+.q-word{font-size:32px;font-weight:900;text-align:center;margin-bottom:20px;color:#fff}
+.q-options{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.q-opt{padding:14px;border-radius:var(--radius-sm);background:var(--surface2);border:2px solid transparent;font-size:15px;cursor:pointer;transition:var(--transition);text-align:center;color:var(--text)}
+.q-opt:hover{border-color:var(--primary);background:rgba(179,136,255,0.1)}
+.q-opt.correct{border-color:var(--success)!important;background:rgba(105,240,174,0.15)!important;color:var(--success)!important}
+.q-opt.wrong{border-color:var(--danger)!important;background:rgba(255,82,82,0.15)!important;color:var(--danger)!important}
+.q-opt:disabled{pointer-events:none}
+.spell-wrap{display:flex;gap:10px}
+.spell-input{flex:1;padding:14px 18px;border-radius:var(--radius-sm);border:2px solid var(--surface2);background:var(--bg);color:#fff;font-size:18px;outline:none;text-align:center;letter-spacing:2px;transition:var(--transition)}
+.spell-input:focus{border-color:var(--primary)}
+.spell-submit{padding:14px 24px;border-radius:var(--radius-sm);border:none;background:var(--primary);color:#fff;font-size:15px;font-weight:700;cursor:pointer;transition:var(--transition)}
+.spell-submit:hover{background:#7c4dff}
+.feedback{text-align:center;padding:16px;margin-top:12px;border-radius:var(--radius-sm);font-weight:700;font-size:16px;display:none}
+.feedback.show{display:block;animation:slideUp 0.3s ease}
+.feedback.correct-fb{background:rgba(105,240,174,0.1);color:var(--success)}
+.feedback.wrong-fb{background:rgba(255,82,82,0.1);color:var(--danger)}
+@keyframes slideUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.modal-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);display:none;align-items:center;justify-content:center;z-index:100}
+.modal-overlay.show{display:flex}
+.modal{background:var(--surface);border-radius:var(--radius);padding:32px 28px;text-align:center;max-width:360px;width:90%;border:1px solid rgba(179,136,255,0.3)}
+.modal .stars{font-size:36px;margin-bottom:8px}
+.modal .result-title{font-size:22px;font-weight:900;margin-bottom:4px}
+.modal .result-detail{color:var(--text-dim);font-size:14px;margin-bottom:16px}
+.modal .xp-gain{font-size:20px;font-weight:700;color:var(--gold);margin-bottom:20px}
+.btn-modal{display:inline-block;padding:12px 36px;border-radius:25px;border:none;background:linear-gradient(135deg,var(--primary),#7c4dff);color:#fff;font-size:15px;font-weight:700;cursor:pointer}
+.wb-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.wb-header h2{font-size:20px}
+.btn-review{padding:10px 20px;border-radius:20px;border:1px solid var(--primary);background:transparent;color:var(--primary);font-size:14px;cursor:pointer;transition:var(--transition)}
+.btn-review:hover{background:rgba(179,136,255,0.1)}
+.wb-list{display:flex;flex-direction:column;gap:8px}
+.wb-item{background:var(--surface);border-radius:var(--radius-sm);padding:14px 16px;display:flex;align-items:center;justify-content:space-between;border:1px solid rgba(255,255,255,0.06)}
+.wb-item .word{font-weight:700;font-size:16px}
+.wb-item .meaning{color:var(--text-dim);font-size:13px}
+.wb-item .err-count{font-size:12px;color:var(--danger);font-weight:700}
+.wb-item.mastered{opacity:0.5;border-color:rgba(105,240,174,0.3)}
+.wb-item.mastered .err-count{color:var(--success)}
+.wb-empty{text-align:center;padding:48px 20px;color:var(--text-dim)}
+.wb-empty .icon{font-size:48px;margin-bottom:12px}
+footer{display:flex;justify-content:space-around;padding:12px 0 20px;position:sticky;bottom:0;background:linear-gradient(transparent,var(--bg) 40%)}
+.nav-btn{padding:10px 20px;border-radius:20px;border:none;background:transparent;color:var(--text-dim);font-size:14px;cursor:pointer;transition:var(--transition);display:flex;flex-direction:column;align-items:center;gap:2px;position:relative}
+.nav-btn .icon{font-size:20px}
+.nav-btn.active{color:var(--primary);background:rgba(179,136,255,0.1)}
+.nav-btn .red-dot{width:7px;height:7px;border-radius:50%;background:var(--danger);position:absolute;top:4px;right:calc(50% - 18px)}
+.lvlup-toast{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0);background:linear-gradient(135deg,var(--gold),#ff8f00);color:#1a1a2e;padding:24px 36px;border-radius:var(--radius);font-weight:900;font-size:22px;z-index:200;pointer-events:none;text-align:center;box-shadow:0 8px 40px var(--gold-glow);transition:transform 0.4s cubic-bezier(0.175,0.885,0.32,1.275)}
+.lvlup-toast.show{transform:translate(-50%,-50%) scale(1)}
+.lvlup-toast .lvl-num{font-size:40px;display:block}
+@media(max-width:400px){#app{padding:12px}.q-word{font-size:26px}.q-options{grid-template-columns:1fr}.stats-row{grid-template-columns:1fr 1fr 1fr;gap:6px}.stat-card{padding:10px 6px}.stat-card .num{font-size:18px}}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="header-left">
+      <div class="lvl-badge" id="lvlBadge">Lv.1</div>
+      <div class="xp-wrap">
+        <div class="xp-label"><span id="xpText">0 / 100 XP</span><span id="lvlTitle">🔰 英语萌新</span></div>
+        <div class="xp-bar"><div class="xp-fill" id="xpFill" style="width:0%"></div></div>
+      </div>
+    </div>
+    <div class="streak-badge" id="streakBadge">🔥 <span id="streakNum">0</span></div>
+  </header>
+  <main>
+    <div class="view active" id="viewHome">
+      <div class="hero-card">
+        <div style="font-size:48px">📝</div>
+        <div class="title">单词学习助手</div>
+        <div class="subtitle">中考高频词 · 游戏化闯关 · 错词自动复习</div>
+        <button class="btn-start" onclick="startQuiz()">⚔️ 开始测试</button>
+      </div>
+      <div class="stats-row">
+        <div class="stat-card"><div class="num" id="statToday">0</div><div class="lbl">今日已学</div></div>
+        <div class="stat-card"><div class="num" id="statRate">-</div><div class="lbl">正确率</div></div>
+        <div class="stat-card"><div class="num" id="statDays">1</div><div class="lbl">学习天数</div></div>
+      </div>
+      <div class="wrongbook-entry" onclick="switchView('wrongbook')">
+        <div><span class="badge-dot" id="wbDot" style="display:none"></span>📒 错词本</div>
+        <div style="color:var(--text-dim)"><span id="wbCount">0</span> 个待复习 →</div>
+      </div>
+      <div class="achievements">
+        <div class="ach-badge" id="ach1"><span class="icon">⭐</span>首次全对</div>
+        <div class="ach-badge" id="ach2"><span class="icon">🔥</span>连续7天</div>
+        <div class="ach-badge" id="ach3"><span class="icon">📚</span>掌握50词</div>
+        <div class="ach-badge" id="ach4"><span class="icon">💯</span>百题斩</div>
+      </div>
+    </div>
+    <div class="view" id="viewQuiz">
+      <div class="quiz-top">
+        <div class="quiz-pg" id="quizPg">第 1/10 题</div>
+        <div class="quiz-pg-bar"><div class="quiz-pg-fill" id="quizPgFill" style="width:0%"></div></div>
+        <div class="quiz-score">⭐ <span id="quizScore">0</span></div>
+      </div>
+      <div class="q-card" id="qCard"></div>
+      <div class="feedback" id="feedback"></div>
+    </div>
+    <div class="view" id="viewWrongbook">
+      <div class="wb-header">
+        <h2>📒 错词本</h2>
+        <button class="btn-review" onclick="reviewWrongWords()">🔄 复习错词</button>
+      </div>
+      <div class="wb-list" id="wbList"></div>
+      <div class="wb-empty" id="wbEmpty"><div class="icon">🎉</div>错词本为空，继续保持！</div>
+    </div>
+  </main>
+  <footer>
+    <button class="nav-btn active" onclick="switchView('home')" id="navHome"><span class="icon">🏠</span>首页</button>
+    <button class="nav-btn" onclick="switchView('quiz')" id="navQuiz"><span class="icon">⚔️</span>测试</button>
+    <button class="nav-btn" onclick="switchView('wrongbook')" id="navWb"><span class="icon">📒</span>错词本<span class="red-dot" id="navWbDot" style="display:none"></span></button>
+  </footer>
+</div>
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="stars" id="modalStars"></div>
+    <div class="result-title" id="modalTitle"></div>
+    <div class="result-detail" id="modalDetail"></div>
+    <div class="xp-gain" id="modalXp"></div>
+    <button class="btn-modal" onclick="closeModal()">👍 知道了</button>
+  </div>
+</div>
+<div class="lvlup-toast" id="lvlupToast"><span class="lvl-num" id="lvlupNum"></span>升级了！</div>
+<script>
+/* WORD BANK — 100 words */
+const WORD_BANK = [
+  {en:"accept",zh:"接受"},{en:"achieve",zh:"实现；达到"},{en:"active",zh:"积极的"},{en:"advice",zh:"建议"},
+  {en:"afford",zh:"负担得起"},{en:"afraid",zh:"害怕的"},{en:"against",zh:"反对"},{en:"allow",zh:"允许"},
+  {en:"ancient",zh:"古代的"},{en:"appear",zh:"出现"},{en:"arrive",zh:"到达"},{en:"attend",zh:"参加"},
+  {en:"believe",zh:"相信"},{en:"borrow",zh:"借入"},{en:"brave",zh:"勇敢的"},{en:"bright",zh:"明亮的"},
+  {en:"celebrate",zh:"庆祝"},{en:"chance",zh:"机会"},{en:"change",zh:"改变"},{en:"choose",zh:"选择"},
+  {en:"collect",zh:"收集"},{en:"comfortable",zh:"舒服的"},{en:"compare",zh:"比较"},{en:"complete",zh:"完成"},
+  {en:"connect",zh:"连接"},{en:"consider",zh:"考虑"},{en:"continue",zh:"继续"},{en:"control",zh:"控制"},
+  {en:"correct",zh:"正确的"},{en:"courage",zh:"勇气"},{en:"create",zh:"创造"},{en:"culture",zh:"文化"},
+  {en:"decide",zh:"决定"},{en:"depend",zh:"依赖"},{en:"describe",zh:"描述"},{en:"develop",zh:"发展"},
+  {en:"different",zh:"不同的"},{en:"difficult",zh:"困难的"},{en:"discover",zh:"发现"},{en:"discuss",zh:"讨论"},
+  {en:"education",zh:"教育"},{en:"encourage",zh:"鼓励"},{en:"energy",zh:"能量"},{en:"environment",zh:"环境"},
+  {en:"especially",zh:"尤其"},{en:"excellent",zh:"优秀的"},{en:"experience",zh:"经验"},{en:"explain",zh:"解释"},
+  {en:"express",zh:"表达"},{en:"famous",zh:"著名的"},{en:"favorite",zh:"最喜爱的"},{en:"follow",zh:"跟随"},
+  {en:"foreign",zh:"外国的"},{en:"forget",zh:"忘记"},{en:"friendly",zh:"友好的"},{en:"government",zh:"政府"},
+  {en:"gradually",zh:"逐渐地"},{en:"happen",zh:"发生"},{en:"healthy",zh:"健康的"},{en:"honest",zh:"诚实的"},
+  {en:"imagine",zh:"想象"},{en:"important",zh:"重要的"},{en:"improve",zh:"提高"},{en:"include",zh:"包括"},
+  {en:"increase",zh:"增加"},{en:"influence",zh:"影响"},{en:"interest",zh:"兴趣"},{en:"introduce",zh:"介绍"},
+  {en:"knowledge",zh:"知识"},{en:"language",zh:"语言"},{en:"manage",zh:"管理"},{en:"mention",zh:"提到"},
+  {en:"modern",zh:"现代的"},{en:"natural",zh:"自然的"},{en:"necessary",zh:"必要的"},{en:"notice",zh:"注意"},
+  {en:"offer",zh:"提供"},{en:"opinion",zh:"意见"},{en:"organize",zh:"组织"},{en:"patient",zh:"有耐心的"},
+  {en:"pleasure",zh:"愉快"},{en:"popular",zh:"流行的"},{en:"possible",zh:"可能的"},{en:"practice",zh:"练习"},
+  {en:"prepare",zh:"准备"},{en:"prevent",zh:"阻止"},{en:"probably",zh:"大概"},{en:"produce",zh:"生产"},
+  {en:"promise",zh:"承诺"},{en:"protect",zh:"保护"},{en:"provide",zh:"提供"},{en:"receive",zh:"收到"},
+  {en:"recognize",zh:"认出"},{en:"remember",zh:"记住"},{en:"require",zh:"要求"},{en:"respect",zh:"尊重"},
+  {en:"satisfy",zh:"使满意"},{en:"serious",zh:"严肃的"},{en:"silence",zh:"沉默"},{en:"similar",zh:"相似的"},
+  {en:"special",zh:"特别的"},{en:"suggest",zh:"建议"},{en:"support",zh:"支持"},{en:"temperature",zh:"温度"},
+  {en:"tradition",zh:"传统"},{en:"translate",zh:"翻译"},{en:"valuable",zh:"有价值的"},{en:"wonder",zh:"想知道"}
+];
+const STORAGE_KEY='vocab_helper_v2_s6';
+const QUESTIONS_PER_ROUND=10;
+const XP_PER_CORRECT=10;
+const LEVEL_TITLES=['🔰 英语萌新','📖 单词学徒','✏️ 拼写新手','🎯 词汇达人','⚡ 记忆高手','🌟 单词大师','💎 词汇专家','👑 英语之王','🔥 传奇学霸','🏆 单词之神'];
+let state={xp:0,level:1,streak:0,lastPlayDate:'',todayCount:0,totalCorrect:0,totalAnswered:0,wrongWords:{},masteredWords:[],achievements:[false,false,false,false],currentQuestions:[],currentIndex:0,currentScore:0,currentCorrect:0,inQuiz:false,inReview:false,answered:false};
+function loadState(){try{var s=JSON.parse(localStorage.getItem(STORAGE_KEY));if(s){Object.assign(state,s)}}catch(e){}}
+function saveState(){try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state))}catch(e){}}
+function shuffle(arr){var a=[...arr];for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=a[i];a[i]=a[j];a[j]=t}return a}
+function xpNeeded(lvl){return lvl*100}
+function totalXpFor(lvl){var t=0;for(var i=1;i<lvl;i++)t+=xpNeeded(i);return t}
+function todayStr(){return new Date().toISOString().split('T')[0]}
+function updateHeader(){var lvl=state.level,startXp=totalXpFor(lvl),need=xpNeeded(lvl);var prog=state.xp-startXp,pct=Math.min(100,Math.round(prog/need*100));document.getElementById('lvlBadge').textContent='Lv.'+lvl;document.getElementById('xpText').textContent=prog+' / '+need+' XP';document.getElementById('lvlTitle').textContent=LEVEL_TITLES[Math.min(lvl-1,LEVEL_TITLES.length-1)];document.getElementById('xpFill').style.width=pct+'%';document.getElementById('streakNum').textContent=state.streak;var sb=document.getElementById('streakBadge');sb.classList.toggle('active',state.streak>=3);document.getElementById('statToday').textContent=state.todayCount;var rate=state.totalAnswered>0?Math.round(state.totalCorrect/state.totalAnswered*100):'-';document.getElementById('statRate').textContent=rate==='-'?'-':rate+'%';document.getElementById('statDays').textContent=Math.max(1,state.streak||1);var wc=Object.keys(state.wrongWords).length;document.getElementById('wbCount').textContent=wc;document.getElementById('wbDot').style.display=wc>0?'inline-block':'none';document.getElementById('navWbDot').style.display=wc>0?'inline-block':'none'}
+function updateAchievements(){['ach1','ach2','ach3','ach4'].forEach(function(id,i){var el=document.getElementById(id);if(state.achievements[i]){el.classList.add('unlocked');el.classList.remove('locked')}else{el.classList.add('locked');el.classList.remove('unlocked')}})}
+function renderWrongBook(){var list=document.getElementById('wbList'),empty=document.getElementById('wbEmpty');var entries=Object.entries(state.wrongWords);if(entries.length===0){list.innerHTML='';empty.style.display='block';return}empty.style.display='none';list.innerHTML=entries.map(function(p){var d=p[1],cls=d.correctStreak>=2?' mastered':'';return '<div class="wb-item'+cls+'"><div><div class="word">'+d.en+'</div><div class="meaning">'+d.zh+'</div></div><div class="err-count">'+'❌'.repeat(Math.min(d.errors,5))+'</div></div>'}).join('')}
+function checkStreak(){var today=todayStr();if(state.lastPlayDate===today)return;var yesterday=new Date(Date.now()-86400000).toISOString().split('T')[0];if(state.lastPlayDate===yesterday){state.streak++}else if(!state.lastPlayDate){state.streak=1}else{state.streak=1;state.todayCount=0}state.lastPlayDate=today;saveState()}
+function addXP(amount){var oldLvl=state.level;state.xp+=amount;var newLvl=1;while(state.xp>=totalXpFor(newLvl+1))newLvl++;if(newLvl>oldLvl){state.level=newLvl;showLevelUp(newLvl)}updateHeader();checkAchievements()}
+function showLevelUp(lvl){var t=document.getElementById('lvlupToast');document.getElementById('lvlupNum').textContent='Lv.'+lvl;t.classList.add('show');setTimeout(function(){t.classList.remove('show')},2000)}
+function showToast(msg){var t=document.getElementById('lvlupToast');document.getElementById('lvlupNum').textContent=msg;t.classList.add('show');setTimeout(function(){t.classList.remove('show')},2000)}
+function checkAchievements(){if(state.streak>=7&&!state.achievements[1]){state.achievements[1]=true;showToast('🔥 成就解锁：连续7天！')}if(state.masteredWords.length>=50&&!state.achievements[2]){state.achievements[2]=true;showToast('📚 成就解锁：掌握50词！')}if(state.totalAnswered>=100&&!state.achievements[3]){state.achievements[3]=true;showToast('💯 成就解锁：百题斩！')}updateAchievements();saveState()}
+function startQuiz(){checkStreak();var pool=shuffle(WORD_BANK).slice(0,QUESTIONS_PER_ROUND);var qs=pool.map(function(w,i){if(i>=6){return{type:'spelling',word:w,answered:false,correct:false}}else{var dist=shuffle(WORD_BANK.filter(function(x){return x.en!==w.en})).slice(0,3);return{type:'choice',word:w,options:shuffle([w].concat(dist)),answered:false,correct:false}}});state.currentQuestions=shuffle(qs);state.currentIndex=0;state.currentScore=0;state.currentCorrect=0;state.inQuiz=true;state.inReview=false;state.answered=false;switchView('quiz');renderQuiz()}
+function reviewWrongWords(){var entries=Object.entries(state.wrongWords);if(entries.length===0){alert('错词本为空！');return}checkStreak();var words=entries.map(function(p){return p[1]});var pool=shuffle(words),count=Math.min(QUESTIONS_PER_ROUND,pool.length);var qs=pool.slice(0,count).map(function(w,i){if(i>=Math.floor(count*0.6)){return{type:'spelling',word:{en:w.en,zh:w.zh},answered:false,correct:false}}else{var dist=shuffle(WORD_BANK.filter(function(x){return x.en!==w.en})).slice(0,3);return{type:'choice',word:{en:w.en,zh:w.zh},options:shuffle([{en:w.en,zh:w.zh}].concat(dist)),answered:false,correct:false}}});state.currentQuestions=shuffle(qs);state.currentIndex=0;state.currentScore=0;state.currentCorrect=0;state.inQuiz=true;state.inReview=true;state.answered=false;switchView('quiz');renderQuiz()}
+function renderQuiz(){var idx=state.currentIndex,total=state.currentQuestions.length;var q=state.currentQuestions[idx],card=document.getElementById('qCard');document.getElementById('quizPg').textContent='第 '+(idx+1)+'/'+total+' 题';document.getElementById('quizPgFill').style.width=(idx/total*100)+'%';document.getElementById('quizScore').textContent=state.currentScore;document.getElementById('feedback').classList.remove('show','correct-fb','wrong-fb');var h='';if(q.type==='choice'){h+='<div class="q-type">📝 选择正确的中文含义</div>';h+='<div class="q-word">'+q.word.en+'</div><div class="q-options">';q.options.forEach(function(o,i){h+='<button class="q-opt" id="opt'+i+'" onclick="checkAnswer(\''+o.en+'\',\''+q.word.en+'\',\'choice\')">'+o.zh+'</button>'});h+='</div>'}else{h+='<div class="q-type">✏️ 拼写单词</div>';h+='<div class="q-word">'+q.word.zh+'</div><div class="spell-wrap">';h+='<input class="spell-input" id="spellInput" placeholder="输入英文单词..." onkeydown="if(event.key===\'Enter\')checkSpelling()">';h+='<button class="spell-submit" onclick="checkSpelling()">确认</button></div>'}card.innerHTML=h}
+function checkAnswer(selected,correct,type){if(state.answered)return;state.answered=true;var q=state.currentQuestions[state.currentIndex],isOk=selected===correct;q.answered=true;q.correct=isOk;state.totalAnswered++;state.todayCount++;if(isOk){state.currentCorrect++;state.currentScore+=10;state.totalCorrect++}updateWrongWords(q.word,isOk);saveState();if(q.type==='choice'){q.options.forEach(function(o,i){var b=document.getElementById('opt'+i);b.disabled=true;if(o.en===correct)b.classList.add('correct');if(o.en===selected&&!isOk)b.classList.add('wrong')})}var fb=document.getElementById('feedback');fb.classList.add('show');if(isOk){fb.classList.add('correct-fb');fb.classList.remove('wrong-fb');fb.textContent='✅ 正确！+10 分'}else{fb.classList.add('wrong-fb');fb.classList.remove('correct-fb');fb.textContent='❌ 正确答案：'+correct}setTimeout(advanceQuestion,1500)}
+function checkSpelling(){if(state.answered)return;var inp=document.getElementById('spellInput');if(!inp)return;var ans=inp.value.trim().toLowerCase();var q=state.currentQuestions[state.currentIndex];var ok=ans===q.word.en.toLowerCase();state.answered=true;q.answered=true;q.correct=ok;state.totalAnswered++;state.todayCount++;var fb=document.getElementById('feedback');fb.classList.add('show');if(ok){state.currentCorrect++;state.currentScore+=10;state.totalCorrect++;fb.classList.add('correct-fb');fb.classList.remove('wrong-fb');fb.textContent='✅ 拼写正确！+10 分'}else{fb.classList.add('wrong-fb');fb.classList.remove('correct-fb');fb.textContent='❌ 正确答案：'+q.word.en}updateWrongWords(q.word,ok);saveState();setTimeout(advanceQuestion,1500)}
+function updateWrongWords(word,isOk){if(isOk){if(state.wrongWords[word.en]){state.wrongWords[word.en].correctStreak++;if(state.wrongWords[word.en].correctStreak>=3){state.masteredWords.push(word.en);delete state.wrongWords[word.en]}}}else{if(!state.wrongWords[word.en])state.wrongWords[word.en]={en:word.en,zh:word.zh,errors:0,correctStreak:0};state.wrongWords[word.en].errors++;state.wrongWords[word.en].correctStreak=0}}
+function advanceQuestion(){state.answered=false;if(state.currentIndex<state.currentQuestions.length-1){state.currentIndex++;renderQuiz();document.getElementById('quizScore').textContent=state.currentScore;document.getElementById('quizPg').textContent='第 '+(state.currentIndex+1)+'/'+state.currentQuestions.length+' 题';document.getElementById('quizPgFill').style.width=(state.currentIndex/state.currentQuestions.length*100)+'%'}else{finishRound()}}
+function finishRound(){state.inQuiz=false;var c=state.currentCorrect,t=state.currentQuestions.length,rate=Math.round(c/t*100);var stars=rate>=90?'⭐⭐⭐':rate>=70?'⭐⭐':rate>=50?'⭐':'💪';addXP(c*XP_PER_CORRECT);if(rate===100&&!state.achievements[0]){state.achievements[0]=true;showToast('⭐ 成就解锁：首次全对！')}document.getElementById('modalStars').textContent=stars;document.getElementById('modalTitle').textContent=rate>=70?'太棒了！':'继续加油！';document.getElementById('modalDetail').textContent='答对 '+c+'/'+t+' 题（'+rate+'%）';document.getElementById('modalXp').textContent='+ '+c*XP_PER_CORRECT+' XP';document.getElementById('modalOverlay').classList.add('show');updateHeader();updateAchievements();renderWrongBook();saveState()}
+function closeModal(){document.getElementById('modalOverlay').classList.remove('show');switchView('home')}
+function switchView(view){document.querySelectorAll('.view').forEach(function(el){el.classList.remove('active')});var vm={home:'viewHome',quiz:'viewQuiz',wrongbook:'viewWrongbook'};var tid=vm[view];if(tid)document.getElementById(tid).classList.add('active');document.querySelectorAll('.nav-btn').forEach(function(el){el.classList.remove('active')});var nm={home:'navHome',quiz:'navQuiz',wrongbook:'navWb'};var nid=nm[view];if(nid)document.getElementById(nid).classList.add('active');if(view==='wrongbook')renderWrongBook();if(view==='quiz'&&!state.inQuiz){document.getElementById('qCard').innerHTML='<div style="text-align:center;padding:40px"><p style="font-size:48px;margin-bottom:16px">⚔️</p><p>点击下方按钮开始测试吧！</p></div>';document.getElementById('feedback').classList.remove('show','correct-fb','wrong-fb')}updateHeader()}
+document.addEventListener('keydown',function(e){if(!state.inQuiz||state.answered)return;var q=state.currentQuestions[state.currentIndex];if(q.type==='choice'){var keys=['1','2','3','4'],ki=keys.indexOf(e.key);if(ki>=0&&ki<q.options.length)checkAnswer(q.options[ki].en,q.word.en,'choice')}if(e.key==='Enter'&&q.type==='spelling')checkSpelling()});
+loadState();checkStreak();updateHeader();updateAchievements();renderWrongBook();
+</script>
+</body>
+</html>
