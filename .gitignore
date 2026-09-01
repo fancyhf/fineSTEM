@@ -26,7 +26,10 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
+# 只忽略仓库根的 lib/（Python 打包产物）。
+# 不要写成 `lib/`：它会匹配任意层级，误伤所有前端 apps/*/src/lib/ 源码目录
+# （曾导致 apps/know/src/lib 与 apps/frontend/src/lib 整个未入库，服务器构建失败）。
+/lib/
 lib64/
 parts/
 sdist/
