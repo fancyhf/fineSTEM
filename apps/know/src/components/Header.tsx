@@ -21,13 +21,13 @@ export default function Header() {
       <div className="container site-header__inner">
         <Link to="/" className="brand">
           <svg className="brand__icon" viewBox="0 0 48 48" aria-hidden>
-            <rect x="5" y="7" width="30" height="23" rx="9" fill="none" stroke="#29251F" strokeWidth="3" />
-            <path d="M 12 30 L 9 38 L 20 31 Z" fill="#29251F" />
-            <rect x="26" y="24" width="17" height="13" rx="6.5" fill="#1E4A66" />
-            <path d="M 38 37 L 40 42 L 33 37.5 Z" fill="#1E4A66" />
-            <circle cx="14" cy="18.5" r="2.2" fill="#29251F" />
-            <circle cx="20" cy="18.5" r="2.2" fill="#29251F" />
-            <circle cx="26" cy="18.5" r="2.2" fill="#29251F" />
+            <rect x="5" y="7" width="30" height="23" rx="9" fill="none" stroke="var(--accent-deep)" strokeWidth="3" />
+            <path d="M 12 30 L 9 38 L 20 31 Z" fill="var(--accent-deep)" />
+            <rect x="26" y="24" width="17" height="13" rx="6.5" fill="var(--accent)" />
+            <path d="M 38 37 L 40 42 L 33 37.5 Z" fill="var(--accent)" />
+            <circle cx="14" cy="18.5" r="2.2" fill="var(--accent-deep)" />
+            <circle cx="20" cy="18.5" r="2.2" fill="var(--accent-deep)" />
+            <circle cx="26" cy="18.5" r="2.2" fill="var(--accent-deep)" />
           </svg>
           <span>
             <span className="brand__name">与孩子对话</span>

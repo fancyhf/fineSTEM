@@ -172,7 +172,7 @@ export default function HomePage() {
                 <ResourceBadges episode={podcastMain} />
               </div>
             </div>
-            <Link className="hero__cover" to={podcastMain.url} aria-hidden>
+            <Link className="hero__cover" to={podcastMain.url} aria-label={`收看：${podcastMain.title}`}>
               <img
                 src={podcastMain.cover ?? '/content/assets/default-cover.svg'}
                 alt={podcastMain.title}

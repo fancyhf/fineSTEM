@@ -1,28 +1,20 @@
-/**
- * Know 频道设计系统 · 编辑部风（v2，2026-08-24）
- *
- * 频道外壳面向家长（成人），走克制的杂志/编辑部路线：
- * 思源宋体标题 + 系统黑体正文、暖白纸底、深墨文字、墨蓝做唯一指针色、
- * 方章卷次号、细线分隔、小圆角、无卡通元素。
- * 舞台内的互动动画保留自己的童趣纸墨风——内容给孩子，外壳给家长。
- * 字体全自托管（@fontsource/noto-serif-sc），无外部 CDN。
- */
+/** Know 频道：清爽的亲子媒体界面，青绿主色、白色卡片与柔和层次。 */
 
 :root {
-  --paper: #f7f5f1; /* 暖白纸底 */
-  --paper-raised: #fcfbf8; /* 卡片浮起层 */
-  --paper-deep: #efebe3; /* 次级底 */
-  --ink: #29251f; /* 深墨 */
-  --ink-mut: #6e685d; /* 次级文字 */
-  --accent: #1e4a66; /* 墨蓝：唯一强调/指针色 */
-  --accent-deep: #16374c;
-  --line: rgba(41, 37, 31, 0.14);
-  --line-strong: rgba(41, 37, 31, 0.36);
+  --paper: #f5f8f9;
+  --paper-raised: #ffffff; /* 卡片浮起层 */
+  --paper-deep: #eaf1f3; /* 次级底 */
+  --ink: #203539;
+  --ink-mut: #607478; /* 次级文字 */
+  --accent: #087f78;
+  --accent-deep: #06655f;
+  --line: rgba(32, 70, 76, 0.10);
+  --line-strong: rgba(32, 70, 76, 0.22);
   --theme: #3e6b8c; /* 系列主题色（数据驱动覆盖） */
-  --font-display: 'Noto Serif SC', 'Songti SC', 'STSong', 'SimSun', serif;
+  --font-display: 'PingFang SC', 'Microsoft YaHei', 'Hiragino Sans GB', sans-serif;
   --font-body: -apple-system, BlinkMacSystemFont, 'PingFang SC',
     'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
-  --serif: 'Noto Serif SC', 'Songti SC', 'STSong', 'SimSun', serif;
+  --serif: 'PingFang SC', 'Microsoft YaHei', 'Hiragino Sans GB', sans-serif;
 }
 
 * {
@@ -70,7 +62,7 @@ button {
 }
 
 .container {
-  max-width: 1100px;
+  max-width: 1200px;
   margin: 0 auto;
   padding: 0 28px;
 }
@@ -81,16 +73,16 @@ button {
   position: sticky;
   top: 0;
   z-index: 20;
-  background: var(--paper); /* 实底：滚动到深色内容上仍清晰 */
+  background: #ffffff;
   border-bottom: 1px solid var(--line);
-  box-shadow: 0 2px 14px rgba(41, 37, 31, 0.1);
+  box-shadow: 0 4px 24px rgba(32, 70, 76, 0.04);
 }
 
 .site-header__inner {
   display: flex;
   align-items: center;
   gap: 28px;
-  height: 64px;
+  height: 82px;
 }
 
 .brand {
@@ -102,24 +94,27 @@ button {
 
 /* 台标图标：双气泡（与孩子对话） */
 .brand__icon {
-  width: 38px;
-  height: 38px;
+  width: 44px;
+  height: 44px;
   flex: none;
+  background: #e4f4f0;
+  border-radius: 14px;
+  padding: 5px;
 }
 
 .brand__name {
   font-family: var(--font-display);
-  font-size: 24px;
-  font-weight: 900;
-  letter-spacing: 5px;
+  font-size: 23px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
   color: var(--ink);
 }
 
 .brand__sub {
   font-size: 12.5px;
-  color: #57513f;
+  color: #607478;
   font-weight: 500;
-  letter-spacing: 2px;
+  letter-spacing: 0.3px;
   margin-top: 2px;
 }
 
@@ -130,10 +125,10 @@ button {
   display: flex;
   align-items: center;
   gap: 10px;
-  border: 1px solid var(--line-strong);
-  border-radius: 3px;
-  padding: 7px 14px;
-  background: #ffffff;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 9px 18px;
+  background: var(--paper);
   transition: border-color 0.2s ease;
 }
 
@@ -184,34 +179,40 @@ button {
 .hero__card {
   display: grid;
   grid-template-columns: 1.05fr 1fr;
-  gap: 44px;
+  gap: 36px;
   align-items: center;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  padding: 40px 44px;
-  background: var(--paper-raised);
+  border: none;
+  border-radius: 24px;
+  padding: 40px;
+  background: linear-gradient(115deg, #e2f3ed 0%, #f0f8f5 58%, #e6f1f5 100%);
+  border-left: none;
 }
 
 .hero__note {
-  font-size: 12.5px;
-  letter-spacing: 4px;
+  font-size: 12px;
+  letter-spacing: 0.3px;
   color: var(--accent);
   margin-bottom: 14px;
+  display: inline-flex;
+  background: #ffffff;
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-weight: 600;
 }
 
 .hero__series {
   font-size: 13px;
   color: var(--ink-mut);
-  letter-spacing: 1px;
+  letter-spacing: 0.3px;
   margin-bottom: 8px;
 }
 
 .hero__title {
   font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 38px;
-  line-height: 1.3;
-  letter-spacing: 2px;
+  font-weight: 800;
+  font-size: 36px;
+  line-height: 1.45;
+  letter-spacing: -0.5px;
   margin-bottom: 16px;
 }
 
@@ -226,7 +227,7 @@ button {
 .hero__actions {
   display: flex;
   align-items: center;
-  gap: 22px;
+  gap: 12px;
   flex-wrap: wrap;
 }
 
@@ -235,12 +236,13 @@ button {
   align-items: center;
   gap: 8px;
   background: var(--accent);
-  color: var(--paper-raised);
+  color: #ffffff;
   font-size: 15px;
-  letter-spacing: 3px;
-  padding: 11px 28px;
-  border-radius: 3px;
+  letter-spacing: 0.3px;
+  padding: 12px 24px;
+  border-radius: 999px;
   transition: background 0.2s ease, transform 0.2s ease;
+  font-weight: 600;
 }
 
 .btn-primary:hover {
@@ -250,10 +252,11 @@ button {
 }
 
 .hero__cover {
-  border-radius: 3px;
+  border-radius: 16px;
   overflow: hidden;
-  border: 1px solid var(--line);
+  border: none;
   aspect-ratio: 16 / 10;
+  box-shadow: 0 16px 36px rgba(21, 62, 65, 0.14);
 }
 
 .hero__cover img {
@@ -277,12 +280,13 @@ button {
   gap: 4px;
   font-size: 12px;
   line-height: 1;
-  padding: 4px 10px;
-  border-radius: 2px;
-  border: 1px solid var(--line-strong);
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: none;
   color: var(--ink);
-  letter-spacing: 1px;
+  letter-spacing: 0;
   white-space: nowrap;
+  background: var(--paper-deep);
 }
 
 .badge--parent {
@@ -320,18 +324,18 @@ button {
   flex: none;
   font-size: 12px;
   color: var(--ink-mut);
-  letter-spacing: 3px;
+  letter-spacing: 0.3px;
   width: 3.5em;
 }
 
 .chip {
   font-size: 13.5px;
   padding: 5px 14px;
-  border-radius: 2px;
+  border-radius: 999px;
   border: 1px solid var(--line);
   color: var(--ink);
   background: transparent;
-  letter-spacing: 1px;
+  letter-spacing: 0.3px;
   transition: all 0.18s ease;
   white-space: nowrap;
 }
@@ -341,8 +345,8 @@ button {
 }
 
 .chip.is-active {
-  background: var(--ink);
-  border-color: var(--ink);
+  background: var(--accent);
+  border-color: var(--accent);
   color: var(--paper);
 }
 
@@ -365,7 +369,7 @@ button {
   display: flex;
   flex-direction: column;
   border: 1px solid var(--line);
-  border-radius: 3px;
+  border-radius: 18px;
   background: var(--paper-raised);
   overflow: hidden;
   transition: border-color 0.2s ease, transform 0.2s ease,
@@ -403,8 +407,11 @@ button {
   font-family: var(--font-display);
   font-weight: 700;
   font-size: 19px;
-  letter-spacing: 1px;
+  letter-spacing: 0;
   line-height: 1.4;
+  background: transparent;
+  color: var(--ink);
+  padding: 0;
 }
 
 .ep-card__summary {
@@ -427,15 +434,15 @@ button {
 .ep-card__brand {
   font-size: 12px;
   color: var(--ink-mut);
-  letter-spacing: 1px;
+  letter-spacing: 0.3px;
 }
 
-/* 卷次方章：细线方框 + 宋体数字 */
+/* 节目期数标记 */
 .seal {
   flex: none;
   width: 28px;
   height: 28px;
-  border: 1.5px solid var(--accent);
+  border: none;
   color: var(--accent);
   display: inline-flex;
   align-items: center;
@@ -444,6 +451,8 @@ button {
   font-size: 14px;
   font-weight: 700;
   line-height: 1;
+  background: #e3f3ef;
+  border-radius: 8px;
 }
 
 .seal--lg {
@@ -457,7 +466,7 @@ button {
   text-align: center;
   color: var(--ink-mut);
   font-size: 15px;
-  letter-spacing: 2px;
+  letter-spacing: 0.3px;
 }
 
 .empty-state button {
@@ -477,7 +486,7 @@ button {
 
 .series-head__brand {
   font-size: 12px;
-  letter-spacing: 4px;
+  letter-spacing: 0.3px;
   color: var(--ink-mut);
   margin-bottom: 10px;
 }
@@ -486,7 +495,7 @@ button {
   font-family: var(--font-display);
   font-weight: 700;
   font-size: 36px;
-  letter-spacing: 3px;
+  letter-spacing: 0.3px;
   line-height: 1.25;
 }
 
@@ -494,7 +503,7 @@ button {
   font-size: 15px;
   color: var(--ink-mut);
   margin-top: 8px;
-  letter-spacing: 1px;
+  letter-spacing: 0.3px;
 }
 
 .series-head__desc {
@@ -535,14 +544,14 @@ button {
 .tl-item__date {
   font-size: 12px;
   color: var(--ink-mut);
-  letter-spacing: 1.5px;
+  letter-spacing: 0.3px;
 }
 
 .tl-item__title {
   font-family: var(--font-display);
   font-weight: 700;
   font-size: 22px;
-  letter-spacing: 1px;
+  letter-spacing: 0.3px;
   margin: 6px 0 8px;
 }
 
@@ -554,7 +563,7 @@ button {
 .tl-item__thumb {
   width: 168px;
   aspect-ratio: 16 / 9;
-  border-radius: 3px;
+  border-radius: 12px;
   overflow: hidden;
   border: 1px solid var(--line);
   flex: none;
@@ -573,7 +582,7 @@ button {
   margin: 36px 0 22px;
   font-size: 13px;
   color: var(--ink-mut);
-  letter-spacing: 1px;
+  letter-spacing: 0.3px;
 }
 
 .ep-header a {
@@ -586,7 +595,7 @@ button {
 
 .stage {
   border: 1px solid var(--line-strong);
-  border-radius: 3px;
+  border-radius: 12px;
   overflow: hidden;
   background: var(--paper-deep);
 }
@@ -616,7 +625,7 @@ button {
   gap: 12px;
   color: var(--ink-mut);
   font-size: 14.5px;
-  letter-spacing: 3px;
+  letter-spacing: 0.3px;
   background: var(--paper-deep);
   text-align: center;
   padding: 20px;
@@ -647,7 +656,7 @@ button {
   position: relative;
   flex: none;
   font-size: 15.5px;
-  letter-spacing: 2px;
+  letter-spacing: 0.3px;
   padding: 10px 2px 12px;
   color: var(--ink-mut);
   border-bottom: 2px solid transparent;
@@ -675,7 +684,7 @@ button {
   font-size: 11.5px;
   margin-left: 8px;
   opacity: 0.85;
-  letter-spacing: 1px;
+  letter-spacing: 0.3px;
 }
 
 .stage-bar {
@@ -689,7 +698,7 @@ button {
 .stage-bar__title {
   font-size: 14px;
   color: var(--ink-mut);
-  letter-spacing: 2px;
+  letter-spacing: 0.3px;
 }
 
 .btn-ghost {
@@ -697,10 +706,10 @@ button {
   align-items: center;
   gap: 6px;
   font-size: 13.5px;
-  letter-spacing: 1px;
+  letter-spacing: 0.3px;
   color: var(--ink);
   border: 1px solid var(--line-strong);
-  border-radius: 3px;
+  border-radius: 12px;
   padding: 6px 16px;
   background: var(--paper-raised);
   transition: all 0.18s ease;
@@ -726,7 +735,7 @@ button {
   font-family: var(--font-display);
   font-weight: 700;
   font-size: 32px;
-  letter-spacing: 2px;
+  letter-spacing: 0.3px;
   line-height: 1.35;
 }
 
@@ -746,7 +755,7 @@ button {
 .ep-tags a {
   font-size: 12.5px;
   color: var(--ink-mut);
-  letter-spacing: 1px;
+  letter-spacing: 0.3px;
   border-bottom: 1px dashed var(--line-strong);
 }
 
@@ -767,7 +776,7 @@ button {
   font-weight: 700;
   font-size: 19px;
   margin: 28px 0 12px;
-  letter-spacing: 2px;
+  letter-spacing: 0.3px;
 }
 
 .ep-desc h4 {
@@ -796,7 +805,7 @@ button {
   font-family: var(--font-display);
   font-weight: 700;
   font-size: 19px;
-  letter-spacing: 4px;
+  letter-spacing: 0.3px;
   margin: 44px 0 18px;
   display: flex;
   align-items: center;
@@ -831,10 +840,10 @@ button {
 .doc-item__fmt {
   flex: none;
   font-size: 10.5px;
-  letter-spacing: 1.5px;
+  letter-spacing: 0.3px;
   color: var(--ink-mut);
   border: 1px solid var(--line);
-  border-radius: 2px;
+  border-radius: 8px;
   padding: 2px 7px;
   text-transform: uppercase;
 }
@@ -854,7 +863,7 @@ button {
   gap: 5px;
   padding: 18px 20px;
   border: 1px solid var(--line);
-  border-radius: 3px;
+  border-radius: 12px;
   margin-bottom: 14px;
   background: var(--paper-raised);
 }
@@ -872,7 +881,7 @@ button {
 .project-item__go {
   font-size: 13px;
   color: var(--ink-mut);
-  letter-spacing: 1px;
+  letter-spacing: 0.3px;
 }
 
 .ep-nav {
@@ -887,7 +896,7 @@ button {
   flex-direction: column;
   gap: 3px;
   border: 1px solid var(--line);
-  border-radius: 3px;
+  border-radius: 12px;
   padding: 14px 20px;
   min-width: 200px;
   transition: all 0.18s ease;
@@ -906,7 +915,7 @@ button {
 .ep-nav__label {
   font-size: 11.5px;
   color: var(--ink-mut);
-  letter-spacing: 3px;
+  letter-spacing: 0.3px;
 }
 
 .ep-nav__title {
@@ -938,10 +947,10 @@ button {
   z-index: 51;
   background: rgba(247, 245, 241, 0.92);
   border: 1px solid var(--line-strong);
-  border-radius: 3px;
+  border-radius: 12px;
   padding: 7px 18px;
   font-size: 13px;
-  letter-spacing: 2px;
+  letter-spacing: 0.3px;
   opacity: 0.35;
   transition: opacity 0.2s ease;
 }
@@ -963,7 +972,7 @@ button {
   font-family: var(--font-display);
   font-weight: 700;
   font-size: 40px;
-  letter-spacing: 6px;
+  letter-spacing: 0.3px;
 }
 
 .page-error__desc {
@@ -992,7 +1001,7 @@ button {
   padding: 90px 0;
   text-align: center;
   color: var(--ink-mut);
-  letter-spacing: 6px;
+  letter-spacing: 0.3px;
   font-size: 14px;
 }
 
@@ -1078,33 +1087,40 @@ button {
 
 .home-section {
   margin: 46px 0 6px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  margin-top: 40px;
 }
 
 .home-section__head {
   display: flex;
   align-items: baseline;
-  gap: 16px;
+  gap: 12px;
   border-bottom: 1px solid var(--line-strong);
-  padding-bottom: 10px;
+  padding-bottom: 0;
   margin-bottom: 18px;
+  flex-wrap: wrap;
 }
 
 .home-section__head h2 {
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: 26px;
-  letter-spacing: 3px;
+  font-size: 22px;
+  letter-spacing: 0.3px;
   flex: none;
 }
 
 .home-section__sub {
   font-size: 13px;
   color: var(--ink-mut);
-  letter-spacing: 1.5px;
+  letter-spacing: 0;
 }
 
 .home-section__rule {
   flex: 1;
+  display: none;
 }
 
 /* FlowUs 式条目行 */
@@ -1126,11 +1142,12 @@ button {
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  padding: 12px 14px;
+  padding: 18px;
   border: 1px solid var(--line);
-  border-radius: 3px;
+  border-radius: 14px;
   background: var(--paper-raised);
   transition: border-color 0.18s ease, transform 0.18s ease;
+  border-left: 1px solid var(--line);
 }
 
 .entry:hover {
@@ -1150,6 +1167,9 @@ button {
   font-size: 16.5px;
   letter-spacing: 0.5px;
   line-height: 1.4;
+  background: transparent;
+  color: var(--ink);
+  padding: 0;
 }
 
 .entry__summary {
@@ -1192,7 +1212,7 @@ button {
   font-family: var(--font-display);
   font-weight: 700;
   font-size: 18px;
-  letter-spacing: 2px;
+  letter-spacing: 0.3px;
   margin-bottom: 12px;
 }
 
@@ -1240,19 +1260,23 @@ button {
 .portal-nav {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
+  gap: 14px;
   margin: 26px 0 8px;
 }
 
 .portal-tile {
   display: flex;
   align-items: center;
-  gap: 14px;
-  border: 1px solid var(--line-strong);
-  border-radius: 4px;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
   background: var(--paper-raised);
-  padding: 16px 18px;
+  padding: 20px;
   transition: border-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+  position: relative;
+  flex-wrap: wrap;
+  border-color: var(--line);
+  box-shadow: 0 4px 16px rgba(32, 70, 76, 0.03);
 }
 
 .portal-tile:hover {
@@ -1263,17 +1287,19 @@ button {
 
 .portal-tile__icon {
   flex: none;
-  width: 46px;
-  height: 46px;
-  border: 2px solid var(--accent);
-  border-radius: 50%;
-  color: var(--accent);
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 12px;
+  color: var(--tile);
   display: flex;
   align-items: center;
   justify-content: center;
   font-family: var(--serif);
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 700;
+  border-color: transparent;
+  background: color-mix(in srgb, var(--tile) 11%, white);
 }
 
 .portal-tile__main {
@@ -1285,13 +1311,13 @@ button {
   display: block;
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: 18px;
-  letter-spacing: 1px;
+  font-size: 16px;
+  letter-spacing: 0;
   line-height: 1.3;
 }
 
 .portal-tile__sub {
-  display: block;
+  display: none;
   font-size: 12px;
   color: var(--ink-mut);
   margin-top: 2px;
@@ -1302,12 +1328,20 @@ button {
   flex: none;
   font-size: 12px;
   color: var(--ink-mut);
-  letter-spacing: 1px;
+  letter-spacing: 0.3px;
+  width: 100%;
+  padding-left: 52px;
+  margin-top: -8px;
 }
 
 /* 锚点定位：让出吸顶导航的高度 */
 .home-section {
   scroll-margin-top: 84px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  margin-top: 40px;
 }
 
 @media (max-width: 960px) {
@@ -1325,15 +1359,16 @@ button {
 /* ── 顶部四栏目页签 ── */
 
 .site-tabs {
-  border-bottom: 1px solid var(--line);
-  background: var(--paper); /* 实底 */
+  border-bottom: none;
+  background: #ffffff;
 }
 
 .site-tabs__inner {
   display: flex;
-  gap: 2px;
+  gap: 8px;
   overflow-x: auto;
   scrollbar-width: none;
+  padding-bottom: 12px;
 }
 
 .site-tabs__inner::-webkit-scrollbar {
@@ -1342,15 +1377,17 @@ button {
 
 .site-tabs a {
   flex: none;
-  padding: 12px 20px 12px;
-  font-size: 15.5px;
+  padding: 8px 18px;
+  font-size: 14px;
   font-weight: 600;
-  letter-spacing: 2px;
-  color: #332f24;
-  border-bottom: 3px solid transparent;
-  margin-bottom: -1px;
+  letter-spacing: 0.3px;
+  color: #42585c;
+  border-radius: 999px;
+  transition: background 0.15s ease, color 0.15s ease;
+  margin-bottom: 0;
   transition: color 0.15s ease, background 0.15s ease;
   white-space: nowrap;
+  border-radius: 999px;
 }
 
 .site-tabs a:hover {
@@ -1359,15 +1396,17 @@ button {
 }
 
 .site-tabs a.active {
-  color: var(--accent-deep);
+  color: #ffffff;
   font-weight: 800;
-  border-bottom-color: var(--accent-deep);
-  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  background: var(--accent);
+  box-shadow: 0 2px 8px rgba(8, 127, 120, 0.35);
 }
 
 /* 品牌名/副标题改块级（台标改 svg 后结构变化） */
 .brand__name {
   display: block;
+  font-size: 23px;
+  font-weight: 800;
 }
 
 .brand__sub {
@@ -1377,11 +1416,11 @@ button {
 /* ── 栏目配色丰富化：每个栏目用自己的主题色 ── */
 
 .home-section {
-  background: color-mix(in srgb, var(--theme, transparent) 5%, transparent);
-  border: 1px solid color-mix(in srgb, var(--theme, transparent) 16%, transparent);
-  border-radius: 12px;
-  padding: 24px 24px 12px;
-  margin-top: 26px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  margin-top: 40px;
 }
 
 .home-section + .portal-nav {
@@ -1390,17 +1429,19 @@ button {
 
 .home-section__head {
   border-bottom: none;
-  padding-bottom: 12px;
+  padding-bottom: 0;
   margin-bottom: 18px;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .home-section__head h2 {
   color: var(--theme, var(--ink));
-  font-size: 25px;
+  font-size: 22px;
 }
 
 .home-section__rule {
-  display: block;
+  display: none;
   height: 2px;
   border: none;
 }
@@ -1409,25 +1450,44 @@ button {
   flex: none;
   font-size: 13px;
   color: var(--theme, var(--ink));
-  letter-spacing: 1px;
-  border-bottom: 1px dashed color-mix(in srgb, var(--theme, currentColor) 60%, transparent);
+  letter-spacing: 0.3px;
+  border-bottom: none;
   padding-bottom: 2px;
+  margin-left: auto;
+  font-weight: 600;
 }
 
-/* 主打卡：主题色侧边 */
+/* 主打卡：柔和色面 */
 .hero__card {
-  border-left: 5px solid var(--theme, var(--ink));
+  border-left: none;
+  border: none;
+  border-radius: 24px;
+  background: linear-gradient(115deg, #e2f3ed 0%, #f0f8f5 58%, #e6f1f5 100%);
+  padding: 40px;
+  gap: 36px;
 }
 
 /* 入口磁贴：主题色填充 */
 .portal-tile {
-  border-color: color-mix(in srgb, var(--tile) 45%, transparent);
+  border-color: var(--line);
+  position: relative;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  box-shadow: 0 4px 16px rgba(32, 70, 76, 0.03);
 }
 
 .portal-tile__icon {
-  background: var(--tile);
-  border-color: var(--tile);
-  color: #fcfbf8;
+  background: color-mix(in srgb, var(--tile) 11%, white);
+  border-color: transparent;
+  color: var(--tile);
+  width: 40px;
+  height: 40px;
+  font-size: 18px;
+  border: none;
+  border-radius: 12px;
 }
 
 .portal-tile:hover {
@@ -1439,9 +1499,11 @@ button {
   color: var(--tile);
 }
 
-/* 条目行：主题色左边线 */
+/* 条目行：轻边框 */
 .entry {
-  border-left: 3px solid var(--theme, var(--line));
+  border-left: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 18px;
 }
 
 .entry:hover {
@@ -1454,9 +1516,9 @@ button {
   display: flex;
   align-items: center;
   gap: 22px;
-  border: 1px solid color-mix(in srgb, var(--theme) 30%, transparent);
+  border: none;
   background: color-mix(in srgb, var(--theme) 7%, var(--paper-raised));
-  border-radius: 12px;
+  border-radius: 22px;
   padding: 28px 30px;
   margin-top: 30px;
 }
@@ -1467,7 +1529,7 @@ button {
   height: 64px;
   border-radius: 50%;
   background: var(--theme);
-  color: #fcfbf8;
+  color: #ffffff;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1484,7 +1546,7 @@ button {
   font-family: var(--font-display);
   font-weight: 700;
   font-size: 32px;
-  letter-spacing: 2px;
+  letter-spacing: 0.3px;
   color: var(--ink);
   line-height: 1.3;
 }
@@ -1493,14 +1555,14 @@ button {
   font-size: 14.5px;
   color: var(--ink-mut);
   margin-top: 6px;
-  letter-spacing: 1px;
+  letter-spacing: 0.3px;
 }
 
 .cat-hero__count {
   flex: none;
   font-size: 14px;
   color: var(--theme);
-  letter-spacing: 2px;
+  letter-spacing: 0.3px;
   font-weight: 700;
 }
 
@@ -1515,7 +1577,7 @@ button {
   font-family: var(--font-display);
   font-weight: 700;
   font-size: 21px;
-  letter-spacing: 2px;
+  letter-spacing: 0.3px;
 }
 
 .cat-group__title a {
@@ -1583,25 +1645,27 @@ button {
 
 .ep-card__title {
   display: inline-block;
-  background: color-mix(in srgb, var(--theme, var(--ink)) 82%, black);
-  color: var(--paper-raised);
-  padding: 4px 12px 5px;
-  border-radius: 3px;
+  background: transparent;
+  color: var(--ink);
+  padding: 0;
+  border-radius: 12px;
   line-height: 1.45;
+  letter-spacing: 0;
+  font-size: 19px;
 }
 
 .entry__title {
   display: inline-block;
-  background: color-mix(in srgb, var(--theme, var(--ink)) 16%, var(--paper-raised));
-  color: color-mix(in srgb, var(--theme, var(--ink)) 80%, var(--ink));
-  padding: 3px 10px;
-  border-radius: 3px;
+  background: transparent;
+  color: var(--ink);
+  padding: 0;
+  border-radius: 12px;
   font-size: 15.5px;
 }
 
 .entry:hover .entry__title {
-  background: var(--theme, var(--ink));
-  color: var(--paper-raised);
+  background: transparent;
+  color: var(--accent);
 }
 
 /* 手机端隐藏品牌副标题（须晚于前述 display:block 规则，否则被覆盖） */
@@ -1672,7 +1736,7 @@ button {
   padding: 70px 40px;
   text-align: center;
   color: var(--ink-mut);
-  letter-spacing: 2px;
+  letter-spacing: 0.3px;
 }
 
 .share-error {
@@ -1695,7 +1759,7 @@ button {
   color: #fff;
   font-size: 13.5px;
   font-weight: 600;
-  letter-spacing: 1px;
+  letter-spacing: 0.3px;
   padding: 8px 18px;
   border-radius: 999px;
   border: 2px solid transparent;
@@ -1735,4 +1799,41 @@ button {
 .share-cover-toggle.is-disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+/* Shared keyboard feedback and small-screen layout. */
+:where(a, button, input):focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 4px;
+}
+.site-header__search input { min-width: 0; }
+.site-header__search:focus-within { box-shadow: 0 0 0 3px #e3f3ef; }
+@media (max-width: 960px) {
+  .hero__card { padding: 28px; }
+  .hero__title { font-size: 30px; }
+}
+@media (max-width: 720px) {
+  .site-header__inner { height: auto; padding: 14px 18px; }
+  .site-header__search { flex: 0 0 100%; }
+  .site-tabs__inner { gap: 4px; }
+  .site-tabs a { padding: 7px 12px; }
+  .home-section { margin-top: 28px; }
+  .home-section__head h2 { font-size: 19px; flex: 1; min-width: 0; }
+  .home-section__sub { order: 3; width: 100%; }
+  .hero__card { padding: 24px; border-radius: 20px; }
+  .hero__title { font-size: 28px; }
+  .hero__summary { font-size: 14px; }
+  .portal-nav { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .portal-tile { padding: 14px; gap: 10px; }
+  .portal-tile__icon { width: 32px; height: 32px; font-size: 15px; }
+  .portal-tile__title { font-size: 14px; }
+  .portal-tile__count { padding-left: 42px; }
+  .cat-hero { padding: 22px; flex-wrap: wrap; gap: 14px; }
+  .cat-hero__main { min-width: 0; }
+  .cat-hero__main h1 { font-size: 25px; }
+  .cat-hero__count { width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { transition: none !important; animation: none !important; }
 }
