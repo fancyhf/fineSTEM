@@ -15,9 +15,7 @@ import { AudienceBadges, ResourceBadges } from '../components/Badges';
  *   ① 家长减负博客 大卡 → ② 四栏目大入口 → ③ 各栏目分区（预览）
  * 搜索态（?q= 或筛选）退回通用筛选结果流。
  */
-const PODCAST_SERIES = 'recursive-beauty';
 const SHENGXUE_SERIES = ['duoyuan-shengxue', 'mengmu-xuewei'];
-const STEM_SERIES = 'stem-cs';
 
 function SectionHead({
   title,
@@ -125,7 +123,6 @@ export default function HomePage() {
   const podcastCat = cat('podcast');
   const podcastEps = catEps('podcast');
   const podcastMain = home.featured?.episode ?? podcastEps[0] ?? null;
-  const podcastRest = podcastEps.filter((e) => e.slug !== podcastMain?.slug);
   const kidEps = catEps('kids');
   const stemEps = catEps('stem');
 
