@@ -10,7 +10,6 @@ export default function Footer() {
         >
           节目里提到的项目，去 fineSTEM 亲手做一个 ↗
         </a>
-        <span style={{ marginLeft: 'auto' }}>© 2026 wostemstudio.site</span>
       </div>
     </footer>
   );
