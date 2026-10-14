@@ -108,7 +108,7 @@ def content_dir(tmp_path: Path) -> Path:
                         }
                     ],
                     "docs": [],
-                    "projects": [{"title": "学员作品", "url": "https://wostemstudio.site/explore"}],
+                    "projects": [{"title": "学员作品", "url": "https://wostemstudio.top/explore"}],
                 },
             },
             ensure_ascii=False,
@@ -224,4 +224,4 @@ class TestShowApi:
         r = client.get("/api/v1/know/episodes/finestem-class/ep01")
         data = r.json()["data"]
         assert data["resources"]["videos"][0]["embed_url"].startswith("//player.bilibili.com")
-        assert data["resources"]["projects"][0]["url"] == "https://wostemstudio.site/explore"
+        assert data["resources"]["projects"][0]["url"] == "https://wostemstudio.top/explore"

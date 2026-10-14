@@ -1,6 +1,6 @@
 # LLM API Key 统一管理说明（部署 Agent 必读）
 
-> 版本：2026-08-23 | 适用：fineSTEM 腾讯云香港部署（wostemstudio.site）
+> 版本：2026-08-23 | 适用：fineSTEM 腾讯云香港部署（wostemstudio.top）
 > 背景：仓库已完成 key 治理重构，全项目 LLM key 只允许存在于下述两个位置。
 > 部署时严格遵守本约定，任何"顺手把 key 写到别处"的操作都会破坏统一管理。
 

@@ -1,7 +1,7 @@
 # Know 子系统（"与孩子对话"节目频道）部署指南
 
 > version: 1.2.0 · created_at: 2026-08-23 · updated: 2026-08-30（按首次实际上线校正路径）
-> 状态：**已上线** https://know.wostemstudio.site（2026-08-30）
+> 状态：**已上线** https://know.wostemstudio.top（2026-08-30）
 > 目标：与 fineSTEM 主站同机部署（43.128.8.131），复用同一后端进程（finestem-backend, 8001），新增成本 ¥0。
 > **分发原则（ADR-002）**：一切部署所需（代码+内容+说明）都在 git 仓库里，
 > 服务器只从 GitHub 拿；视频不进仓库（B 站链接形态存于 episode.json）。
@@ -46,8 +46,8 @@
 
 ### 1.1 DNS
 
-DNSPod 控制台给 `wostemstudio.site` 添加 A 记录：`know` → `43.128.8.131`。
-上线前确认：`getent hosts know.wostemstudio.site` 必须解析到该 IP。
+DNSPod 控制台给 `wostemstudio.top` 添加 A 记录：`know` → `43.128.8.131`。
+上线前确认：`getent hosts know.wostemstudio.top` 必须解析到该 IP。
 
 ### 1.2 代码来源：建立仓库克隆
 
@@ -112,7 +112,7 @@ if Path(_KNOW_CONTENT_DIR).is_dir():
 
 ```ini
 KNOW_CONTENT_DIR=/opt/finestem/content/know
-CORS_ALLOW_ORIGINS=["https://wostemstudio.site","https://know.wostemstudio.site"]
+CORS_ALLOW_ORIGINS=["https://wostemstudio.top","https://know.wostemstudio.top"]
 ```
 
 > 注意键名是 `CORS_ALLOW_ORIGINS`（不是 `CORS_ORIGINS`），值为 **JSON 数组**格式。
@@ -152,7 +152,7 @@ cp /opt/finestem/repo/deploy/know.conf /etc/nginx/sites-enabled/know.conf
 nginx -t && systemctl reload nginx
 
 # 签证书，certbot 会自动把配置升级为 443 + 80 跳转
-certbot --nginx -d know.wostemstudio.site --non-interactive --agree-tos --redirect
+certbot --nginx -d know.wostemstudio.top --non-interactive --agree-tos --redirect
 ```
 
 **不要动 `finestem.conf`（主站配置）。**
@@ -160,12 +160,12 @@ certbot --nginx -d know.wostemstudio.site --non-interactive --agree-tos --redire
 ### 1.7 验收
 
 ```bash
-curl -sI https://know.wostemstudio.site                                          # 200
-curl -s  https://know.wostemstudio.site/api/v1/know/home                         # success:true
-curl -sI https://know.wostemstudio.site/content/index.json                       # 200
-curl -sI https://know.wostemstudio.site/content/series/recursive-beauty/ep01/cover.jpg   # 200
-curl -sI http://know.wostemstudio.site                                           # 301 → https
-curl -sI https://wostemstudio.site                                               # 200（主站不受影响）
+curl -sI https://know.wostemstudio.top                                          # 200
+curl -s  https://know.wostemstudio.top/api/v1/know/home                         # success:true
+curl -sI https://know.wostemstudio.top/content/index.json                       # 200
+curl -sI https://know.wostemstudio.top/content/series/recursive-beauty/ep01/cover.jpg   # 200
+curl -sI http://know.wostemstudio.top                                           # 301 → https
+curl -sI https://wostemstudio.top                                               # 200（主站不受影响）
 ```
 
 ---
@@ -255,7 +255,7 @@ cd /opt/finestem/repo && git checkout -- package-lock.json
 | 后端启动报 `Settings` 属性错误 | `config.py` 是否漏加 `KNOW_CONTENT_DIR` 字段 |
 | 动画字体不对 | 字体已入库（`content/know/assets/fonts/`），确认同步完整 |
 | 构建报 TS2307 找不到 `../lib/filter` | 仓库缺文件，确认本地已 `git push`；曾因 `.gitignore` 的 `lib/` 规则误伤 `apps/know/src/lib/`（已加例外） |
-| 证书告警 | `certbot certificates`；应包含 know.wostemstudio.site |
+| 证书告警 | `certbot certificates`；应包含 know.wostemstudio.top |
 | B 站播放器空白 | 检查 embed_url 是否带 bvid；必要时补全参数（`&page=1&high_quality=1`） |
 | 主站图片/功能异常 | 检查是否误改了 `/etc/nginx/sites-enabled/finestem.conf` |
 

@@ -149,7 +149,7 @@ app.include_router(code_execution.router, prefix=API_PREFIX)
 app.include_router(system.router, prefix=API_PREFIX)
 app.include_router(notifications.router, prefix=API_PREFIX)
 
-# 节目频道（Know 子系统，know.wostemstudio.site）只读接口
+# 节目频道（Know 子系统，know.wostemstudio.top）只读接口
 app.include_router(know.router, prefix=API_PREFIX)
 
 # Know 内容静态资源（开发环境由后端直接服务；生产环境走 nginx location /content/）

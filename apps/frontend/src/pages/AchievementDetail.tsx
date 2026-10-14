@@ -262,7 +262,7 @@ export default function AchievementDetail() {
 
 {/* 常驻：相关视频卡片（点击进入节目主页） */}
                   {(() => {
-                    const KNOW = (import.meta as any).env?.VITE_KNOW_URL || 'https://know.wostemstudio.site';
+                    const KNOW = (import.meta as any).env?.VITE_KNOW_URL || 'https://know.wostemstudio.top';
                     const refl = card.reflection || '';
                     const videos = [
                       { bvid: 'BV1qTtG6NEaD', to: `${KNOW}/ep/finestem-class/ep01`, cover: '/videos/explain-cover.jpg',
