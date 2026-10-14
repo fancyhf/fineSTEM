@@ -246,7 +246,7 @@ fineSTEM/
 ├── apps/
 │   ├── frontend/              # React 前端（端口 5184）→ 详见 apps/frontend/README.md
 │   ├── backend/               # FastAPI 后端（端口 3200）→ 详见 apps/backend/README.md
-│   ├── know/                  # Know 频道前端（内容节目「与孩子对话」，开发端口 5185）→ 生产 https://know.wostemstudio.site
+│   ├── know/                  # Know 频道前端（内容节目「与孩子对话」，开发端口 5185）→ 生产 https://know.wostemstudio.top
 │   └── public-web/            # 旧 MVP（docker-compose 用，非主开发栈）
 ├── content/                   # 内容库（content-as-code，随 git 分发，服务器 git pull 即生效）
 │   └── know/                  # Know 频道内容：series/<系列>/<集>/{episode.json,interactive/,docs/} + assets/
@@ -269,12 +269,12 @@ fineSTEM/
 
 ## 生产环境（香港）
 
-> 已部署上线：**https://wostemstudio.site**
+> 已部署上线：**https://wostemstudio.top**
 
 | 项 | 值 |
 |----|-----|
 | 服务器 | 腾讯云轻量 Lighthouse 香港入门型 2核2G（¥38/月） |
-| 域名 | wostemstudio.site（DNSPod，Let's Encrypt 免费 SSL） |
+| 域名 | wostemstudio.top（DNSPod，Let's Encrypt 免费 SSL） |
 | AI 底座 | ZeroClaw v0.8.4（高峰切百炼 qwen / 夜间 DeepSeek） |
 | 数据库 | SQLite WAL，605 用户 / 674 项目 |
 
@@ -282,8 +282,8 @@ fineSTEM/
 
 | 子系统 | 地址 | 前端产物 | 后端 | 说明 |
 |--------|------|---------|------|------|
-| 主站 fineSTEM | https://wostemstudio.site | `/opt/finestem/frontend/dist` | 同一 backend 进程 | 青少年 STEM 研学创作平台 |
-| Know 频道 | https://know.wostemstudio.site | `/opt/finestem/know/dist` | 同一进程 `/api/v1/know/*` | 内容节目「与孩子对话」，只读（2026-08-30 上线） |
+| 主站 fineSTEM | https://wostemstudio.top | `/opt/finestem/frontend/dist` | 同一 backend 进程 | 青少年 STEM 研学创作平台 |
+| Know 频道 | https://know.wostemstudio.top | `/opt/finestem/know/dist` | 同一进程 `/api/v1/know/*` | 内容节目「与孩子对话」，只读（2026-08-30 上线） |
 
 **服务器路径速查**（⚠️ 后端是扁平布局，**不是** monorepo 直接 clone）：
 
@@ -309,7 +309,7 @@ fineSTEM/
 | [模块说明](./.trae/documents/技术与架构/02_模块说明.md) | 前后端各模块职责 + AI 主链路 |
 | [技术架构](./.trae/documents/技术与架构/03_技术架构.md) | 技术栈 + 端口 + ZeroClaw 集成 |
 | [数据结构和数据架构](./.trae/documents/技术与架构/04_数据结构和数据架构.md) | 数据库表 + workspace + 数据关系 |
-| [香港生产环境部署文档](./.trae/documents/技术与架构/香港生产环境部署文档_v1.0.0.md) | **生产环境部署与运维（wostemstudio.site + Know 频道）** |
+| [香港生产环境部署文档](./.trae/documents/技术与架构/香港生产环境部署文档_v1.0.0.md) | **生产环境部署与运维（wostemstudio.top + Know 频道）** |
 | [内容节目展示子系统设计](./.trae/documents/产品与规划/13_内容节目展示子系统_产品与技术设计_V1.0.md) | Know 频道产品与技术设计（content-as-code） |
 | [问题清单（长期维护）](./.trae/documents/问题清单_长期维护.md) | Q-001~Q-048 已知问题与修复（回归必检） |
 | [ZeroClaw 技术知识库](./.trae/documents/技术与架构/ZeroClaw_技术知识库_v1.0.0.md) | AI 底座架构详解 |
@@ -337,8 +337,8 @@ fineSTEM/
 - ✅ **阶段 3**：ZeroClaw 集成 + PBL 9 阶段引擎
 - 🔄 **阶段 4**：测试优化与稳定性（进行中）
 - 🔄 **阶段 5**：MVP2 增强（Create 任务引导、模型策略切换、文档沉淀）
-- ✅ **阶段 6**：生产环境上线（香港轻量云，wostemstudio.site）
-- ✅ **阶段 7**：内容节目子系统（Know 频道 know.wostemstudio.site，2026-08-30 上线）
+- ✅ **阶段 6**：生产环境上线（香港轻量云，wostemstudio.top）
+- ✅ **阶段 7**：内容节目子系统（Know 频道 know.wostemstudio.top，2026-08-30 上线）
 
 ---
 version: 4.1.0

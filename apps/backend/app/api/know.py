@@ -1,7 +1,7 @@
 """
 内容节目展示子系统 API 路由
 
-用途：Know 频道（know.wostemstudio.site）的只读公开接口，数据来自
+用途：Know 频道（know.wostemstudio.top）的只读公开接口，数据来自
      content/know 内容目录（content-as-code），无用户态、无写操作。
 维护者：AI Agent
 links: .trae/documents/产品与规划/13_内容节目展示子系统_产品与技术设计_V1.0.md

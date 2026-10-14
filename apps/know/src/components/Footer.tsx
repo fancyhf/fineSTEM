@@ -4,7 +4,7 @@ export default function Footer() {
       <div className="site-footer__inner">
         <span>与孩子对话 · 一次一个话题</span>
         <a
-          href="https://wostemstudio.site"
+          href="https://wostemstudio.top"
           target="_blank"
           rel="noopener noreferrer"
         >

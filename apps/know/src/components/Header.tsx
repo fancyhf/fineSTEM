@@ -49,7 +49,7 @@ export default function Header() {
         <nav className="site-header__nav">
           <a
             className="external"
-            href="https://wostemstudio.site"
+            href="https://wostemstudio.top"
             target="_blank"
             rel="noopener noreferrer"
           >

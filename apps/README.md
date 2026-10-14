@@ -10,7 +10,7 @@
 |------|--------|------|--------|------|
 | `backend/` | FastAPI + SQLAlchemy + SQLite | `3200` | [→ README](./backend/README.md) | REST API（16 个路由） + MCP 工具服务（15 个工具暴露给 ZeroClaw） |
 | `frontend/` | React 18 + TypeScript + Vite + Tailwind | `5184` | [→ README](./frontend/README.md) | 主站用户界面，直连 ZeroClaw WebSocket |
-| `know/` | React 18 + TypeScript + Vite | `5185` | — | **Know 频道**前端（内容节目「与孩子对话」），生产 https://know.wostemstudio.site |
+| `know/` | React 18 + TypeScript + Vite | `5185` | — | **Know 频道**前端（内容节目「与孩子对话」），生产 https://know.wostemstudio.top |
 | `public-web/` | 旧 MVP（Docker） | — | — | 非主开发栈，可忽略 |
 
 > `know/` 是**内容展示型**前端，不依赖 ZeroClaw、无用户态；

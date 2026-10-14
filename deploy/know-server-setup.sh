@@ -4,13 +4,13 @@
 # 幂等：可重复执行。前置：DNS A 记录 know -> 43.128.8.131 已生效。
 set -euo pipefail
 
-DOMAIN=know.wostemstudio.site
+DOMAIN=know.wostemstudio.top
 REPO="${REPO:-/opt/finestem/backend}"   # 现网 git 仓库根，不同则 REPO=/路径 bash 本脚本
 
 echo "== 0. 前置检查 =="
 command -v certbot >/dev/null || apt install -y certbot python3-certbot-nginx
 if ! getent hosts "$DOMAIN" >/dev/null; then
-  echo "!! DNS 未生效：先在 DNSPod 给 wostemstudio.site 加 A 记录 know -> 43.128.8.131"
+  echo "!! DNS 未生效：先在 DNSPod 给 wostemstudio.top 加 A 记录 know -> 43.128.8.131"
   exit 1
 fi
 
@@ -40,10 +40,10 @@ ENVF="$BACKEND_DIR/.env"
 touch "$ENVF"
 grep -q '^KNOW_CONTENT_DIR=' "$ENVF" || echo "KNOW_CONTENT_DIR=$REPO/content/know" >> "$ENVF"
 if grep -q '^CORS_ORIGINS=' "$ENVF"; then
-  grep -q 'know.wostemstudio.site' "$ENVF" || \
-    sed -i 's#^CORS_ORIGINS=.*#&,https://know.wostemstudio.site#' "$ENVF"
+  grep -q 'know.wostemstudio.top' "$ENVF" || \
+    sed -i 's#^CORS_ORIGINS=.*#&,https://know.wostemstudio.top#' "$ENVF"
 else
-  echo "CORS_ORIGINS=https://wostemstudio.site,https://know.wostemstudio.site" >> "$ENVF"
+  echo "CORS_ORIGINS=https://wostemstudio.top,https://know.wostemstudio.top" >> "$ENVF"
 fi
 systemctl restart finestem-backend
 

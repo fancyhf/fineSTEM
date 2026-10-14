@@ -37,7 +37,7 @@ fineSTEM 之前的部署形态：
 |----|------|----------|------|
 | 服务器 | 腾讯云轻量 Lighthouse 香港**入门型** 2核2G | 40G SSD / 20Mbps / 512G 流量 ¥38/月 | 最低成本，小规模用户够用，免备案 |
 | 操作系统 | Ubuntu 22.04 LTS | Linux，无图形界面 | systemd 支持完善，ZeroClaw 官方提供 Linux x86_64 二进制 |
-| 域名注册 | 腾讯云/DNSPod 注册 **wostemstudio.site** | ~¥6/年 (.site 后缀) | 与服务器同账号，人民币付款 |
+| 域名注册 | 腾讯云/DNSPod 注册 **wostemstudio.top** | ~¥6/年 (.site 后缀) | 与服务器同账号，人民币付款 |
 | DNS 解析 | DNSPod 免费版 | 免费 | 域名解析到服务器 IP |
 | SSL 证书 | Let's Encrypt 免费 | certbot 自动签发+续签 | 直连 HTTPS，无需 EdgeOne |
 | AI 底座 | ZeroClaw v0.8.4 Linux 二进制 | 免费 | 官方提供 x86_64 发布版 |
@@ -51,7 +51,7 @@ fineSTEM 之前的部署形态：
                   用户 (国内/国外,免备案)
                        │
              ┌─────────▼─────────┐
-             │  DNSPod 域名解析   │  wostemstudio.site
+             │  DNSPod 域名解析   │  wostemstudio.top
              └─────────┬─────────┘
                        │ A 记录 → 43.128.8.131
              ┌─────────▼─────────┐
@@ -125,7 +125,7 @@ fineSTEM 之前的部署形态：
 | 项目 | 月成本 | 年成本 |
 |------|-------|-------|
 | 腾讯云香港入门型 2核2G | ¥38 | ¥456（买半年） |
-| 域名 wostemstudio.site | ~¥0.5 | ~¥6 |
+| 域名 wostemstudio.top | ~¥0.5 | ~¥6 |
 | Let's Encrypt SSL | ¥0 | ¥0 |
 | DNSPod 免费版 | ¥0 | ¥0 |
 | **合计** | **~¥38.5** | **~¥462** |

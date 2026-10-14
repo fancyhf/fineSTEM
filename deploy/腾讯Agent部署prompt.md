@@ -1,19 +1,19 @@
 # 腾讯轻量云 Agent 部署 Prompt（Know 节目频道）
 
 > 用法：整段复制给腾讯轻量云 Agent 执行。
-> 状态：Know 已于 2026-08-30 上线（https://know.wostemstudio.site）。
+> 状态：Know 已于 2026-08-30 上线（https://know.wostemstudio.top）。
 > 本 Prompt 用于**重新部署 / 迁移 / 排障复盘**，路径均为实测值。
 > 前置：DNSPod 已添加 A 记录 know → 43.128.8.131。
 > 详细指南见 `deploy/Know子系统部署指南_v1.0.md`。
 
 ---
 
-## 任务：把 Know 节目频道（与孩子对话，know.wostemstudio.site）部署到本服务器
+## 任务：把 Know 节目频道（与孩子对话，know.wostemstudio.top）部署到本服务器
 
 ### 背景与环境（已核实，直接使用）
 
 - 服务器：腾讯云轻量香港，Ubuntu 22.04，公网 IP 43.128.8.131，Node v18.20.8
-- 已在运行、**不许改动**：nginx 443 上的主站（wostemstudio.site，配置在
+- 已在运行、**不许改动**：nginx 443 上的主站（wostemstudio.top，配置在
   `/etc/nginx/sites-enabled/finestem.conf`）、ZeroClaw 服务（端口 42617）
 - 后端：finestem-backend（FastAPI，systemd 单元 finestem-backend，
   WorkingDirectory `/opt/finestem/app`，监听 127.0.0.1:8001），API 前缀 `/api/v1`
@@ -27,8 +27,8 @@
 
 ### 第 0 步：前置检查（任一不满足就停下输出报告，不要猜）
 
-1. `getent hosts know.wostemstudio.site` 必须解析到 43.128.8.131；
-   否则停止，报告："请在 DNSPod 给 wostemstudio.site 添加 A 记录 know → 43.128.8.131，加好后重新运行"
+1. `getent hosts know.wostemstudio.top` 必须解析到 43.128.8.131；
+   否则停止，报告："请在 DNSPod 给 wostemstudio.top 添加 A 记录 know → 43.128.8.131，加好后重新运行"
 2. `systemctl cat finestem-backend`：确认 WorkingDirectory=`/opt/finestem/app`、
    EnvironmentFile=`/opt/finestem/app/.env`
 3. `ls /opt/finestem`：应有 `app`、`data`、`frontend`、`venv`（若已有 `repo`/`know`/`content` 说明曾部署过）
@@ -71,8 +71,8 @@ cp $R/apps/backend/app/services/know_content.py  $A/app/services/know_content.py
 `.env` **追加**（不要打印其内容）：
 
 - `KNOW_CONTENT_DIR=/opt/finestem/content/know`
-- 键名是 **`CORS_ALLOW_ORIGINS`**（JSON 数组），追加 `https://know.wostemstudio.site`
-  → `CORS_ALLOW_ORIGINS=["https://wostemstudio.site","https://know.wostemstudio.site"]`
+- 键名是 **`CORS_ALLOW_ORIGINS`**（JSON 数组），追加 `https://know.wostemstudio.top`
+  → `CORS_ALLOW_ORIGINS=["https://wostemstudio.top","https://know.wostemstudio.top"]`
 
 ```bash
 systemctl restart finestem-backend
@@ -114,7 +114,7 @@ nginx -t && systemctl reload nginx
 2. 签证书（certbot 会自动把配置升级为 443 + 80 跳转）：
 
 ```bash
-certbot --nginx -d know.wostemstudio.site --non-interactive --agree-tos --redirect
+certbot --nginx -d know.wostemstudio.top --non-interactive --agree-tos --redirect
 ```
 
 3. **不要动 `finestem.conf`（主站配置）**。
@@ -123,12 +123,12 @@ certbot --nginx -d know.wostemstudio.site --non-interactive --agree-tos --redire
 
 | # | 命令 | 期望 |
 |---|------|------|
-| 1 | `curl -sI https://know.wostemstudio.site` | 200 |
-| 2 | `curl -s https://know.wostemstudio.site/api/v1/know/home` | `success:true` |
-| 3 | `curl -s -o /dev/null -w "%{http_code}" https://know.wostemstudio.site/content/index.json` | 200 |
-| 4 | `curl -sI https://know.wostemstudio.site/content/series/recursive-beauty/ep01/cover.jpg` | 200 |
-| 5 | `curl -sI http://know.wostemstudio.site` | 301 跳 https |
-| 6 | `curl -sI https://wostemstudio.site` | 200（主站未受影响） |
+| 1 | `curl -sI https://know.wostemstudio.top` | 200 |
+| 2 | `curl -s https://know.wostemstudio.top/api/v1/know/home` | `success:true` |
+| 3 | `curl -s -o /dev/null -w "%{http_code}" https://know.wostemstudio.top/content/index.json` | 200 |
+| 4 | `curl -sI https://know.wostemstudio.top/content/series/recursive-beauty/ep01/cover.jpg` | 200 |
+| 5 | `curl -sI http://know.wostemstudio.top` | 301 跳 https |
+| 6 | `curl -sI https://wostemstudio.top` | 200（主站未受影响） |
 | 7 | `systemctl is-active finestem-backend zeroclaw nginx` | 均 active |
 
 ### 汇报要求

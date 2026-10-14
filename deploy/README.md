@@ -17,7 +17,7 @@
 
 ## 生产环境（香港）
 
-- 访问地址：https://wostemstudio.site
+- 访问地址：https://wostemstudio.top
 - 部署文档：`.trae/documents/技术与架构/香港生产环境部署文档_v1.0.0.md`
 - 决策记录：`.trae/documents/adr/ADR-001-hk-deployment.md`
 
