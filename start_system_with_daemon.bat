@@ -34,7 +34,7 @@ echo.
 echo [1/5] Checking ports...
 netstat -ano | findstr ":42617 " | findstr "LISTENING" >nul 2>&1
 if %errorlevel% equ 0 (
-    echo [WARN] Port 42617 (ZeroClaw) is still in use after cleanup
+    echo [WARN] Port 42617 ^(ZeroClaw^) is still in use after cleanup
 )
 netstat -ano | findstr ":3200 " | findstr "LISTENING" >nul 2>&1
 if %errorlevel% equ 0 (
@@ -66,7 +66,7 @@ for /l %%i in (1,1,30) do (
         powershell -NoProfile -Command "try { $r=Invoke-WebRequest -Uri 'http://127.0.0.1:42617/health' -UseBasicParsing -TimeoutSec 2; if ($r.StatusCode -eq 200) { exit 0 } else { exit 1 } } catch { exit 1 }" >nul 2>&1
         if !errorlevel! equ 0 (
             set ZEROCLAW_READY=1
-            echo       ZeroClaw ready after %%i second(s)
+            echo       ZeroClaw ready after %%i second^(s^)
         )
     )
 )
@@ -94,7 +94,7 @@ for /l %%i in (1,1,30) do (
         powershell -NoProfile -Command "try { $r=Invoke-WebRequest -Uri 'http://127.0.0.1:3200/health' -UseBasicParsing -TimeoutSec 2; if ($r.StatusCode -eq 200) { exit 0 } else { exit 1 } } catch { exit 1 }" >nul 2>&1
         if !errorlevel! equ 0 (
             set BACKEND_READY=1
-            echo       Backend ready after %%i second(s)
+            echo       Backend ready after %%i second^(s^)
         )
     )
 )
