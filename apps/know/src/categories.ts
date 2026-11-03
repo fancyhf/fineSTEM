@@ -21,7 +21,7 @@ export const CATEGORIES: Category[] = [
     sub: '一期一个话题：家长播客讲清楚，互动演示一起玩',
     color: '#087F78',
     icon: '◉',
-    series: ['recursive-beauty', 'family-english'],
+    series: ['recursive-beauty', 'family-english', 'understand-ai'],
   },
   {
     cid: 'kids',

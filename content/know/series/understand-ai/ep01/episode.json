@@ -1,0 +1,28 @@
+{
+  "slug": "ep01",
+  "episode_no": 1,
+  "title": "AI 说话之谜：把“什么都知道”拆开看",
+  "summary": "它每说一个词，都在猜“下一个词最可能是什么”。知道了这一点，它为什么什么都能聊、为什么会一本正经地编、为什么两次答案不一样，就都有了答案。也讲了家里怎么用：AI 给的说法，要能讲给妈妈听；问完之后，回到官方原文核对。",
+  "description_md": "孩子问 AI“你怎么什么都知道”，怎么接这句话？\n\n这一期把 AI 怎么“说话”拆开给家长看：它每说一个词，都在猜“下一个词最可能是什么”——一场规模很大的文字接龙。\n\n**我们从这些讲起**\n\n- 文字接龙：AI 说话的全部秘密\n- 语感：它的博学是读出来的\n- 幻觉：一本正经地胡说的来路\n- 随机采样：为什么两次答案不一样\n- 家长现身：我家怎么跟 AI 相处\n\n**家里的一条规矩**：AI 给的说法，要能讲给妈妈听；问完之后，回到官方原文核对。\n\n看懂 AI 系列 01。讲内容本身，不焦虑、不带货。",
+  "audience": "parent",
+  "tags": ["AI", "人工智能", "家庭教育", "家长"],
+  "status": "published",
+  "published_at": "2026-11-03",
+  "cover": null,
+  "default_tab": "parent-video",
+  "announce": {},
+  "resources": {
+    "interactive": null,
+    "videos": [
+      {
+        "id": "parent-video",
+        "audience": "parent",
+        "title": "家长播客 · AI 说话之谜",
+        "embed_url": "//player.bilibili.com/player.html?bvid=BV18WciziELk&autoplay=0",
+        "page": "https://www.bilibili.com/video/BV18WciziELk"
+      }
+    ],
+    "docs": [],
+    "projects": []
+  }
+}
