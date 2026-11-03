@@ -122,7 +122,8 @@ export default function HomePage() {
 
   const podcastCat = cat('podcast');
   const podcastEps = catEps('podcast');
-  const podcastMain = home.featured?.episode ?? podcastEps[0] ?? null;
+  // 博客大卡主打：优先最新一期（已按发布时间倒序），featured 作为回退
+  const podcastMain = podcastEps[0] ?? home.featured?.episode ?? null;
   const kidEps = catEps('kids');
   const stemEps = catEps('stem');
 

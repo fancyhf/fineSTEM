@@ -48,10 +48,20 @@ export default function CategoryPage() {
   const eps = episodesOfCategory(cat, home.episodes);
   const seriesMeta = (slug: string) => home.series.find((s) => s.slug === slug);
 
-  // 按系列分组（保持栏目定义顺序；kids 单组展示）
-  const groups = (cat.series.length === 0)
+  // kids 单组展示；其余栏目按 cat.series 分组。
+  // podcast 栏目额外按「系列最新发布时间」倒序，使新节目排在最前。
+  const orderedSeries =
+    cat.cid === 'podcast'
+      ? [...cat.series].sort((a, b) =>
+          (seriesMeta(b)?.latest_published_at ?? '').localeCompare(
+            seriesMeta(a)?.latest_published_at ?? ''
+          )
+        )
+      : cat.series;
+
+  const groups = cat.series.length === 0
     ? [{ slug: '', title: cat.title, color: cat.color, desc: '', eps }]
-    : cat.series
+    : orderedSeries
         .map((slug) => ({
           slug,
           title: seriesMeta(slug)?.title ?? slug,
