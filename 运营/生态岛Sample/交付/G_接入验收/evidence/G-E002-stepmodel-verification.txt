@@ -1,0 +1,83 @@
+G-E002 stepModel 逐字比对 + A 用例对 B reference 独立复跑（G 包第二段，2026-11-03，node v22.22.0）
+脚本：compare-stepmodel.cjs / inspect-diffs.cjs / run-tests.cjs（本目录）
+
+== compare-stepmodel.cjs 输出 ==
+Frozen source chars: 925
+reference/eco-island.html: IDENTICAL
+  MODEL_VERSION: eco-island-v1
+  uses replenishLevel: true, replenishRate: false
+starter/eco-island.html: DIFFERS
+  first diff at char 185:
+  frozen: ...grass;
+  if (water > 0) {
+    if (grass < 80) { newGrass = grass + 2; ...
+  file  : ...grass;
+  if (water > 0) {
+    // TODO(学生)：草忘了生长！有水时，草少于 80 每步长 2，达到 80...
+  MODEL_VERSION: eco-island-v1
+  uses replenishLevel: true, replenishRate: false
+checkpoints/01-static/eco-island.html: IDENTICAL
+  MODEL_VERSION: eco-island-v1
+  uses replenishLevel: true, replenishRate: false
+checkpoints/02-single-step/eco-island.html: IDENTICAL
+  MODEL_VERSION: eco-island-v1
+  uses replenishLevel: true, replenishRate: false
+checkpoints/03-full-control/eco-island.html: IDENTICAL
+  MODEL_VERSION: eco-island-v1
+  uses replenishLevel: true, replenishRate: false
+variants/standard/eco-island.html: DIFFERS
+  first diff at char 558:
+  frozen: ...h.min(100, newHerbivores));
+  const replenishSpeed = { low: 1, mid: 3,...
+  file  : ...h.min(100, newHerbivores));
+  // [干旱岛改造] 差异①：low 从 1 改为 0（无雨档，水只出不进）
+ ...
+  MODEL_VERSION: eco-island-v1
+  uses replenishLevel: true, replenishRate: false
+
+== inspect-diffs.cjs 输出 ==
+=== starter TODO count: 3
+  TODO1: // TODO(学生)：草忘了生长！有水时，草少于 80 每步长 2，达到 80 后只长 0.5。
+  TODO2: // TODO(学生)：动物不吃草了！每只动物每步吃掉 0.8 的草。
+  TODO3: // TODO(学生)：下雨档位表被弄乱了！中雨(mid)应该每步+3，现在写成 0 会导致水越来越少。
+  starter stepModel lines: 29 | frozen lines: 23
+
+=== variants/standard stepModel 全文 ===
+function stepModel(previousState, config) {
+  const { step, grass, herbivores, water } = previousState;
+  const { environment } = config;
+  let newGrass = grass;
+  if (water > 0) {
+    if (grass < 80) { newGrass = grass + 2; } else { newGrass = grass + 0.5; }
+  }
+  const eaten = herbivores * 0.8;
+  newGrass = Math.max(0, newGrass - eaten);
+  let newHerbivores = herbivores;
+  if (newGrass > 50) { newHerbivores = herbivores + 2; }
+  else if (newGrass < 20) { newHerbivores = herbivores - 3; }
+  newHerbivores = Math.max(0, Math.min(100, newHerbivores));
+  // [干旱岛改造] 差异①：low 从 1 改为 0（无雨档，水只出不进）
+  const replenishSpeed = { low: 0, mid: 3, high: 6 }[environment.replenishLevel] ?? 3; // 注意用 ??：0 是假值，|| 会把 0 静默兜底成 3
+  let newWater = water + replenishSpeed - (herbivores * 0.3);
+  newWater = Math.max(0, Math.min(100, newWater));
+  return {
+    step: step + 1,
+    grass: Math.round(newGrass * 100) / 100,
+    herbivores: Math.round(newHerbivores),
+    water: Math.round(newWater * 100) / 100
+  };
+}
+
+== run-tests.cjs 输出 ==
+TC01: got 46/20/47 (step 1) vs 46/20/47 => PASS
+TC02: got 0/11/37.7 (step 5) vs 0/11/37.7 => PASS
+TC03: got 0/17/0 (step 1) vs 0/17/0 => PASS
+TC04: got 46/0/39 (step 3) vs 46/0/39 => PASS
+TC05: got 20.5/100/76 (step 1) vs 20.5/100/76 => PASS
+TC06: got 0/0/1 (step 1) vs 0/0/1 => PASS
+TC07: got 21.6/13/63.76 (step 1) vs 21.6/13/63.76 => PASS
+TC08: got 53/2/83 (step 1) vs 53/2/83 => PASS
+TC09: final 20.8/4/100 vs expected 20.8/4/100 => PASS; key steps: ALL MATCH (9 points incl. S9 0.4/0/41.9, S34 50.4/2/100)
+TC10: got step=4 6.4/14/38.9 => PASS (模型层不停机, maxSteps=3)
+
+SUMMARY: 10/10 pass, 0 fail (B reference vs A test-cases, G 独立复跑)

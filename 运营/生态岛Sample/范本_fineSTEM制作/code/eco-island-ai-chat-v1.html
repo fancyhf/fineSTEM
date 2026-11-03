@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  
+  <style>
+    /* === 全局重置与基础样式 === */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+      background: linear-gradient(135deg, #e0f7fa, #bbdefb);
+      color: #1a237e;
+      line-height: 1.6;
+      padding: 16px;
+      min-height: 100vh;
+    }
+
+    /* === 页面容器 === */
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    /* === 标题区 === */
+    header {
+      text-align: center;
+      margin-bottom: 24px;
+      padding: 16px;
+      background: rgba(255, 255, 255, 0.9);
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    }
+    h1 {
+      font-size: 28px;
+      font-weight: 700;
+      color: #0d47a1;
+      margin-bottom: 8px;
+    }
+    .subtitle {
+      font-size: 16px;
+      color: #555;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    /* === 主内容区：两栏布局 === */
+    .main-grid {
+      display: grid;
+      grid-template-columns: 1fr 360px;
+      gap: 24px;
+      margin-bottom: 24px;
+    }
+
+    /* === 岛屿示意区（Canvas） === */
+    #island-container {
+      background: white;
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+      overflow: hidden;
+    }
+    #island {
+      width: 100%;
+      height: 320px;
+      background: #e8f5e9;
+      border-radius: 8px;
+      display: block;
+      margin: 0 auto;
+      position: relative;
+      overflow: hidden;
+    }
+    /* 草层：绿色渐变背景 */
+    .grass-layer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(to bottom, #c8e6c9, #81c784);
+      opacity: 0.8;
+      z-index: 1;
+    }
+    /* 水层：蓝色条（底部） */
+    .water-bar {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 20%;
+      background: linear-gradient(to bottom, #4fc3f7, #0288d1);
+      z-index: 2;
+    }
+    /* 动物点：圆点随机分布（CSS 模拟，非 JS 渲染） */
+    .animal-dot {
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      background: #ff9800;
+      border-radius: 50%;
+      z-index: 3;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+
+    /* === 控制面板 === */
+    .control-panel {
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    }
+    .panel-title {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      color: #0d47a1;
+      padding-bottom: 8px;
+      border-bottom: 2px solid #bbdefb;
+    }
+
+    /* === 状态面板（草/动物/水） === */
+    .stat-panel {
+      margin-bottom: 20px;
+      padding: 14px;
+      background: #f5f5f5;
+      border-radius: 8px;
+      border-left: 4px solid #4caf50;
+    }
+    .stat-panel.animal { border-left-color: #ff9800; }
+    .stat-panel.water { border-left-color: #2196f3; }
+    .stat-label {
+      font-weight: 600;
+      margin-bottom: 8px;
+      font-size: 15px;
+      display: flex;
+      justify-content: space-between;
+    }
+    .stat-value {
+      font-size: 22px;
+      font-weight: 700;
+      color: #1a237e;
+      margin-bottom: 8px;
+    }
+    .stat-bar {
+      height: 12px;
+      background: #e0e0e0;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .stat-fill {
+      height: 100%;
+      border-radius: 6px;
+      transition: width 0.3s ease;
+    }
+    .stat-fill.grass { background: linear-gradient(to right, #e8f5e9, #4caf50); }
+    .stat-fill.animal { background: linear-gradient(to right, #fff3e0, #ff9800); }
+    .stat-fill.water { background: linear-gradient(to right, #e3f2fd, #2196f3); }
+
+    /* === 控制按钮组 === */
+    .btn-group {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      margin: 20px 0;
+    }
+    .btn {
+      padding: 12px;
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-size: 15px;
+    }
+    .btn:hover { transform: translateY(-2px); }
+    .btn:active { transform: translateY(0); }
+    .btn-primary {
+      background: #4caf50;
+      color: white;
+    }
+    .btn-primary:hover { background: #43a047; }
+    .btn-secondary {
+      background: #2196f3;
+      color: white;
+    }
+    .btn-secondary:hover { background: #1e88e5; }
+    .btn-warning {
+      background: #ff9800;
+      color: white;
+    }
+    .btn-warning:hover { background: #f57c00; }
+    .btn-danger {
+      background: #f44336;
+      color: white;
+    }
+    .btn-danger:hover { background: #e53935; }
+
+    /* === 配置区 === */
+    .config-section {
+      margin-top: 24px;
+      padding-top: 20px;
+      border-top: 1px dashed #bbdefb;
+    }
+    .slider-group {
+      margin-bottom: 20px;
+    }
+    .slider-label {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 6px;
+      font-weight: 600;
+      font-size: 14px;
+    }
+    input[type="range"] {
+      width: 100%;
+      height: 8px;
+      border-radius: 4px;
+      background: #e0e0e0;
+      outline: none;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      appearance: none;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #2196f3;
+      cursor: pointer;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    .slider-value {
+      display: inline-block;
+      width: 40px;
+      text-align: right;
+      font-weight: bold;
+      color: #1a237e;
+    }
+
+    /* === 过程记录 === */
+    #log {
+      background: #2d2d2d;
+      color: #f8f8f2;
+      padding: 16px;
+      border-radius: 8px;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 14px;
+      max-height: 200px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      line-height: 1.5;
+      margin-top: 16px;
+      border: 1px solid #444;
+    }
+
+    /* === 响应式适配 === */
+    @media (max-width: 768px) {
+      .main-grid {
+        grid-template-columns: 1fr;
+      }
+      #island {
+        height: 240px;
+      }
+      .btn-group {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🌱 生态岛：小岛为什么变了？</h1>
+      <p class="subtitle">观察“改变一个条件，哪些状态会跟着变化”——基于确定性规则的生态模拟（无随机数）</p>
+    </header>
+
+    <div class="main-grid">
+      <!-- 左侧：岛屿示意区 -->
+      <section id="island-container">
+        <h2>🏝️ 小岛实时示意</h2>
+        <canvas id="island"></canvas>
+        <!-- 草层（CSS 渲染，非 canvas 绘图） -->
+        <div class="grass-layer" id="grass-layer"></div>
+        <!-- 水层（CSS 渲染） -->
+        <div class="water-bar" id="water-bar"></div>
+        <!-- 动物点（JS 后续动态添加） -->
+        <div id="animal-dots"></div>
+      </section>
+
+      <!-- 右侧：控制与状态面板 -->
+      <aside class="control-panel">
+        <h2 class="panel-title">📊 当前状态</h2>
+
+        <!-- 草量面板 -->
+        <div class="stat-panel">
+          <div class="stat-label">
+            <span>🌿 草量</span>
+            <span class="stat-value" id="grass-value">60</span>
+          </div>
+          <div class="stat-bar">
+            <div class="stat-fill grass" id="grass-fill" style="width: 60%"></div>
+          </div>
+          <div class="stat-label">
+            <span>第 <span id="step-value">0</span> 步 / 共 <span id="max-steps-value">60</span> 步</span>
+          </div>
+        </div>
+
+        <!-- 动物面板 -->
+        <div class="stat-panel animal">
+          <div class="stat-label">
+            <span>🐰 食草动物</span>
+            <span class="stat-value" id="herbivores-value">20</span>
+          </div>
+          <div class="stat-bar">
+            <div class="stat-fill animal" id="herbivores-fill" style="width: 20%"></div>
+          </div>
+        </div>
+
+        <!-- 水分面板 -->
+        <div class="stat-panel water">
+          <div class="stat-label">
+            <span>💧 水分</span>
+            <span class="stat-value" id="water-value">50</span>
+          </div>
+          <div class="stat-bar">
+            <div class="stat-fill water" id="water-fill" style="width: 50%"></div>
+          </div>
+        </div>
+
+        <!-- 控制按钮组 -->
+        <h2 class="panel-title">⚙️ 控制操作</h2>
+        <div class="btn-group">
+          <button class="btn btn-primary" id="start-btn">▶️ 开始</button>
+          <button class="btn btn-secondary" id="pause-btn">⏸️ 暂停</button>
+          <button class="btn btn-warning" id="step-btn">⏭️ 单步</button>
+          <button class="btn btn-danger" id="reset-btn">🔄 重置</button>
+        </div>
+
+        <!-- 运行速度选择 -->
+        <div class="slider-group">
+          <div class="slider-label">
+            <span>⏱️ 运行速度</span>
+            <span class="slider-value" id="speed-value">中</span>
+          </div>
+          <select id="speed-select" class="btn" style="width: 100%; padding: 10px;">
+            
+            
+            
+          </select>
+        </div>
+
+        <!-- 初始配置（仅重置时生效） -->
+        <div class="config-section">
+          <h2 class="panel-title">🔧 初始配置（重置后生效）</h2>
+          <div class="slider-group">
+            <div class="slider-label">
+              <span>🌿 初始草量</span>
+              <span class="slider-value" id="init-grass-value">60</span>
+            </div>
+            <input type="range" id="init-grass-slider" min="0" max="100" value="60">
+          </div>
+          <div class="slider-group">
+            <div class="slider-label">
+              <span>🐰 初始动物</span>
+              <span class="slider-value" id="init-herbivores-value">20</span>
+            </div>
+            <input type="range" id="init-herbivores-slider" min="0" max="100" value="20">
+          </div>
+          <div class="slider-group">
+            <div class="slider-label">
+              <span>💧 初始水分</span>
+              <span class="slider-value" id="init-water-value">50</span>
+            </div>
+            <input type="range" id="init-water-slider" min="0" max="100" value="50">
+          </div>
+        </div>
+
+        <!-- 资源补充档位（暂停时可修改） -->
+        <div class="config-section">
+          <h2 class="panel-title">🌊 资源补充档位（暂停时可改）</h2>
+          <select id="replenish-select" class="btn" style="width: 100%; padding: 10px;">
+            
+            
+            
+          </select>
+        </div>
+
+        <!-- 过程记录 -->
+        <h2 class="panel-title">📝 过程记录（最多 20 条）</h2>
+        <pre id="log">💡 提示：点击【开始】运行模拟，每 5 步自动记录一次状态变化</pre>
+      </aside>
+    </div>
+  </div>
+
+  <!-- JavaScript 脚本将在第 3 段完整提供 -->
+  <!-- 注意：此处不写 script 标签，由第 3 段统一注入 -->
+
+<script>
+  // === 🧠 核心生态模型函数（纯函数，不可变，确定性） ===
+  // 功能：根据上一状态和配置，计算并返回新状态（不修改原 state）
+  // 参数：
+  //   previousState: { step, grass, herbivores, water } —— 当前步数与三指数（0–100）
+  //   config: { modelVersion, initialState, environment, maxSteps }
+  // 返回：新 state 对象（step 自增 1）
+  function stepModel(previousState, config) {
+    const { step, grass, herbivores, water } = previousState;
+    const { environment } = config;
+
+    // ① 草生长：water > 0 时才生长；grass < 80 → +2；grass ≥ 80 → +0.5；water == 0 → 不长草（干旱）
+    let newGrass = grass;
+    if (water > 0) {
+      if (grass < 80) {
+        newGrass = grass + 2;
+      } else {
+        newGrass = grass + 0.5;
+      }
+    }
+    // ② 动物吃草：eaten = herbivores × 0.8；grass = max(0, grass − eaten)
+    const eaten = herbivores * 0.8;
+    newGrass = Math.max(0, newGrass - eaten);
+
+    // ③ 动物数量变化：草 > 50 → +2；草 < 20 → −3；否则不变；范围限 0–100
+    let newHerbivores = herbivores;
+    if (newGrass > 50) {
+      newHerbivores = herbivores + 2;
+    } else if (newGrass < 20) {
+      newHerbivores = herbivores - 3;
+    }
+    newHerbivores = Math.max(0, Math.min(100, newHerbivores));
+
+    // ④ 水分更新：water = water + 补充速度 − herbivores×0.3；限 0–100
+    // 补充速度：低=1，中=3，高=6
+    const replenishSpeed = {
+      low: 1,
+      medium: 3,
+      high: 6
+    }[environment.replenishLevel] || 3; // 默认中
+    let newWater = water + replenishSpeed - (herbivores * 0.3);
+    newWater = Math.max(0, Math.min(100, newWater));
+
+    // 返回新状态（step +1，其他字段更新）
+    return {
+      step: step + 1,
+      grass: Math.round(newGrass * 100) / 100, // 保留两位小数，更直观
+      herbivores: Math.round(newHerbivores),
+      water: Math.round(newWater * 100) / 100
+    };
+  }
+
+  // === 🖥️ UI 控制与初始化 ===
+  // 全局状态
+  let state = { step: 0, grass: 60, herbivores: 20, water: 50 };
+  let config = {
+    modelVersion: 'eco-island-v1',
+    initialState: { grass: 60, herbivores: 20, water: 50 },
+    environment: { replenishLevel: 'medium' },
+    maxSteps: 60
+  };
+  let intervalId = null;
+  let isRunning = false;
+  const logLines = [];
+
+  // 获取 DOM 元素
+  const grassValueEl = document.getElementById('grass-value');
+  const herbivoresValueEl = document.getElementById('herbivores-value');
+  const waterValueEl = document.getElementById('water-value');
+  const stepValueEl = document.getElementById('step-value');
+  const maxStepsValueEl = document.getElementById('max-steps-value');
+  const grassFillEl = document.getElementById('grass-fill');
+  const herbivoresFillEl = document.getElementById('herbivores-fill');
+  const waterFillEl = document.getElementById('water-fill');
+  const logEl = document.getElementById('log');
+  const animalDotsEl = document.getElementById('animal-dots');
+
+  // 更新 UI 显示
+  function updateUI() {
+    grassValueEl.textContent = state.grass.toFixed(1);
+    herbivoresValueEl.textContent = state.herbivores;
+    waterValueEl.textContent = state.water.toFixed(1);
+    stepValueEl.textContent = state.step;
+    maxStepsValueEl.textContent = config.maxSteps;
+
+    // 进度条宽度 = 值 %
+    grassFillEl.style.width = `${Math.min(100, Math.max(0, state.grass))}%`;
+    herbivoresFillEl.style.width = `${Math.min(100, Math.max(0, state.herbivores))}%`;
+    waterFillEl.style.width = `${Math.min(100, Math.max(0, state.water))}%`;
+
+    // 清空并重新渲染动物点（CSS 圆点）
+    animalDotsEl.innerHTML = '';
+    const dotCount = Math.max(1, Math.floor(state.herbivores / 5)); // 每5只动物画1个点，最少1个
+    for (let i = 0; i < dotCount; i++) {
+      const dot = document.createElement('div');
+      dot.className = 'animal-dot';
+      // 随机位置（CSS 实现，非 canvas）
+      dot.style.left = `${20 + Math.random() * 60}%`;
+      dot.style.top = `${30 + Math.random() * 40}%`;
+      animalDotsEl.appendChild(dot);
+    }
+  }
+
+  // 写入过程记录（自动截断至最多 20 行）
+  function appendLog(text) {
+    logLines.push(`[${new Date().toLocaleTimeString()}] ${text}`);
+    if (logLines.length > 20) logLines.shift();
+    logEl.textContent = logLines.join('\n');
+  }
+
+  // 初始化
+  function init() {
+    updateUI();
+    appendLog('🌱 生态岛已启动！点击【开始】观察变化规律。');
+  }
+
+  // 开始模拟
+  document.getElementById('start-btn').addEventListener('click', () => {
+    if (isRunning) return;
+    isRunning = true;
+    const speedSelect = document.getElementById('speed-select');
+    const delay = { slow: 500, medium: 200, fast: 50 }[speedSelect.value] || 200;
+    intervalId = setInterval(() => {
+      if (state.step >= config.maxSteps) {
+        pause();
+        appendLog(`⏹️ 已达最大步数 ${config.maxSteps}，自动暂停。`);
+        return;
+      }
+      state = stepModel(state, config);
+      updateUI();
+      if (state.step % 5 === 0) {
+        appendLog(`第 ${state.step} 步：草 ${state.grass.toFixed(1)}｜动物 ${state.herbivores}｜水 ${state.water.toFixed(1)}`);
+      }
+    }, delay);
+  });
+
+  // 暂停模拟
+  document.getElementById('pause-btn').addEventListener('click', pause);
+  function pause() {
+    if (intervalId) {
+      clearInterval(intervalId);
+      intervalId = null;
+    }
+    isRunning = false;
+    appendLog('⏸️ 模拟已暂停。可修改资源档位或点击【开始】继续。');
+  }
+
+  // 单步执行
+  document.getElementById('step-btn').addEventListener('click', () => {
+    pause();
+    if (state.step < config.maxSteps) {
+      state = stepModel(state, config);
+      updateUI();
+      appendLog(`⏭️ 手动单步：第 ${state.step} 步完成`);
+    } else {
+      appendLog(`⚠️ 已达最大步数 ${config.maxSteps}，无法再单步。`);
+    }
+  });
+
+  // 重置模拟
+  document.getElementById('reset-btn').addEventListener('click', () => {
+    pause();
+    const initGrass = parseInt(document.getElementById('init-grass-slider').value);
+    const initHerbivores = parseInt(document.getElementById('init-herbivores-slider').value);
+    const initWater = parseInt(document.getElementById('init-water-slider').value);
+    state = {
+      step: 0,
+      grass: initGrass,
+      herbivores: initHerbivores,
+      water: initWater
+    };
+    config.initialState = { grass: initGrass, herbivores: initHerbivores, water: initWater };
+    updateUI();
+    appendLog(`🔄 已重置：初始草 ${initGrass}｜动物 ${initHerbivores}｜水 ${initWater}`);
+  });
+
+  // 修改资源补充档位（仅在暂停时生效）
+  document.getElementById('replenish-select').addEventListener('change', (e) => {
+    if (isRunning) {
+      appendLog('💡 提示：档位修改需在暂停状态下生效，请先点击【暂停】。');
+      return;
+    }
+    config.environment.replenishLevel = e.target.value;
+    appendLog(`🌊 资源档位已设为「${e.target.options[e.target.selectedIndex].text}」`);
+  });
+
+  // 速度选择联动显示
+  document.getElementById('speed-select').addEventListener('change', (e) => {
+    document.getElementById('speed-value').textContent = e.target.options[e.target.selectedIndex].text.split('（')[0].trim();
+  });
+
+  // 页面加载完成后初始化
+  window.addEventListener('load', init);
+</script>
+
+</body>
+</html>

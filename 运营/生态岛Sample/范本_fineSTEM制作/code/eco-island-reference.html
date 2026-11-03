@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>生态岛：小岛为什么变了？</title>
+<!--
+  《生态岛：小岛为什么变了？》参考版
+  modelVersion: eco-island-v1（教学设定，参数待科学与模型Agent确认）
+  规则完全确定性，不用随机数；模拟步是离散计算步，不代表真实天数。
+  代码分四部分：① 配置区 ② 模型区（stepModel，不碰界面）③ 渲染区 ④ 控制区
+-->
+<style>
+  /* ========== 全局样式 ========== */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+    background: #f0f7f0;
+    color: #234;
+    padding: 16px;
+  }
+  h1 { font-size: 22px; margin-bottom: 4px; color: #1d5c38; }
+  .subtitle { font-size: 13px; color: #5a7a64; margin-bottom: 12px; }
+  #app { display: flex; gap: 16px; flex-wrap: wrap; }
+
+  /* ========== 左侧：岛屿与状态 ========== */
+  #left { flex: 1 1 460px; min-width: 420px; }
+  .card {
+    background: #fff; border-radius: 12px; padding: 14px;
+    box-shadow: 0 2px 8px rgba(30,90,50,.12); margin-bottom: 14px;
+  }
+  .card h2 { font-size: 15px; margin-bottom: 10px; color: #1d5c38; }
+  canvas { display: block; width: 100%; border-radius: 8px; }
+
+  .state-row { display: flex; align-items: center; gap: 8px; margin: 8px 0; }
+  .state-label { width: 92px; font-size: 13px; }
+  .state-bar-wrap { flex: 1; height: 16px; background: #e3ede4; border-radius: 8px; overflow: hidden; }
+  .state-bar { height: 100%; width: 50%; border-radius: 8px; transition: width .15s; }
+  #barGrass  { background: #43b35b; }
+  #barAnimal { background: #d98a3d; }
+  #barWater  { background: #3d9bd9; }
+  .state-value { width: 52px; text-align: right; font-size: 13px; font-variant-numeric: tabular-nums; }
+  #stepInfo { font-size: 13px; color: #345; margin-top: 8px; }
+
+  /* ========== 右侧：控制、配置、记录 ========== */
+  #right { flex: 1 1 340px; min-width: 320px; }
+  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+  button {
+    border: none; border-radius: 8px; padding: 8px 14px;
+    font-size: 14px; cursor: pointer; background: #e3ede4; color: #234;
+  }
+  button.primary { background: #2f9e57; color: #fff; }
+  button.warn    { background: #e8b64c; color: #5a3a00; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  .cfg-row { display: flex; align-items: center; gap: 8px; margin: 8px 0; font-size: 13px; }
+  .cfg-row label { width: 96px; }
+  .cfg-row input[type=range] { flex: 1; }
+  .cfg-row .val { width: 44px; text-align: right; }
+  .cfg-row select { flex: 1; padding: 4px; }
+  .hint { font-size: 12px; color: #b06a00; min-height: 16px; margin-top: 4px; }
+  #log {
+    font-size: 12px; line-height: 1.7; max-height: 180px; overflow-y: auto;
+    background: #f6fbf6; border-radius: 8px; padding: 8px; white-space: pre-wrap;
+  }
+  .footnote { font-size: 12px; color: #789; margin-top: 10px; line-height: 1.6; }
+</style>
+</head>
+<body>
+  <h1>生态岛：小岛为什么变了？</h1>
+  <div class="subtitle">模型版本 <span id="verText"></span>｜三个指数都是 0–100 的教学指数，不是真实只数或真实水量。</div>
+
+  <div id="app">
+    <!-- 左侧：岛屿示意 + 状态面板 -->
+    <div id="left">
+      <div class="card">
+        <h2>岛屿示意</h2>
+        <canvas id="island" width="640" height="360"></canvas>
+      </div>
+      <div class="card">
+        <h2>当前状态</h2>
+        <div class="state-row"><span class="state-label">草量指数</span>
+          <div class="state-bar-wrap"><div class="state-bar" id="barGrass"></div></div>
+          <span class="state-value" id="valGrass">-</span></div>
+        <div class="state-row"><span class="state-label">食草动物指数</span>
+          <div class="state-bar-wrap"><div class="state-bar" id="barAnimal"></div></div>
+          <span class="state-value" id="valAnimal">-</span></div>
+        <div class="state-row"><span class="state-label">水分指数</span>
+          <div class="state-bar-wrap"><div class="state-bar" id="barWater"></div></div>
+          <span class="state-value" id="valWater">-</span></div>
+        <div id="stepInfo">模拟步：0</div>
+      </div>
+    </div>
+
+    <!-- 右侧：控制 / 配置 / 过程记录 -->
+    <div id="right">
+      <div class="card">
+        <h2>控制</h2>
+        <div class="btn-row">
+          <button id="btnStart" class="primary">开始</button>
+          <button id="btnPause" class="warn">暂停</button>
+          <button id="btnStep">单步</button>
+          <button id="btnReset">重置</button>
+        </div>
+        <div class="cfg-row">
+          <label>运行速度</label>
+          <select id="speedSel">
+            <option value="600">慢（0.6 秒/步）</option>
+            <option value="300" selected>中（0.3 秒/步）</option>
+            <option value="120">快（0.12 秒/步）</option>
+          </select>
+        </div>
+        <div class="hint">速度只改变画面刷新快慢，不改变任何一步的计算结果。</div>
+      </div>
+
+      <div class="card">
+        <h2>初始配置（重置后生效）</h2>
+        <div class="cfg-row"><label>初始草量</label>
+          <input type="range" id="cfgGrass" min="0" max="100" value="60">
+          <span class="val" id="cfgGrassVal">60</span></div>
+        <div class="cfg-row"><label>初始动物</label>
+          <input type="range" id="cfgAnimal" min="0" max="100" value="20">
+          <span class="val" id="cfgAnimalVal">20</span></div>
+        <div class="cfg-row"><label>初始水分</label>
+          <input type="range" id="cfgWater" min="0" max="100" value="50">
+          <span class="val" id="cfgWaterVal">50</span></div>
+        <div class="hint" id="cfgHint"></div>
+      </div>
+
+      <div class="card">
+        <h2>环境设置：资源补充档位</h2>
+        <div class="cfg-row">
+          <label>水分补充</label>
+          <select id="replenishSel">
+            <option value="low">低（每步 +1）</option>
+            <option value="mid" selected>中（每步 +3）</option>
+            <option value="high">高（每步 +6）</option>
+          </select>
+        </div>
+        <div class="hint">运行中不能改档位；请先暂停再修改，修改会记入过程记录。</div>
+      </div>
+
+      <div class="card">
+        <h2>过程记录（最多 20 条）</h2>
+        <div id="log"></div>
+      </div>
+
+      <div class="footnote">
+        更新顺序：①草生长 ②动物吃草 ③动物数量增减 ④水分补充与消耗。<br>
+        改变一个条件（比如补充档位或初始动物数），观察哪些状态跟着变化。
+      </div>
+    </div>
+  </div>
+
+<script>
+"use strict";
+/* =====================================================
+ * ① 配置区：所有可调参数集中在这里
+ * ===================================================== */
+var MODEL_VERSION = "eco-island-v1";   // 模型版本号，改规则时必须同步改这里
+var MAX_STEPS = 60;                    // 最大模拟步数
+var REPLENISH_PRESET = { low: 1, mid: 3, high: 6 }; // 补充档位 → 每步补水量
+var DEFAULT_REPLENISH = "mid";         // 默认档位：中
+
+// 从三个滑杆读取初始配置，拼出标准配置对象
+function buildConfig() {
+  return {
+    modelVersion: MODEL_VERSION,
+    initialState: {
+      grass:       Number(document.getElementById("cfgGrass").value),
+      herbivores:  Number(document.getElementById("cfgAnimal").value),
+      water:       Number(document.getElementById("cfgWater").value)
+    },
+    environment: { replenishRate: REPLENISH_PRESET[document.getElementById("replenishSel").value] },
+    maxSteps: MAX_STEPS
+  };
+}
+
+// 由配置对象造出第 0 步的状态（状态不含任何配置以外的东西）
+function initialStateFrom(config) {
+  return {
+    step: 0,
+    grass: config.initialState.grass,
+    herbivores: config.initialState.herbivores,
+    water: config.initialState.water
+  };
+}
+
+// 把指数限制在 0–100
+function clamp100(x) { return Math.max(0, Math.min(100, x)); }
+
+/* =====================================================
+ * ② 模型区：stepModel 是整个模拟唯一的计算规则。
+ *    - 只依赖传入的 previous 和 config，不碰任何页面元素
+ *    - 不修改 previous（旧状态保持原样，可复现、可对比）
+ *    - 完全确定性：同样输入永远得到同样输出
+ * ===================================================== */
+function stepModel(previous, config) {
+  // 已到最大步数：状态不再变化
+  if (previous.step >= config.maxSteps) {
+    return { step: previous.step, grass: previous.grass,
+             herbivores: previous.herbivores, water: previous.water };
+  }
+
+  // ① 草生长：有水才长；草已经很密（≥80）时长得慢；干旱（水=0）不长
+  var grow = 0;
+  if (previous.water > 0) {
+    grow = (previous.grass < 80) ? 2 : 0.5;
+  }
+  var grass = previous.grass + grow;
+
+  // ② 动物吃草：每单位动物每步吃掉 0.8 的草；草不会小于 0
+  var eaten = previous.herbivores * 0.8;
+  grass = Math.max(0, grass - eaten);
+
+  // ③ 动物数量：草多（>50）时增加，草少（<20）时减少，中间不变
+  var herbivores = previous.herbivores;
+  if (grass > 50)      { herbivores = herbivores + 2; }
+  else if (grass < 20) { herbivores = herbivores - 3; }
+  herbivores = clamp100(herbivores);
+
+  // ④ 水分：补充档位加水，动物喝水消耗（每单位动物 0.3）
+  var water = previous.water
+            + config.environment.replenishRate
+            - previous.herbivores * 0.3;
+  water = clamp100(water);
+
+  return {
+    step: previous.step + 1,
+    grass: Math.round(clamp100(grass) * 10) / 10,
+    herbivores: Math.round(herbivores * 10) / 10,
+    water: Math.round(water * 10) / 10
+  };
+}
+
+/* =====================================================
+ * ③ 渲染区：把状态画出来。只读取状态，不改状态。
+ * ===================================================== */
+var canvas = document.getElementById("island");
+var ctx = canvas.getContext("2d");
+
+function render(state) {
+  // 底色：沙地
+  ctx.fillStyle = "#e8d9a8";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // 草地：草越浓，绿色越深。用固定的行列花纹让草地看起来自然（结果与运行无关）
+  var rows = 9, cols = 16;
+  var cw = canvas.width / cols, ch = canvas.height / rows;
+  for (var r = 0; r < rows; r++) {
+    for (var c = 0; c < cols; c++) {
+      var wobble = ((r * 7 + c * 13) % 5) * 2 - 4;  // -4 ~ +4 的固定起伏
+      var g = clamp100(state.grass + wobble);
+      if (g > 3) {
+        var shade = Math.round(60 + g * 1.6);       // 亮度随草量变化
+        ctx.fillStyle = "rgb(" + Math.max(40, shade - 70) + "," + shade + ",70)";
+        ctx.fillRect(c * cw + 1, r * ch + 1, cw - 2, ch - 2);
+      }
+    }
+  }
+
+  // 动物：每个圆点代表约 3 个单位动物指数（最多画 30 个点）
+  ctx.fillStyle = "#8a4d20";
+  var dots = Math.min(30, Math.ceil(state.herbivores / 3));
+  for (var i = 0; i < dots; i++) {
+    // 固定的散布位置（不用随机数，画面稳定）
+    var px = ((i * 97) % 600) + 20;
+    var py = ((i * 53) % 280) + 40;
+    ctx.beginPath();
+    ctx.arc(px, py, 6, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // 水分：底部蓝色条
+  ctx.fillStyle = "#d2e7f5";
+  ctx.fillRect(0, canvas.height - 22, canvas.width, 22);
+  ctx.fillStyle = "#3d9bd9";
+  ctx.fillRect(0, canvas.height - 22, canvas.width * state.water / 100, 22);
+  ctx.fillStyle = "#1a4a6a";
+  ctx.font = "12px sans-serif";
+  ctx.fillText("水分 " + state.water, 8, canvas.height - 7);
+
+  if (state.water <= 0) {
+    ctx.fillStyle = "rgba(160,60,20,.75)";
+    ctx.font = "bold 20px sans-serif";
+    ctx.fillText("干旱！草停止生长", 190, 60);
+  }
+  if (state.step >= MAX_STEPS) {
+    ctx.fillStyle = "rgba(20,60,30,.8)";
+    ctx.font = "bold 20px sans-serif";
+    ctx.fillText("已到最大步数 " + MAX_STEPS, 210, 90);
+  }
+
+  // 状态面板
+  document.getElementById("barGrass").style.width  = state.grass + "%";
+  document.getElementById("barAnimal").style.width = state.herbivores + "%";
+  document.getElementById("barWater").style.width  = state.water + "%";
+  document.getElementById("valGrass").textContent  = state.grass;
+  document.getElementById("valAnimal").textContent = state.herbivores;
+  document.getElementById("valWater").textContent  = state.water;
+  document.getElementById("stepInfo").textContent  = "模拟步：" + state.step + " / " + MAX_STEPS;
+}
+
+/* =====================================================
+ * ④ 控制区：开始 / 暂停 / 单步 / 重置 / 记录
+ *    运行速度只改 setInterval 的间隔，绝不改变 stepModel 的结果
+ * ===================================================== */
+var currentState = null;   // 当前状态（唯一）
+var config = null;         // 运行时冻结的配置
+var timer = null;          // 循环计时器
+var running = false;       // 是否正在运行
+var logLines = [];         // 过程记录（最多 20 条）
+
+function addLog(text) {
+  logLines.push(text);
+  if (logLines.length > 20) logLines.shift();   // 只留最近 20 条
+  document.getElementById("log").textContent = logLines.join("\n");
+}
+
+function fmt(n) { return (Math.round(n * 10) / 10).toString(); }
+
+function doStep() {
+  var next = stepModel(currentState, config);   // 核心：调用模型区
+  var changed = (next.step !== currentState.step);
+  currentState = next;                           // 旧状态不被污染，直接换成新状态
+  render(currentState);
+  if (changed && currentState.step % 5 === 0) {
+    addLog("第 " + currentState.step + " 步：草 " + fmt(currentState.grass)
+      + "｜动物 " + fmt(currentState.herbivores)
+      + "｜水 " + fmt(currentState.water));
+  }
+  if (currentState.step >= config.maxSteps && running) {
+    pause(); 
+    addLog("已到最大步数，自动暂停。");
+  }
+}
+
+function start() {
+  if (running) return;
+  if (currentState.step >= config.maxSteps) { addLog("已到最大步数，请先重置。"); return; }
+  running = true;
+  var interval = Number(document.getElementById("speedSel").value);
+  timer = setInterval(doStep, interval);
+  document.getElementById("btnStart").disabled = true;
+  document.getElementById("btnPause").disabled = false;
+}
+
+function pause() {
+  if (!running) return;
+  running = false;
+  clearInterval(timer);
+  document.getElementById("btnStart").disabled = false;
+  document.getElementById("btnPause").disabled = true;
+  addLog("暂停于第 " + currentState.step + " 步。");
+}
+
+function reset() {
+  pause();
+  // 关键规则：初始配置只在重置这一刻生效
+  config = buildConfig();
+  currentState = initialStateFrom(config);
+  logLines = [];
+  document.getElementById("btnStart").disabled = false;
+  document.getElementById("btnPause").disabled = true;
+  addLog("重置：草 " + currentState.grass + "，动物 " + currentState.herbivores
+    + "，水 " + currentState.water + "，档位每步 +" + config.environment.replenishRate);
+  render(currentState);
+}
+
+/* ---------- 页面事件绑定 ---------- */
+document.getElementById("btnStart").addEventListener("click", start);
+document.getElementById("btnPause").addEventListener("click", pause);
+document.getElementById("btnStep").addEventListener("click", function () {
+  if (running) pause();
+  doStep();
+});
+document.getElementById("btnReset").addEventListener("click", reset);
+
+// 初始配置滑杆：运行中修改只提示，不生效（重置后才生效）
+function cfgHintWhileRunning() {
+  var hint = document.getElementById("cfgHint");
+  if (running) hint.textContent = "运行中：修改将在点“重置”后生效";
+  else hint.textContent = "";
+}
+["cfgGrass", "cfgAnimal", "cfgWater"].forEach(function (id) {
+  document.getElementById(id).addEventListener("input", function (e) {
+    document.getElementById(id + "Val").textContent = e.target.value;
+    cfgHintWhileRunning();
+  });
+});
+
+// 补充档位：运行中禁止修改；暂停时修改要记入过程记录
+document.getElementById("replenishSel").addEventListener("change", function (e) {
+  if (running) {
+    e.target.value = document.getElementById("replenishSel").dataset.committed || DEFAULT_REPLENISH;
+    addLog("运行中不能改档位，请先暂停。");
+    return;
+  }
+  var rate = REPLENISH_PRESET[e.target.value];
+  document.getElementById("replenishSel").dataset.committed = e.target.value;
+  if (config) {
+    config.environment.replenishRate = rate;   // 环境设置允许暂停时修改
+    addLog("资源补充档位改为每步 +" + rate + "（第 " + currentState.step + " 步时）");
+  }
+});
+
+document.getElementById("verText").textContent = MODEL_VERSION;
+
+/* ---------- 启动：先重置一次得到第 0 步 ---------- */
+document.getElementById("replenishSel").dataset.committed = DEFAULT_REPLENISH;
+reset();
+</script>
+</body>
+</html>

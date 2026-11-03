@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<!-- 【检查点01·静态状态】由参考版派生：只保留第0步观察，运行控制已禁用 -->
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>生态岛：小岛为什么变了？</title>
+<!-- 生态岛 儿童版 v3：模型层 stepModel 与 v2 完全一致（已手算验证），界面层为三年级孩子重新设计。
+     设计原则：鲜亮大色块、大按钮大字、场景化小岛（太阳/草地/池塘/兔子表情）、过程记录改为"小岛日记"（状态变化翻译成孩子的话）。
+     所有画面与文案由状态确定性推导，不用随机数。模拟步是离散计算步，不是真实天数。 -->
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+    background: linear-gradient(180deg, #ffe29a 0%, #ffc3a0 18%, #a8e063 55%, #56ab2f 100%);
+    min-height: 100vh;
+    padding: 14px;
+    color: #333;
+  }
+  .top { text-align: center; margin-bottom: 12px; }
+  .top h1 { font-size: 30px; color: #1b5e20; text-shadow: 0 2px 0 #fff; }
+  .top p { font-size: 17px; color: #33691e; background: rgba(255,255,255,.75); display: inline-block; padding: 4px 16px; border-radius: 999px; margin-top: 6px; }
+  .wrap { display: flex; gap: 14px; flex-wrap: wrap; max-width: 1200px; margin: 0 auto; }
+  .left { flex: 1.4 1 520px; }
+  .right { flex: 1 1 340px; display: flex; flex-direction: column; gap: 12px; }
+  .card { background: rgba(255,255,255,.94); border-radius: 24px; padding: 14px; box-shadow: 0 6px 18px rgba(30,80,20,.25); }
+
+  /* ---------- 小岛场景 ---------- */
+  .scene {
+    position: relative; height: 300px; border-radius: 20px; overflow: hidden;
+    background: linear-gradient(180deg, #8ed6ff 0%, #c9f0ff 45%, #7ed957 46%, #4caf50 100%);
+    border: 4px solid #fff;
+  }
+  .sun { position: absolute; top: 12px; left: 18px; font-size: 44px; }
+  .sun.hot { filter: hue-rotate(-30deg) saturate(2); }
+  .cloud { position: absolute; font-size: 34px; top: 20px; opacity: .9; }
+  .cloud.c2 { left: 40%; top: 44px; font-size: 26px; }
+  .cloud.c1 { left: 66%; }
+  .dryBadge {
+    position: absolute; top: 14px; right: 14px; background: #ff7043; color: #fff;
+    font-size: 18px; font-weight: bold; padding: 6px 14px; border-radius: 999px; display: none;
+  }
+  .grassHills { position: absolute; left: 0; right: 0; bottom: 90px; height: 120px; }
+  .hill { position: absolute; bottom: 0; border-radius: 50% 50% 0 0 / 100% 100% 0 0; }
+  .hill.h1 { left: -60px; width: 420px; height: 130px; background: #66bb6a; }
+  .hill.h2 { left: 210px; width: 380px; height: 105px; background: #81c784; }
+  .hill.h3 { right: -70px; width: 360px; height: 120px; background: #4caf50; }
+  .flowers { position: absolute; left: 0; right: 0; bottom: 96px; text-align: center; font-size: 22px; letter-spacing: 10px; }
+  .pond {
+    position: absolute; left: 0; right: 0; bottom: 0; height: 22%;
+    background: linear-gradient(180deg, #4fc3f7, #0277bd);
+    transition: height .3s;
+    display: flex; align-items: flex-end; justify-content: center;
+  }
+  .pondLabel { color: #fff; font-size: 15px; font-weight: bold; text-shadow: 0 1px 2px #01579b; padding-bottom: 6px; }
+  .bunnies {
+    position: absolute; left: 0; right: 0; bottom: 96px; text-align: center;
+    font-size: 30px; letter-spacing: 6px; min-height: 40px;
+  }
+  .bunny { display: inline-block; animation: hop 1.4s ease-in-out infinite; }
+  @keyframes hop { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
+  .bunnyNote { position: absolute; right: 14px; bottom: 98px; background: rgba(255,255,255,.92); border-radius: 999px; padding: 4px 12px; font-size: 15px; font-weight: bold; color: #5d4037; }
+
+  /* ---------- 状态三大卡 ---------- */
+  .stats { display: flex; gap: 10px; margin-top: 12px; }
+  .stat { flex: 1; border-radius: 18px; padding: 10px 12px; color: #fff; }
+  .stat.g { background: linear-gradient(160deg, #66bb6a, #2e7d32); }
+  .stat.a { background: linear-gradient(160deg, #ffb74d, #ef6c00); }
+  .stat.w { background: linear-gradient(160deg, #4fc3f7, #0277bd); }
+  .stat .face { font-size: 26px; }
+  .stat .name { font-size: 16px; font-weight: bold; }
+  .stat .num { font-size: 30px; font-weight: 900; text-shadow: 0 2px 3px rgba(0,0,0,.25); }
+  .barWrap { background: rgba(255,255,255,.4); border-radius: 999px; height: 14px; margin-top: 6px; overflow: hidden; }
+  .bar { height: 100%; border-radius: 999px; background: #fff; transition: width .25s; }
+  .stepLine { text-align: center; margin-top: 10px; font-size: 18px; font-weight: bold; color: #1b5e20; }
+
+  /* ---------- 大按钮 ---------- */
+  .btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .big {
+    border: none; border-radius: 18px; padding: 14px 0; font-size: 20px; font-weight: 900;
+    cursor: pointer; color: #fff; box-shadow: 0 4px 0 rgba(0,0,0,.18); transition: transform .08s, box-shadow .08s;
+  }
+  .big:active { transform: translateY(3px); box-shadow: 0 1px 0 rgba(0,0,0,.18); }
+  .big:disabled { opacity: .5; }
+  .bStart { background: linear-gradient(180deg, #66bb6a, #2e7d32); }
+  .bPause { background: linear-gradient(180deg, #ffd54f, #ffb300); color: #5d4037; }
+  .bStep  { background: linear-gradient(180deg, #4fc3f7, #0288d1); }
+  .bReset { background: linear-gradient(180deg, #ff8a65, #e64a19); }
+  .row { display: flex; gap: 10px; margin-top: 10px; }
+  select.big2 {
+    flex: 1; border: none; border-radius: 14px; padding: 10px; font-size: 16px; font-weight: bold;
+    background: #e8f5e9; color: #1b5e20; cursor: pointer;
+  }
+
+  /* ---------- 配置滑杆 ---------- */
+  .sl { margin: 10px 0; }
+  .sl .lab { display: flex; justify-content: space-between; font-size: 16px; font-weight: bold; margin-bottom: 4px; }
+  .sl .val { background: #ffe082; border-radius: 999px; padding: 1px 12px; }
+  input[type=range] { width: 100%; height: 26px; }
+  .hint { font-size: 14px; color: #bf360c; font-weight: bold; min-height: 18px; }
+  .tip { font-size: 14px; color: #555; margin-top: 6px; }
+
+  /* ---------- 小岛日记 ---------- */
+  #diary { max-height: 240px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+  .entry { font-size: 15px; line-height: 1.5; border-radius: 14px; padding: 7px 12px; background: #f1f8e9; }
+  .entry.step5 { background: #e3f2fd; font-weight: bold; }
+  .entry.warn { background: #fff3e0; }
+  .entry.bad { background: #ffebee; }
+  .entry.good { background: #e8f5e9; }
+  .footnote { font-size: 13px; color: #33691e; margin-top: 8px; line-height: 1.6; background: rgba(255,255,255,.7); border-radius: 12px; padding: 8px 10px; }
+</style>
+</head>
+<body><div style="position:sticky;top:0;z-index:99;background:#1b5e20;color:#fff;padding:10px 16px;font-size:17px;font-weight:bold;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.3);">🎯 第 1 关｜认识小岛　<span style="font-weight:normal;opacity:.9">打开就能看到：岛屿画面、三个指数 60/20/50。看清它们，再进入下一关！</span></div>
+  <div class="top">
+    <h1>🏝️ 生态岛：小岛为什么变了？</h1>
+    <p>来当小小生态学家，照顾你的小岛！改变一个条件，看看什么会跟着变～</p>
+  </div>
+
+  <div class="wrap">
+    <!-- 左：小岛 + 状态 -->
+    <div class="left">
+      <div class="card">
+        <div class="scene" id="scene">
+          <span class="sun" id="sun">☀️</span>
+          <span class="cloud c1">☁️</span>
+          <span class="cloud c2">☁️</span>
+          <span class="dryBadge" id="dryBadge">🥵 干旱！草不长啦</span>
+          <div class="grassHills">
+            <div class="hill h1"></div><div class="hill h2"></div><div class="hill h3"></div>
+          </div>
+          <div class="flowers" id="flowers"></div>
+          <div class="bunnies" id="bunnies"></div>
+          <span class="bunnyNote" id="bunnyNote"></span>
+          <div class="pond" id="pond"><span class="pondLabel" id="pondLabel">💧 池塘</span></div>
+        </div>
+
+        <div class="stats">
+          <div class="stat g"><div class="face">🌿</div><div class="name">草</div><div class="num" id="vGrass">60</div>
+            <div class="barWrap"><div class="bar" id="barGrass" style="width:60%"></div></div></div>
+          <div class="stat a"><div class="face">🐰</div><div class="name">小动物</div><div class="num" id="vHerb">20</div>
+            <div class="barWrap"><div class="bar" id="barHerb" style="width:20%"></div></div></div>
+          <div class="stat w"><div class="face">💧</div><div class="name">水</div><div class="num" id="vWater">50</div>
+            <div class="barWrap"><div class="bar" id="barWater" style="width:50%"></div></div></div>
+        </div>
+        <div class="stepLine">⏱️ 第 <span id="vStep">0</span> 步 / 共 <span id="vMax">60</span> 步</div>
+      </div>
+    </div>
+
+    <!-- 右：操作 + 配置 + 日记 -->
+    <div class="right">
+      <div class="card">
+        <div class="btns">
+          <button class="big bStart" id="btnStart">▶️ 开始</button>
+          <button class="big bPause" id="btnPause" disabled>⏸️ 暂停</button>
+          <button class="big bStep" id="btnStep">⏭️ 走一步</button>
+          <button class="big bReset" id="btnReset">🔄 重来</button>
+        </div>
+        <div class="row">
+          <select class="big2" id="speedSel">
+            <option value="slow">🐢 慢慢看（0.6秒一步）</option>
+            <option value="medium" selected>🚶 正好（0.3秒一步）</option>
+            <option value="fast">🐇 飞快（0.12秒一步）</option>
+          </select>
+        </div>
+        <div class="tip">跑得快慢只是看得快慢，岛上发生的事一模一样！</div>
+      </div>
+
+      <div class="card">
+        <div class="sl"><div class="lab"><span>🌱 开局草多多</span><span class="val" id="labGrass">60</span></div>
+          <input type="range" id="cfgGrass" min="0" max="100" value="60"></div>
+        <div class="sl"><div class="lab"><span>🐰 开局小动物</span><span class="val" id="labHerb">20</span></div>
+          <input type="range" id="cfgHerb" min="0" max="100" value="20"></div>
+        <div class="sl"><div class="lab"><span>💧 开局水多多</span><span class="val" id="labWater">50</span></div>
+          <input type="range" id="cfgWater" min="0" max="100" value="50"></div>
+        <div class="hint" id="cfgHint"></div>
+        <div class="tip">🔒 滑杆改动要按【🔄 重来】才会生效哦！</div>
+      </div>
+
+      <div class="card">
+        <div class="sl"><div class="lab"><span>🌧️ 下雨快慢</span></div>
+          <select class="big2" id="repSel">
+            <option value="low">🌤️ 小雨（每步 +1）</option>
+            <option value="mid" selected>🌧️ 中雨（每步 +3）</option>
+            <option value="high">⛈️ 大雨（每步 +6）</option>
+          </select></div>
+        <div class="tip">要按 ⏸️ 暂停才能改下雨快慢，改了会写进小岛日记！</div>
+      </div>
+
+      <div class="card">
+        <div style="font-size:17px;font-weight:bold;margin-bottom:8px;">📔 小岛日记</div>
+        <div id="diary"></div>
+      </div>
+
+      <div class="footnote">
+        岛上每一步都按固定顺序发生：①草长高 ②动物吃草 ③动物变多变少 ④下雨加水、动物喝水。<br>
+        全程没有骰子（不用随机数）：一样的开始，永远发生一样的story！
+      </div>
+    </div>
+  </div>
+
+<script>
+"use strict";
+/* =====================================================
+ * ① 配置区（模型与 v2 完全一致，仅界面文案儿童化）
+ * ===================================================== */
+var MODEL_VERSION = "eco-island-v1";
+var MAX_STEPS = 60;
+var REPLENISH = { low: 1, mid: 3, high: 6 };
+var SPEED = { slow: 600, medium: 300, fast: 120 };
+
+function buildConfig() {
+  return {
+    modelVersion: MODEL_VERSION,
+    initialState: {
+      grass: Number(document.getElementById("cfgGrass").value),
+      herbivores: Number(document.getElementById("cfgHerb").value),
+      water: Number(document.getElementById("cfgWater").value)
+    },
+    environment: { replenishLevel: document.getElementById("repSel").value },
+    maxSteps: MAX_STEPS
+  };
+}
+function clamp100(x) { return Math.max(0, Math.min(100, x)); }
+
+/* =====================================================
+ * ② 模型区：stepModel —— 与已验证版本一字不差
+ * ===================================================== */
+function stepModel(previousState, config) {
+  const { step, grass, herbivores, water } = previousState;
+  const { environment } = config;
+  let newGrass = grass;
+  if (water > 0) {
+    if (grass < 80) { newGrass = grass + 2; } else { newGrass = grass + 0.5; }
+  }
+  const eaten = herbivores * 0.8;
+  newGrass = Math.max(0, newGrass - eaten);
+  let newHerbivores = herbivores;
+  if (newGrass > 50) { newHerbivores = herbivores + 2; }
+  else if (newGrass < 20) { newHerbivores = herbivores - 3; }
+  newHerbivores = Math.max(0, Math.min(100, newHerbivores));
+  const replenishSpeed = { low: 1, mid: 3, high: 6 }[environment.replenishLevel] || 3;
+  let newWater = water + replenishSpeed - (herbivores * 0.3);
+  newWater = Math.max(0, Math.min(100, newWater));
+  return {
+    step: step + 1,
+    grass: Math.round(newGrass * 100) / 100,
+    herbivores: Math.round(newHerbivores),
+    water: Math.round(newWater * 100) / 100
+  };
+}
+
+/* =====================================================
+ * ③ 渲染区：画面只读状态；所有元素由状态确定性推导
+ * ===================================================== */
+var canvaslessEls = {};
+function $(id) { return document.getElementById(id); }
+
+function render(state) {
+  // 三大数字与进度条
+  $("vGrass").textContent = state.grass;
+  $("vHerb").textContent = state.herbivores;
+  $("vWater").textContent = state.water;
+  $("barGrass").style.width = state.grass + "%";
+  $("barHerb").style.width = state.herbivores + "%";
+  $("barWater").style.width = state.water + "%";
+  $("vStep").textContent = state.step;
+  $("vMax").textContent = MAX_STEPS;
+
+  // 草地：三层小山包亮度随草量（草多→翠绿，草少→枯黄）
+  const g = state.grass / 100;
+  const hue = Math.round(110 - (1 - g) * 45);   // 110绿 → 65黄
+  const light = Math.round(38 + g * 16);       // 亮度和草量同步
+  const hills = document.querySelectorAll(".hill");
+  const greens = ["#66bb6a", "#81c784", "#4caf50"];
+  hills.forEach(function (h, i) {
+    h.style.background = "hsl(" + hue + ", " + Math.round(45 + g * 30) + "%, " + (light + i * 4) + "%)";
+  });
+
+  // 花朵：草>60 才开，越多越密（确定性公式）
+  const flowerCount = Math.max(0, Math.floor((state.grass - 55) / 9));
+  const kinds = ["🌸", "🌼", "🌺"];
+  let fs = "";
+  for (let i = 0; i < Math.min(flowerCount, 10); i++) fs += kinds[i % 3];
+  $("flowers").textContent = fs;
+
+  // 动物：🐰 数量 = 指数/5（最多 12 只，每只弹跳延迟固定）
+  const bunnyCount = Math.min(12, Math.ceil(state.herbivores / 5));
+  const box = $("bunnies");
+  box.innerHTML = "";
+  for (let i = 0; i < bunnyCount; i++) {
+    const b = document.createElement("span");
+    b.className = "bunny";
+    b.textContent = "🐰";
+    b.style.animationDelay = (i * 0.13).toFixed(2) + "s";
+    box.appendChild(b);
+  }
+  $("bunnyNote").textContent = state.herbivores > 0 ? "🐰 × " + state.herbivores : "😴 没有动物了";
+
+  // 池塘：高度=水位，干旱提醒
+  $("pond").style.height = Math.max(6, state.water * 0.35) + "%";
+  $("pondLabel").textContent = "💧 池塘 " + state.water;
+  const dry = state.water <= 0;
+  $("dryBadge").style.display = dry ? "block" : "none";
+  $("sun").textContent = dry ? "🥵" : "☀️";
+  $("sun").className = "sun" + (dry ? " hot" : "");
+}
+
+/* =====================================================
+ * ④ 小岛日记：状态变化翻译成孩子的话（确定性规则）
+ * ===================================================== */
+var diary = [];
+function addDiary(text, kind) {
+  diary.push({ text: text, kind: kind || "" });
+  if (diary.length > 20) diary.shift();
+  const box = $("diary");
+  box.innerHTML = "";
+  for (const e of diary) {
+    const div = document.createElement("div");
+    div.className = "entry " + e.kind;
+    div.textContent = e.text;
+    box.appendChild(div);
+  }
+  box.scrollTop = box.scrollHeight;
+}
+function fmt(n) { return String(Math.round(n * 10) / 10); }
+
+function narrate(prev, next) {
+  // 状态跨越阈值时才写日记（每条规则只在跨越那一刻说一次）
+  if (prev.grass > 0 && next.grass === 0) addDiary("🌱 哎呀！草被啃光啦！", "bad");
+  if (prev.water < 100 && next.water >= 100) addDiary("💧 水池满出来啦！", "good");
+  if (prev.water > 0 && next.water === 0) addDiary("☀️ 干旱！没有水，草长不出来…", "warn");
+  if (prev.water === 0 && next.water > 0) addDiary("🌧️ 下雨啦，小岛有水了！", "good");
+  if (prev.herbivores > 0 && next.herbivores === 0) addDiary("🐰 动物们饿肚子，全都离开小岛了……", "bad");
+  else if (next.herbivores > prev.herbivores) addDiary("🎉 草很充足，有新动物搬来啦！（+" + (next.herbivores - prev.herbivores) + "）", "good");
+  else if (next.herbivores < prev.herbivores) addDiary("😫 草不够吃，有些动物饿走了（" + (next.herbivores - prev.herbivores) + "）", "warn");
+  if (prev.grass >= 20 && next.grass < 20 && next.herbivores > 0) addDiary("⚠️ 草少于 20 了，动物们要饿肚子了！", "warn");
+  if (prev.grass < 50 && next.grass >= 50) addDiary("🌿 草长回来超过 50，动物们又有吃的啦！", "good");
+}
+
+/* =====================================================
+ * ⑤ 控制区
+ * ===================================================== */
+var state = null, config = null, timer = null, running = false;
+
+function doStep() {
+  const prev = state;
+  state = stepModel(state, config);
+  render(state);
+  narrate(prev, state);
+  if (state.step % 5 === 0) {
+    addDiary("📌 第 " + state.step + " 步：草 " + fmt(state.grass) + "｜动物 " + fmt(state.herbivores) + "｜水 " + fmt(state.water), "step5");
+  }
+  if (state.step >= config.maxSteps && running) {
+    pause();
+    addDiary("🏁 60 步实验结束！看看你的小岛变成了什么样？", "step5");
+  }
+}
+function start() {
+  if (running) return;
+  if (state.step >= config.maxSteps) { addDiary("🏁 已经做完 60 步啦，按【🔄 重来】再玩一次！"); return; }
+  running = true;
+  const speed = SPEED[document.getElementById("speedSel").value] || 300;
+  timer = setInterval(doStep, speed);
+  $("btnStart").disabled = true;
+  $("btnPause").disabled = false;
+}
+function pause() {
+  if (!running) return;
+  running = false;
+  clearInterval(timer);
+  $("btnStart").disabled = false;
+  $("btnPause").disabled = true;
+  addDiary("⏸️ 暂停啦！可以改下雨快慢，或按【▶️】继续。");
+}
+function reset() {
+  if (running) pause();
+  clearInterval(timer);
+  running = false;
+  config = buildConfig();
+  state = { step: 0, grass: config.initialState.grass, herbivores: config.initialState.herbivores, water: config.initialState.water };
+  diary = [];
+  $("btnStart").disabled = false;
+  $("btnPause").disabled = true;
+  addDiary("🔄 小岛重新开始：草 " + state.grass + "，动物 " + state.herbivores + "，水 " + state.water + "，下雨 " + ({ low: "小雨", mid: "中雨", high: "大雨" }[config.environment.replenishLevel]));
+  render(state);
+  addDiary("👀 猜猜看：接下来小岛会变成什么样？");
+}
+
+$("btnStart").addEventListener("click", start);
+$("btnPause").addEventListener("click", pause);
+$("btnStep").addEventListener("click", function () { if (running) pause(); doStep(); });
+$("btnReset").addEventListener("click", reset);
+
+["cfgGrass", "cfgHerb", "cfgWater"].forEach(function (id, i) {
+  const labId = ["labGrass", "labHerb", "labWater"][i];
+  document.getElementById(id).addEventListener("input", function (e) {
+    $(labId).textContent = e.target.value;
+    $("cfgHint").textContent = running ? "⏳ 正在跑！改了也要按【🔄 重来】才生效" : "";
+  });
+});
+
+$("repSel").addEventListener("change", function (e) {
+  if (running) {
+    e.target.value = this.dataset.ok || "mid";
+    addDiary("⏸️ 跑步的时候不能改下雨，先按暂停哦！");
+    return;
+  }
+  this.dataset.ok = e.target.value;
+  if (config) {
+    config.environment.replenishLevel = e.target.value;
+    const name = { low: "小雨+1", mid: "中雨+3", high: "大雨+6" }[e.target.value];
+    addDiary("🌧️ 下雨快慢改成【" + name + "】（第 " + state.step + " 步时）", "step5");
+  }
+});
+
+/* ---------- 启动 ---------- */
+$("repSel").dataset.ok = "mid";
+reset();
+// 第1关：禁用运行控制，只观察第0步
+["btnStart", "btnPause", "btnStep", "btnReset"].forEach(function (id) {
+  const b = document.getElementById(id);
+  if (b) { b.disabled = true; b.title = "本关未解锁"; }
+});
+document.getElementById("speedSel").disabled = true;
+document.getElementById("repSel").disabled = true;
+</script>
+</body>
+</html>

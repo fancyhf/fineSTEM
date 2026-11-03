@@ -1,0 +1,196 @@
+[
+ {
+  "id": "p1",
+  "needHuman": true,
+  "visual": "真人出镜+作品首帧浮出（M1 待拍摄；M2/M3 素材）",
+  "sentences": [
+   {
+    "display": "把一座小岛的雨关掉，接下来会发生什么。",
+    "tts": "把一座小岛的雨关掉，接下来会发生什么。",
+    "wav": "G:/tempcache/f-pkg/audio-parent/p1-0.wav",
+    "dur": 4.656
+   }
+  ]
+ },
+ {
+  "id": "p2",
+  "needHuman": false,
+  "visual": "信息卡M6三数字卡 + 2秒开始录屏（M2）",
+  "sentences": [
+   {
+    "display": "我们做了一个生态小网页。",
+    "tts": "我们做了一个生态小网页。",
+    "wav": "G:/tempcache/f-pkg/audio-parent/p2-0.wav",
+    "dur": 2.424
+   },
+   {
+    "display": "整座岛就是三个数字：草、小动物、水。",
+    "tts": "整座岛就是三个数字：草、小动物、水。",
+    "wav": "G:/tempcache/f-pkg/audio-parent/p2-1.wav",
+    "dur": 4.416
+   },
+   {
+    "display": "程序一步一步走，没有随机数，同样的开始，每一步都一样。",
+    "tts": "程序一步一步走，没有随机数，同样的开始，每一步都一样。",
+    "wav": "G:/tempcache/f-pkg/audio-parent/p2-2.wav",
+    "dur": 6.84
+   }
+  ]
+ },
+ {
+  "id": "p3",
+  "needHuman": false,
+  "visual": "信息卡M7手算竖式 + 走一步录屏（M2）",
+  "sentences": [
+   {
+    "display": "第一步就值得拿笔算。",
+    "tts": "第一步就值得拿笔算。",
+    "wav": "G:/tempcache/f-pkg/audio-parent/p3-0.wav",
+    "dur": 2.424
+   },
+   {
+    "display": "水够，草先长2；小动物吃掉16份草；水补3、被喝掉6。",
+    "tts": "水够，草先长二；小动物吃掉十六份草；水补三、被喝掉六。",
+    "wav": "G:/tempcache/f-pkg/audio-parent/p3-1.wav",
+    "dur": 7.08
+   },
+   {
+    "display": "孩子算出来的三个数，和屏幕上一模一样。",
+    "tts": "孩子算出来的三个数，和屏幕上一模一样。",
+    "wav": "G:/tempcache/f-pkg/audio-parent/p3-2.wav",
+    "dur": 4.272
+   }
+  ]
+ },
+ {
+  "id": "p4",
+  "needHuman": false,
+  "visual": "信息卡M4对照卡（可插无雨岛录屏M2）",
+  "sentences": [
+   {
+    "display": "有意思的是对照。",
+    "tts": "有意思的是对照。",
+    "wav": "G:/tempcache/f-pkg/audio-parent/p4-0.wav",
+    "dur": 2.256
+   },
+   {
+    "display": "基础版用中雨：小动物在第9步掉到零，后来草长回来，小动物又迁进来，小岛动荡，但活着。",
+    "tts": "基础版用中雨：小动物在第九步掉到零，后来草长回来，小动物又迁进来，小岛动荡，但活着。",
+    "wav": "G:/tempcache/f-pkg/audio-parent/p4-1.wav",
+    "dur": 10.416
+   },
+   {
+    "display": "只把下雨快慢改成不下雨，其他不动：水在第47步被喝干，草停止生长，第60步，三个数字全部见底。",
+    "tts": "只把下雨快慢改成不下雨，其他不动：水在第四十七步被喝干，草停止生长，第六十步，三个数字全部见底。",
+    "wav": "G:/tempcache/f-pkg/audio-parent/p4-2.wav",
+    "dur": 10.416
+   },
+   {
+    "display": "只差一场雨，两种结局。",
+    "tts": "只差一场雨，两种结局。",
+    "deleted": true,
+    "dur": 0
+   }
+  ]
+ },
+ {
+  "id": "p5",
+  "needHuman": "后半",
+  "visual": "信息卡M5三档+最短板 → 后半真人出镜边界句（M1 待拍摄）",
+  "sentences": [
+   {
+    "display": "小雨、中雨、大雨都试过，小动物还是差不多在第9步消失。",
+    "tts": "小雨、中雨、大雨都试过，小动物还是差不多在第九步消失。",
+    "wav": "G:/tempcache/f-pkg/audio-parent/p5-0.wav",
+    "dur": 5.448
+   },
+   {
+    "display": "卡住它们的，是草的生长速度。",
+    "tts": "卡住它们的，是草的生长速度。",
+    "wav": "G:/tempcache/f-pkg/audio-parent/p5-1.wav",
+    "dur": 3.048
+   },
+   {
+    "display": "补的如果不是最缺的那块，结局不会变，这叫限制因子。",
+    "tts": "补的如果不是最缺的那块，结局不会变，这叫限制因子。",
+    "wav": "G:/tempcache/f-pkg/audio-parent/p5-2.wav",
+    "dur": 6.048
+   },
+   {
+    "display": "还有一句要说全：岛上小动物归零，草和水会自己恢复，不等于物种灭绝。",
+    "tts": "还有一句要说全：岛上小动物归零，草和水会自己恢复，不等于物种灭绝。",
+    "wav": "G:/tempcache/f-pkg/audio-parent/p5-3.wav",
+    "dur": 7.464
+   }
+  ]
+ },
+ {
+  "id": "p6",
+  "needHuman": false,
+  "visual": "信息卡M5b圣马太岛数据卡",
+  "sentences": [
+   {
+    "display": "现实里有对应的例子。",
+    "tts": "现实里有对应的例子。",
+    "wav": "G:/tempcache/f-pkg/audio-parent/p6-0.wav",
+    "dur": 2.256
+   },
+   {
+    "display": "1944年，29头驯鹿被带上圣马太岛，1963年大约六千头，1966年只剩42头。",
+    "tts": "一九四四年，二十九头驯鹿被带上圣马太岛，一九六三年大约六千头，一九六六年只剩四十二头。",
+    "wav": "G:/tempcache/f-pkg/audio-parent/p6-1.wav",
+    "dur": 9.072
+   },
+   {
+    "display": "这条曲线有名字：冲过承载力，再摔下来。",
+    "tts": "这条曲线有名字：冲过承载力，再摔下来。",
+    "wav": "G:/tempcache/f-pkg/audio-parent/p6-2.wav",
+    "dur": 4.824
+   }
+  ]
+ },
+ {
+  "id": "p7",
+  "needHuman": "出镜",
+  "visual": "真人出镜+小岛日记滚动特写（M1 待拍摄；M2 补录）",
+  "sentences": [
+   {
+    "display": "作品入口随内容一起发布，打开两三分钟就够。",
+    "tts": "作品入口随内容一起发布，打开两三分钟就够。",
+    "wav": "G:/tempcache/f-pkg/audio-parent/p7-0.wav",
+    "dur": 5.232
+   },
+   {
+    "display": "看三个数字，看小岛日记，看步数记录。",
+    "tts": "看三个数字，看小岛日记，看步数记录。",
+    "wav": "G:/tempcache/f-pkg/audio-parent/p7-1.wav",
+    "dur": 4.008
+   },
+   {
+    "display": "饭后可以问一句：小动物消失以后，草为什么反而长回来了。",
+    "tts": "饭后可以问一句：小动物消失以后，草为什么反而长回来了。",
+    "wav": "G:/tempcache/f-pkg/audio-parent/p7-2.wav",
+    "dur": 5.064
+   }
+  ]
+ },
+ {
+  "id": "p8",
+  "needHuman": "出镜",
+  "visual": "真人出镜收尾→淡出作品全景→落版（M1 待拍摄）",
+  "sentences": [
+   {
+    "display": "改变一个条件，看哪些数字跟着变。",
+    "tts": "改变一个条件，看哪些数字跟着变。",
+    "wav": "G:/tempcache/f-pkg/audio-parent/p8-0.wav",
+    "dur": 3.216
+   },
+   {
+    "display": "这件事，孩子能在一座小岛上亲手做完。",
+    "tts": "这件事，孩子能在一座小岛上亲手做完。",
+    "wav": "G:/tempcache/f-pkg/audio-parent/p8-1.wav",
+    "dur": 5.232
+   }
+  ]
+ }
+]
