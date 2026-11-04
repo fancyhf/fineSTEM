@@ -31,18 +31,20 @@ const concatAudio = [];
 for (const seg of segments) {
   const t = timeline.find(x => x.id === seg.id);
   const starts = [];
-  let x = LEAD;
+  const startAt = seg.offset ?? LEAD;
+  let x = startAt;
+  const sgap = seg.sgap ?? GAP;
   const parts = [];
   const lead = `${TMP}/${seg.id}-000-lead.wav`;
-  silence(LEAD, lead); parts.push(lead);
+  silence(startAt, lead); parts.push(lead);
   t.sentences.forEach((s, i) => {
     starts.push(segOffset + x);
     parts.push(s.wav);
     x += s.dur;
     subs.push({ start: segOffset + x - s.dur, end: segOffset + x + Math.min(GAP * 0.7, 0.32), text: s.display });
-    if (i < t.sentences.length - 1) { const g = `${TMP}/${seg.id}-gap-${i}.wav`; silence(GAP, g); parts.push(g); x += GAP; }
+    if (i < t.sentences.length - 1) { const g = `${TMP}/${seg.id}-gap-${i}.wav`; silence(sgap, g); parts.push(g); x += sgap; }
   });
-  const used = LEAD + t.sentences.reduce((a, s) => a + s.dur, 0) + GAP * (t.sentences.length - 1);
+  const used = startAt + t.sentences.reduce((a, s) => a + s.dur, 0) + sgap * (t.sentences.length - 1);
   const pad = Math.max(0.05, seg.dur - used);
   const tail = `${TMP}/${seg.id}-999-tail.wav`;
   silence(pad, tail); parts.push(tail);
@@ -99,7 +101,7 @@ writeFileSync(`${TMP}/teen.ass`, "\uFEFF" + assHeader + assEvents + "\n", "utf8"
 // ---------- 3) 视频拼接 + 烧字幕 + 混流 ----------
 const videoList = segments.map(s => `file '${s.file.replace(/\\/g, "/")}'`).join("\n");
 writeFileSync(`${TMP}/video-list.txt`, videoList);
-const finalMp4 = `${OUTDIR}/生态岛-少年操作讲解-测试片-v1.mp4`;
+const finalMp4 = `${OUTDIR}/生态岛-少年操作讲解-测试片-v2.mp4`;
 execFileSync(FFMPEG, ["-y",
   "-f", "concat", "-safe", "0", "-i", "video-list.txt",
   "-i", "full-norm.wav",

@@ -1,0 +1,28 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><style>
+* { box-sizing:border-box; margin:0; padding:0; }
+body { width:640px; height:360px; background:#ECE3D2; color:#241F1B; position:relative; overflow:hidden;
+       font-family:"Microsoft YaHei","PingFang SC",sans-serif; }
+.label { position:absolute; top:20px; left:30px; font-size:15px; letter-spacing:5px; color:#8a6d33; font-weight:bold; }
+.rule { position:absolute; top:50px; left:30px; right:30px; border-top:2px solid rgba(36,31,27,.16); }
+.foot { position:absolute; top:330px; left:30px; right:30px; font-size:13px; color:#7d7466; line-height:1.5; }
+</style></head><body>
+  <div class="label">都 试 过</div><div class="rule"></div>
+  <div style="position:absolute;top:62px;left:30px;right:30px;font-size:18px;">
+     <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid rgba(36,31,27,.10);"><span>小雨（每步 +1）</span><span style="color:#6b6459;">约第 9 步归零</span></div>
+     <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid rgba(36,31,27,.10);"><span>中雨（每步 +3）</span><span style="color:#6b6459;">约第 9 步归零</span></div>
+     <div style="display:flex;justify-content:space-between;padding:7px 0;"><span>大雨（每步 +6）</span><span style="color:#6b6459;">约第 9 步归零</span></div>
+   </div>
+   <div style="position:absolute;top:158px;left:0;right:0;text-align:center;font-size:20px;font-weight:bold;">卡住小动物的，是<b style="border-bottom:4px solid #C9A24B;">草的生长速度</b></div>
+   <svg width="520" height="118" viewBox="0 0 520 118" style="position:absolute;top:196px;left:60px;" fill="none">
+     <line x1="16" y1="94" x2="504" y2="94" stroke="#241F1B" stroke-width="4"/>
+     <rect x="46"  y="30" width="72" height="64" rx="8" stroke="#241F1B" stroke-width="4"/>
+     <rect x="172" y="30" width="72" height="64" rx="8" stroke="#241F1B" stroke-width="4"/>
+     <rect x="298" y="30" width="72" height="64" rx="8" stroke="#241F1B" stroke-width="4"/>
+     <rect x="424" y="66" width="72" height="28" rx="8" fill="rgba(201,162,75,.25)" stroke="#C9A24B" stroke-width="5"/>
+     <text x="82"  y="114" font-size="14" fill="#6b6459" text-anchor="middle">雨 +1</text>
+     <text x="208" y="114" font-size="14" fill="#6b6459" text-anchor="middle">雨 +3</text>
+     <text x="334" y="114" font-size="14" fill="#6b6459" text-anchor="middle">雨 +6</text>
+     <text x="460" y="58"  font-size="14" fill="#8a6d33" text-anchor="middle" font-weight="bold">草生长 +2</text>
+   </svg>
+  <div class="foot">三档均为程序实测 · 最短的板，决定水位——限制因子。</div>
+</body></html>
