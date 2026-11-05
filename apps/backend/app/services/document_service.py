@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import io
 import json
+import re
 import zipfile
 from pathlib import Path
 from typing import Any
@@ -16,7 +17,220 @@ from typing import Any
 from app.core.config import settings
 from app.core.time_utils import utc_now_iso, utc_now
 from app.repositories.runtime_db import db
-from app.schemas.documents import DocumentFormat, DocumentType
+from app.schemas.documents import DocumentFormat, DocumentType, PublicProjectDocument
+from app.services.stage_constants import (
+    ARTIFACT_DISPLAY_NAMES,
+    ARTIFACT_TO_BLOB_KEY,
+    ARTIFACT_TO_FILENAME,
+    ARTIFACT_TO_STAGE,
+    PROCESS_ARTIFACT_ORDER,
+)
+
+DOCUMENT_SUMMARY_LENGTH = 100
+REPORT_SUMMARY_LENGTH = 300
+REPORT_TITLES: dict[DocumentType, str] = {
+    "proposal": "开题报告",
+    "technical": "技术报告",
+    "final": "结题报告",
+}
+REPORT_ARTIFACTS: dict[DocumentType, tuple[str, ...]] = {
+    "proposal": ("brainstorm", "project_brief"),
+    "technical": ("constraints", "track_plan", "design", "step_plan", "dev_log"),
+    "final": (),
+}
+
+
+JSON_FIELD_LABELS: dict[str, str] = {
+    "title": "项目标题",
+    "one_liner": "一句话介绍",
+    "topic": "项目主题",
+    "goal": "项目目标",
+    "description": "项目说明",
+    "success_criteria": "成功标准",
+    "risks": "风险清单",
+    "must_have": "必须实现",
+    "wont_do": "暂不实现",
+    "assumptions": "假设与约束",
+    "track": "技术轨道",
+    "tech_stack": "技术栈",
+    "acceptance_criteria": "验收用例",
+    "acceptance_results": "验收结果",
+    "steps": "分步计划",
+    "name": "名称",
+    "run": "操作",
+    "check": "检查",
+    "rollback": "回退",
+    "reflections": "学习反思",
+    "reflection": "反思",
+    "brief_reflection": "简要反思",
+    "result": "项目成果",
+    "core_features": "核心功能",
+    "expected": "预期结果",
+    "actual": "实际结果",
+    "status": "状态",
+    "notes": "备注",
+    "content": "内容",
+}
+
+
+def _json_scalar(value: Any) -> str:
+    if value is None:
+        return "暂无"
+    if isinstance(value, bool):
+        return "是" if value else "否"
+    return str(value)
+
+
+def _append_json_node(lines: list[str], value: Any, level: int = 3) -> None:
+    """递归保留 JSON 全部字段，并转换为读者可读的 Markdown。"""
+    if isinstance(value, dict):
+        for key, item in value.items():
+            label = JSON_FIELD_LABELS.get(key, key.replace("_", " "))
+            if isinstance(item, (dict, list)):
+                if not item:
+                    lines.append(f"- **{label}**：暂无")
+                    continue
+                heading = f"### {label}" if level <= 3 else f"**{label}**"
+                lines.extend(["", heading, ""])
+                _append_json_node(lines, item, level + 1)
+            else:
+                lines.append(f"- **{label}**：{_json_scalar(item)}")
+        return
+    if isinstance(value, list):
+        for index, item in enumerate(value, start=1):
+            if isinstance(item, (dict, list)):
+                lines.extend(["", f"**第 {index} 项**", ""])
+                _append_json_node(lines, item, level + 1)
+            else:
+                lines.append(f"- {_json_scalar(item)}")
+        return
+    lines.append(_json_scalar(value))
+
+
+def _json_to_markdown(value: Any) -> str:
+    lines: list[str] = []
+    _append_json_node(lines, value)
+    return "\n".join(lines).strip() + "\n"
+
+
+def format_document_content(content: str) -> str:
+    """仅在内容确为完整 JSON 时转换；无效或不完整 JSON 保留原文，避免二次损坏。"""
+    stripped = content.strip()
+    if not stripped.startswith(("{", "[")):
+        return content
+    try:
+        parsed = json.loads(stripped)
+    except (json.JSONDecodeError, TypeError):
+        return content
+    if isinstance(parsed, str):
+        return parsed
+    if isinstance(parsed, (dict, list)):
+        return _json_to_markdown(parsed)
+    return content
+
+
+def _document_summary(content: str, length: int = DOCUMENT_SUMMARY_LENGTH) -> str:
+    plain_lines = [
+        line.strip().lstrip("#>- ").replace("**", "")
+        for line in content.splitlines()
+        if line.strip()
+    ]
+    return re.sub(r"\s+", " ", " ".join(plain_lines))[:length]
+
+
+def _has_real_content(value: Any) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, (list, dict)):
+        return bool(value)
+    return True
+
+
+def _build_light_process_documents(light_data: dict[str, Any]) -> list[PublicProjectDocument]:
+    """轻量项目只返回真实存在的三类过程记录，不伪造九份标准阶段文档。"""
+    specs = (
+        ("light_step_01", "想法与方向", "light_01_topic.md", ("project_name", "one_liner", "topic", "goal", "core_features")),
+        ("light_step_02", "设计与实现", "light_02_steps.md", ("steps",)),
+        ("light_step_03", "成果与反思", "light_03_reflection.md", ("result", "reflection", "brief_reflection")),
+    )
+    documents: list[PublicProjectDocument] = []
+    for stage, name, filename, fields in specs:
+        selected = {key: light_data[key] for key in fields if _has_real_content(light_data.get(key))}
+        if not selected:
+            continue
+        content = _json_to_markdown(selected)
+        documents.append(PublicProjectDocument(
+            stage=stage,
+            name=name,
+            filename=filename,
+            has_content=True,
+            summary=_document_summary(content),
+            content=content,
+            content_length=len(content),
+        ))
+    return documents
+
+
+def _read_process_artifacts(progress: dict[str, Any]) -> dict[str, str]:
+    """只从 standard_step_data 读取权威工件正文。"""
+    standard_data = progress.get("standard_step_data")
+    if not isinstance(standard_data, dict):
+        standard_data = {}
+    artifacts: dict[str, str] = {}
+    for artifact_name in PROCESS_ARTIFACT_ORDER:
+        blob_key = ARTIFACT_TO_BLOB_KEY[artifact_name]
+        raw_content = standard_data.get(blob_key, "")
+        artifacts[artifact_name] = (
+            raw_content if isinstance(raw_content, str) else str(raw_content or "")
+        )
+    return artifacts
+
+
+def build_process_documents(progress: dict[str, Any]) -> list[PublicProjectDocument]:
+    """统一构造公开与作者文档，优先标准工件，空标准项目回退到轻量真实记录。"""
+    artifacts = _read_process_artifacts(progress)
+    documents: list[PublicProjectDocument] = []
+    for artifact_name, raw_content in artifacts.items():
+        content = format_document_content(raw_content)
+        documents.append(
+            PublicProjectDocument(
+                stage=ARTIFACT_TO_STAGE.get(artifact_name, artifact_name),
+                name=ARTIFACT_DISPLAY_NAMES[artifact_name],
+                filename=ARTIFACT_TO_FILENAME[artifact_name],
+                has_content=bool(content.strip()),
+                summary=_document_summary(content),
+                content=content,
+                content_length=len(content),
+            )
+        )
+    if any(document.has_content for document in documents):
+        return documents
+    light_data = progress.get("light_step_data")
+    if isinstance(light_data, dict):
+        return _build_light_process_documents(light_data)
+    return documents
+
+
+def _append_process_sections(
+    lines: list[str], document_type: DocumentType, artifacts: dict[str, str]
+) -> None:
+    """将真实工件全文或摘要追加到对应报告。"""
+    if document_type != "final":
+        for artifact_name in REPORT_ARTIFACTS[document_type]:
+            display_name = ARTIFACT_DISPLAY_NAMES[artifact_name]
+            content = format_document_content(artifacts[artifact_name])
+            lines.extend(["", f"## {display_name}", content or f"暂无{display_name}文档"])
+        return
+
+    evaluate_content = format_document_content(artifacts["evaluate"])
+    lines.extend(["", "## 验收评估", evaluate_content or "暂无验收评估文档"])
+    lines.extend(["", "## 过程文档摘要"])
+    for artifact_name in PROCESS_ARTIFACT_ORDER:
+        content = format_document_content(artifacts[artifact_name])
+        summary = _document_summary(content, REPORT_SUMMARY_LENGTH) if content else "暂无文档"
+        lines.extend(["", f"### {ARTIFACT_DISPLAY_NAMES[artifact_name]}", summary])
 
 
 class DocumentService:
@@ -45,13 +259,7 @@ class DocumentService:
         progress = snapshot["progress"]
         evidence = snapshot["evidence"]
         achievement = snapshot["achievement_card"]
-
-        title_map: dict[DocumentType, str] = {
-            "proposal": "开题报告",
-            "technical": "技术报告",
-            "final": "结题报告",
-        }
-        title = f"{project['name']} - {title_map[document_type]}"
+        title = f"{project['name']} - {REPORT_TITLES[document_type]}"
         lines = [
             f"# {title}",
             "",
@@ -71,54 +279,34 @@ class DocumentService:
             "## 证据清单",
         ]
         if evidence:
-            for item in evidence[:50]:
-                lines.append(
-                    f"- [{item.get('type', 'unknown')}] {item.get('content', '')[:120]}"
-                )
+            for index, item in enumerate(evidence, start=1):
+                evidence_title = item.get("title") or f"证据 {index}"
+                content = str(item.get("content", "") or "")
+                lines.extend([
+                    "",
+                    f"### {evidence_title}",
+                    f"- 类型: {item.get('type', 'unknown')}",
+                    "",
+                    content,
+                ])
         else:
             lines.append("- 暂无证据")
 
         if achievement:
-            lines.extend(
-                [
-                    "",
-                    "## 成果档案卡",
-                    f"- 标题: {achievement.get('title', '')}",
-                    f"- 一句话介绍: {achievement.get('one_liner', '')}",
-                    f"- 反思: {achievement.get('reflection', '')}",
-                ]
-            )
+            lines.extend([
+                "",
+                "## 成果档案卡",
+                f"- 标题: {achievement.get('title', '')}",
+                f"- 一句话介绍: {achievement.get('one_liner', '')}",
+                f"- 反思: {achievement.get('reflection', '')}",
+            ])
 
-        if document_type == "proposal":
-            lines.extend(
-                [
-                    "",
-                    "## 开题重点",
-                    "- 研究问题与目标",
-                    "- 成功标准与风险",
-                    "- 阶段计划与资源评估",
-                ]
-            )
-        elif document_type == "technical":
-            lines.extend(
-                [
-                    "",
-                    "## 技术重点",
-                    "- 技术路线与架构",
-                    "- 关键实现与调试记录",
-                    "- 验证方式与结果",
-                ]
-            )
-        else:
-            lines.extend(
-                [
-                    "",
-                    "## 结题重点",
-                    "- 成果与影响",
-                    "- 学习反思",
-                    "- 后续迭代建议",
-                ]
-            )
+        _append_process_sections(lines, document_type, _read_process_artifacts(progress))
+        lines.extend([
+            "",
+            "## 生成说明",
+            "本报告由平台实时拼装（项目描述 + 证据 + 过程文档），生成时间见页眉。",
+        ])
         return "\n".join(lines) + "\n"
 
     def _to_docx(self, markdown_text: str) -> bytes:

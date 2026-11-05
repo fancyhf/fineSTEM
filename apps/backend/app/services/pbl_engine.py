@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from app.core.config import settings
+from app.core.text_encoding import ensure_utf8_text
 # 2026-07-22 重构：阶段常量统一从 stage_constants 导入（单一事实来源），
 # 消除原先散落在 tools.py / pbl_engine.py / orchestrator.py / project_repo.py / memory.py
 # 五处的重复定义。本模块保留 ARTIFACT_FOR_STAGE / ARTIFACT_TO_BLOB_KEY /
@@ -361,6 +362,7 @@ def save_artifact(project_id: str, artifact_name: str, content: str, db) -> dict
     返回:
         dict: artifact_name, status, path。
     """
+    ensure_utf8_text(content, f"工件 {artifact_name}")
     blob_key = ARTIFACT_TO_BLOB_KEY.get(artifact_name)
     if not blob_key:
         return {"artifact_name": artifact_name, "status": "error", "path": None}

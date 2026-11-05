@@ -1,7 +1,7 @@
 /**
  * fineSTEM E2E 测试 - 项目详情页结题报告
  *
- * 用途：验证项目详情页可导出结题 DOCX，并能生成包含结题重点的报告内容
+ * 用途：验证项目详情页可导出结题 DOCX，并能生成包含真实过程文档结构的报告内容
  * 维护者：AI Agent
  * links: .trae/documents/testing/
  */
@@ -58,7 +58,7 @@ async function saveProjectCode(
 }
 
 test.describe('项目详情页结题报告', () => {
-  test('可以导出结题 DOCX，并生成包含结题重点的 final markdown', async ({ authenticatedPage, testUser }) => {
+  test('可以导出结题 DOCX，并生成包含过程文档与生成说明的 final markdown', async ({ authenticatedPage, testUser }) => {
     const timestamp = Date.now();
     const projectName = `结题报告回归_${timestamp}`;
     const project = await createProject(authenticatedPage, testUser.token, projectName);
@@ -108,7 +108,10 @@ test.describe('项目详情页结题报告', () => {
     expect(finalMdResponse.ok()).toBeTruthy();
     const finalMd = await finalMdResponse.text();
     expect(finalMd).toContain(`${projectName} - 结题报告`);
-    expect(finalMd).toContain('## 结题重点');
     expect(finalMd).toContain('## 进度摘要');
+    expect(finalMd).toContain('## 验收评估');
+    expect(finalMd).toContain('## 过程文档摘要');
+    expect(finalMd).toContain('## 生成说明');
+    expect(finalMd).not.toContain('## 结题重点');
   });
 });

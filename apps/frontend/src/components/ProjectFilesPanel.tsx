@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { FileText, FileCode, Download, Folder, ChevronRight, ChevronDown, Loader2, Package, X, MessageSquare, Code2, BookOpen } from 'lucide-react';
+import { FileText, FileCode, Download, Folder, ChevronRight, ChevronDown, Loader2, Package, X, MessageSquare, Code2 } from 'lucide-react';
 import { projectsApi } from '../services/api';
 import { ProjectDocument, FileEntry } from '../types';
+import { DocumentViewerModal } from './DocumentViewerModal';
+import { ProcessDocumentList } from './ProcessDocumentList';
 
 interface ChatCodeSnippet {
   id: string;
@@ -156,15 +158,19 @@ export const ProjectFilesPanel: React.FC<ProjectFilesPanelProps> = ({
   }, [projectId, loadDocuments, refreshSignal]);
 
   // 查看文档内容
-  const handleViewDoc = useCallback(async (stage: string, name: string) => {
+  const handleViewDoc = useCallback(async (document: ProjectDocument) => {
     try {
-      const res = await projectsApi.getDocument(projectId, stage);
+      const res = await projectsApi.getDocument(projectId, document.stage);
       if (res.data) {
-        setViewingDoc({ stage, name, content: res.data.content || '(此文档暂无内容)' });
+        setViewingDoc({
+          stage: document.stage,
+          name: document.name,
+          content: res.data.content || '(此文档暂无内容)',
+        });
       }
     } catch (error) {
       console.error('[ProjectFilesPanel] 加载文档内容失败:', error);
-      setViewingDoc({ stage, name, content: '加载失败' });
+      setViewingDoc({ stage: document.stage, name: document.name, content: '文档加载失败，请稍后重试。' });
     }
   }, [projectId]);
 
@@ -340,44 +346,13 @@ export const ProjectFilesPanel: React.FC<ProjectFilesPanelProps> = ({
             <span className="ml-auto text-[10px] text-gray-400">{docsHaveContent ? documents.filter(d => d.has_content).length : '-'}</span>
           </button>
           {expandedSections.docs && (
-            <div className="pb-1">
-              {documents.length === 0 && !loadingDocs ? (
-                <div className="px-5 py-3 text-[11px] text-gray-400 leading-relaxed">
-                  <p>项目还在早期阶段，</p>
-                  <p className="mt-0.5">暂无阶段文档。</p>
-                  <p className="mt-1 text-gray-300">继续与 AI 对话推进项目后自动生成</p>
-                </div>
-              ) : loadingDocs ? (
-                <div className="px-5 py-3 text-[11px] text-gray-400">
-                  正在加载文档...
-                </div>
-              ) : !docsHaveContent ? (
-                <div className="px-5 py-3 text-[11px] text-gray-400 leading-relaxed">
-                  <p>所有文档待生成</p>
-                  <p className="mt-0.5 text-gray-300">完成对应阶段后自动填充</p>
-                </div>
-              ) : (
-                documents.map((doc) => (
-                  <button
-                    key={doc.stage}
-                    onClick={() => doc.has_content && handleViewDoc(doc.stage, doc.name)}
-                    disabled={!doc.has_content}
-                    className={`w-full flex items-center gap-1.5 px-5 py-1.5 text-xs transition-colors ${
-                      doc.has_content ? 'text-gray-600 hover:bg-gray-100 cursor-pointer' : 'text-gray-300 cursor-not-allowed'
-                    }`}
-                  >
-                    {/* 讲解文档用 BookOpen 图标区分于阶段文档 */}
-                    {doc.stage === 'explanation' ? (
-                      <BookOpen className={`w-3 h-3 ${doc.has_content ? 'text-teal-500' : 'text-gray-300'}`} />
-                    ) : (
-                      <FileText className={`w-3 h-3 ${doc.has_content ? 'text-green-500' : 'text-gray-300'}`} />
-                    )}
-                    <span className="truncate">{doc.name}</span>
-                    {doc.has_content && <span className="text-[9px] text-gray-400 ml-auto">✓</span>}
-                  </button>
-                ))
-              )}
-            </div>
+            <ProcessDocumentList
+              documents={documents}
+              loading={loadingDocs}
+              variant="compact"
+              emptyMessage="暂无阶段文档，继续与 AI 对话推进项目后自动生成"
+              onView={(document) => void handleViewDoc(document)}
+            />
           )}
         </div>
 
@@ -405,29 +380,12 @@ export const ProjectFilesPanel: React.FC<ProjectFilesPanelProps> = ({
         </div>
       </div>
 
-      {/* 文档查看模态框 */}
       {viewingDoc && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
-          onClick={(e) => { if (e.target === e.currentTarget) setViewingDoc(null); }}
-        >
-          <div className="w-[80vw] h-[80vh] bg-white rounded-xl shadow-2xl flex flex-col overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-200">
-              <span className="text-sm font-medium text-gray-700">{viewingDoc.name}</span>
-              <button
-                onClick={() => setViewingDoc(null)}
-                className="px-3 py-1 text-xs text-gray-500 hover:bg-gray-200 rounded"
-              >
-                关闭
-              </button>
-            </div>
-            <div className="flex-1 overflow-auto p-4">
-              <pre className="text-xs text-gray-700 whitespace-pre-wrap font-mono leading-relaxed">
-                {viewingDoc.content}
-              </pre>
-            </div>
-          </div>
-        </div>
+        <DocumentViewerModal
+          title={viewingDoc.name}
+          content={viewingDoc.content}
+          onClose={() => setViewingDoc(null)}
+        />
       )}
     </div>
   );

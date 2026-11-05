@@ -6,12 +6,24 @@
 links: .trae/documents/api-specs/v1/spec.json
 """
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 from typing import Optional, Literal
+from app.core.text_encoding import ensure_utf8_text
 from .common import AuditFields
 
 
-class EvidenceBase(BaseModel):
+class EvidenceTextValidation(BaseModel):
+    """对所有证据写入 DTO 的文本字段执行相同的 UTF-8 校验。"""
+
+    @field_validator("title", "content", "content_url", "related_step", check_fields=False)
+    @classmethod
+    def validate_utf8(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        return ensure_utf8_text(value, "证据文本")
+
+
+class EvidenceBase(EvidenceTextValidation):
     """
     证据基础字段
     """
@@ -25,7 +37,7 @@ class EvidenceBase(BaseModel):
     related_step: Optional[str] = Field(None, description="关联步骤")
 
 
-class EvidenceCreate(BaseModel):
+class EvidenceCreate(EvidenceTextValidation):
     """
     证据创建请求
     """
@@ -40,7 +52,7 @@ class EvidenceCreate(BaseModel):
     related_step: Optional[str] = None
 
 
-class EvidenceUpdate(BaseModel):
+class EvidenceUpdate(EvidenceTextValidation):
     """
     证据更新请求
     """
@@ -54,7 +66,7 @@ class EvidenceUpdate(BaseModel):
     related_step: Optional[str] = None
 
 
-class AutoEvidenceCollectRequest(BaseModel):
+class AutoEvidenceCollectRequest(EvidenceTextValidation):
     """
     自动证据采集请求
     """

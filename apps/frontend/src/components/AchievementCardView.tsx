@@ -15,6 +15,12 @@ interface AchievementCardViewProps {
 export function AchievementCardView({ achievement }: AchievementCardViewProps) {
   const cover = achievement.screenshots && achievement.screenshots.length > 0
     ? resolveImageUrl(achievement.screenshots[0]) : null;
+  const sections = [
+    { title: '一句话介绍', content: achievement.one_liner },
+    { title: '解决的问题', content: achievement.problem_solved },
+    { title: '使用的方法', content: achievement.method_used },
+    { title: '反思', content: achievement.reflection },
+  ].filter((section) => section.content.trim());
 
   return (
     <Card className="overflow-hidden">
@@ -42,25 +48,12 @@ export function AchievementCardView({ achievement }: AchievementCardViewProps) {
 
       <CardContent className="pt-6">
         <div className="space-y-6">
-          <section>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">一句话介绍</h3>
-            <MarkdownText content={achievement.one_liner} projectId={achievement.project_id} />
-          </section>
-
-          <section>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">解决的问题</h3>
-            <MarkdownText content={achievement.problem_solved} projectId={achievement.project_id} />
-          </section>
-
-          <section>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">使用的方法</h3>
-            <MarkdownText content={achievement.method_used} projectId={achievement.project_id} />
-          </section>
-
-          <section>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">反思</h3>
-            <MarkdownText content={achievement.reflection} projectId={achievement.project_id} />
-          </section>
+          {sections.map((section) => (
+            <section key={section.title}>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">{section.title}</h3>
+              <MarkdownText content={section.content} projectId={achievement.project_id} />
+            </section>
+          ))}
 
           <div className="flex items-center justify-between pt-4 border-t border-gray-100">
             <div className="flex items-center gap-2 text-sm text-gray-500">

@@ -68,6 +68,31 @@ ARTIFACT_TO_FILENAME: dict[str, str] = {
     "explanation": "08_code_explanation.md",
 }
 
+# 工件名 → 面向读者的文档显示名称
+ARTIFACT_DISPLAY_NAMES: dict[str, str] = {
+    "brainstorm": "头脑风暴",
+    "project_brief": "开题立项",
+    "constraints": "范围裁剪",
+    "track_plan": "轨道选择",
+    "design": "设计蓝图",
+    "step_plan": "分步计划",
+    "dev_log": "开发日志",
+    "evaluate": "验收评估",
+    "explanation": "讲解文档",
+}
+
+PROCESS_ARTIFACT_ORDER: tuple[str, ...] = (
+    "brainstorm",
+    "project_brief",
+    "constraints",
+    "track_plan",
+    "design",
+    "step_plan",
+    "dev_log",
+    "evaluate",
+    "explanation",
+)
+
 # ── 工件名别名 → 规范名（Q-028，2026-07-31）──────────────────────
 # SKILL.md 的文档树/artifacts 键名叫 evaluation（07_evaluation.json），而
 # 白名单规范名是 evaluate，AI 照文档用 evaluation 必被"未知工件名称"拒绝，

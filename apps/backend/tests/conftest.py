@@ -21,7 +21,7 @@ os.environ.setdefault("DEBUG", "true")
 os.environ.setdefault("DATABASE_URL", "sqlite:///D:/data/finestem/test_finestem.db")
 os.environ.setdefault("STORAGE_BASE_PATH", "D:/data/finestem/test_uploads")
 
-from app.db.database import Base, get_db_session
+from app.db.database import Base, engine, get_db_session
 from app.db.models import (
     UserModel,
     DemoModel,
@@ -65,6 +65,7 @@ def setup_test_db():
     yield
     Base.metadata.drop_all(bind=TEST_ENGINE)
     TEST_ENGINE.dispose()
+    engine.dispose()
     try:
         if os.path.exists(TEST_DB_PATH):
             os.remove(TEST_DB_PATH)
@@ -107,6 +108,10 @@ def client() -> Generator:
     ev_mod.db = test_db
     from app.api import skills as skills_mod
     skills_mod.db = test_db
+    from app.api import documents as documents_mod
+    documents_mod.db = test_db
+    import app.services.document_service as document_service_mod
+    document_service_mod.db = test_db
 
     with TestClient(app) as c:
         yield c
@@ -119,6 +124,8 @@ def client() -> Generator:
     ac_mod.db = original_rt_db
     ev_mod.db = original_rt_db
     skills_mod.db = original_rt_db
+    documents_mod.db = original_rt_db
+    document_service_mod.db = original_rt_db
 
 
 @pytest.fixture

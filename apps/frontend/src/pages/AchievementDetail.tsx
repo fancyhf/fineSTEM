@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { achievementCardsApi } from '../services/api';
-import { AchievementCard } from '../types';
+import { achievementCardsApi, documentsApi } from '../services/api';
+import { AchievementCard, PublicProjectDocument } from '../types';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
+import { DocumentViewerModal } from '../components/DocumentViewerModal';
+import { ProcessDocumentList } from '../components/ProcessDocumentList';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { LightRegisterPrompt } from '../components/LightRegisterPrompt';
@@ -33,6 +35,9 @@ export default function AchievementDetail() {
   const [pendingAction, setPendingAction] = useState<'fork' | 'save' | null>(null);
   const [activeTab, setActiveTab] = useState<DetailTab>('intro');
   const [currentScreenshot, setCurrentScreenshot] = useState(0);
+  const [processDocuments, setProcessDocuments] = useState<PublicProjectDocument[]>([]);
+  const [processDocumentsLoading, setProcessDocumentsLoading] = useState(false);
+  const [viewingProcessDocument, setViewingProcessDocument] = useState<PublicProjectDocument | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -54,6 +59,27 @@ export default function AchievementDetail() {
       }
     };
     void load();
+  }, [cardId]);
+
+  useEffect(() => {
+    if (!cardId) return;
+    let cancelled = false;
+    const loadDocuments = async () => {
+      setProcessDocuments([]);
+      setViewingProcessDocument(null);
+      setProcessDocumentsLoading(true);
+      try {
+        const res = await documentsApi.listPublic(cardId);
+        if (!cancelled) setProcessDocuments(res.data || []);
+      } catch (err) {
+        console.error('Failed to load public process documents:', err);
+        if (!cancelled) setProcessDocuments([]);
+      } finally {
+        if (!cancelled) setProcessDocumentsLoading(false);
+      }
+    };
+    void loadDocuments();
+    return () => { cancelled = true; };
   }, [cardId]);
 
   // Fork 成果卡 → 创建新项目，返回新项目 ID（对齐 Demo 详情页的 createProjectFromDemo）
@@ -187,20 +213,18 @@ export default function AchievementDetail() {
                 )}
                 <p className="text-gray-700 text-lg mb-6">{card.one_liner}</p>
 
-                <div className="mb-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-3">能力标签</h3>
-                  <div className="flex flex-wrap gap-2">
-                    {tags.length > 0 ? (
-                      tags.map((tag, idx) => (
+                {tags.length > 0 && (
+                  <div className="mb-6">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-3">能力标签</h3>
+                    <div className="flex flex-wrap gap-2">
+                      {tags.map((tag, idx) => (
                         <Badge key={idx} variant="secondary">
                           {tag}
                         </Badge>
-                      ))
-                    ) : (
-                      <span className="text-sm text-gray-400">暂无能力标签</span>
-                    )}
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-4 border-t border-gray-100">
                   <Button
@@ -262,7 +286,7 @@ export default function AchievementDetail() {
 
 {/* 常驻：相关视频卡片（点击进入节目主页） */}
                   {(() => {
-                    const KNOW = (import.meta as any).env?.VITE_KNOW_URL || 'https://know.wostemstudio.top';
+                    const KNOW = import.meta.env.VITE_KNOW_URL || 'https://know.wostemstudio.top';
                     const refl = card.reflection || '';
                     const videos = [
                       { bvid: 'BV1qTtG6NEaD', to: `${KNOW}/ep/finestem-class/ep01`, cover: '/videos/explain-cover.jpg',
@@ -371,12 +395,30 @@ export default function AchievementDetail() {
                       </div>
                     </div>
                   )}
+
                 </div>
               </CardContent>
             </Card>
           </div>
 
-          <div className="space-y-6">
+          <div className="space-y-6" data-testid="public-project-sidebar">
+            <Card data-testid="public-process-documents">
+              <CardHeader>
+                <CardTitle>过程文档</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="mb-4 text-sm text-gray-500">从想法、设计到实现与反思，阅读项目的真实过程。</p>
+                <ProcessDocumentList
+                  documents={processDocuments}
+                  loading={processDocumentsLoading}
+                  onView={(document) => {
+                    const fullDocument = processDocuments.find((item) => item.stage === document.stage);
+                    if (fullDocument) setViewingProcessDocument(fullDocument);
+                  }}
+                />
+              </CardContent>
+            </Card>
+
             <Card>
               <CardHeader>
                 <CardTitle>档案信息</CardTitle>
@@ -409,6 +451,13 @@ export default function AchievementDetail() {
           </div>
         </div>
       </div>
+      {viewingProcessDocument && (
+        <DocumentViewerModal
+          title={viewingProcessDocument.name}
+          content={viewingProcessDocument.content}
+          onClose={() => setViewingProcessDocument(null)}
+        />
+      )}
       <LightRegisterPrompt
         open={showRegisterPrompt}
         title="注册后可创建项目"

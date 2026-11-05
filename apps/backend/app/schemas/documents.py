@@ -26,3 +26,15 @@ class DocumentArtifact(BaseModel):
     format: DocumentFormat
     file_name: str
     created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class PublicProjectDocument(BaseModel):
+    """公开成果卡关联项目的过程文档，响应中不包含项目或作者信息。"""
+
+    stage: str
+    name: str
+    filename: str
+    has_content: bool
+    summary: str
+    content: str
+    content_length: int

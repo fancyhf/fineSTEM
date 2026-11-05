@@ -5,7 +5,9 @@ import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge';
 import { ArrowLeft, Check, Download, FileText, Pencil, Sparkles, Trash2, Award, TrendingUp, Code, X, FolderOpen, Wand2, BookOpen, Star, Eye, EyeOff } from 'lucide-react';
 import { projectsApi, achievementCardsApi, documentsApi, capabilityTagsApi } from '../services/api';
-import { Project, ProjectProgress, AchievementCard } from '../types';
+import { Project, ProjectProgress, AchievementCard, ProjectDocument } from '../types';
+import { DocumentViewerModal } from '../components/DocumentViewerModal';
+import { ProcessDocumentList } from '../components/ProcessDocumentList';
 import { ProjectStageBar } from '../components/ProjectStageBar';
 import { LightProjectSteps } from '../components/LightProjectSteps';
 import { StandardProjectSteps } from '../components/StandardProjectSteps';
@@ -50,6 +52,9 @@ export default function ProjectDetail() {
   // 在线查看文档（2026-08-11）：开题/技术/结题文档页面内阅读弹窗
   const [viewingDocument, setViewingDocument] = useState<{ type: 'proposal' | 'technical' | 'final'; title: string; markdown: string } | null>(null);
   const [viewDocLoading, setViewDocLoading] = useState(false);
+  const [processDocuments, setProcessDocuments] = useState<ProjectDocument[]>([]);
+  const [processDocumentsLoading, setProcessDocumentsLoading] = useState(false);
+  const [viewingProcessDocument, setViewingProcessDocument] = useState<{ name: string; content: string } | null>(null);
   const documentTypeTitles: Record<'proposal' | 'technical' | 'final', string> = {
     proposal: '开题报告',
     technical: '技术报告',
@@ -132,6 +137,25 @@ export default function ProjectDetail() {
         setExplanationDoc(res.data.content);
       }
     }).catch(() => { /* 讲解文档不存在时保持空态 */ });
+  }, [id]);
+
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+    const loadProcessDocuments = async () => {
+      setProcessDocumentsLoading(true);
+      try {
+        const res = await projectsApi.listDocuments(id);
+        if (!cancelled) setProcessDocuments(res.data || []);
+      } catch (err) {
+        console.error('[project_detail:process_documents] 列表加载失败:', err);
+        if (!cancelled) setProcessDocuments([]);
+      } finally {
+        if (!cancelled) setProcessDocumentsLoading(false);
+      }
+    };
+    void loadProcessDocuments();
+    return () => { cancelled = true; };
   }, [id]);
 
   const handleDelete = async () => {
@@ -262,6 +286,21 @@ export default function ProjectDetail() {
     }
   };
 
+  const handleViewProcessDocument = async (document: ProjectDocument) => {
+    if (!id) return;
+    setViewingProcessDocument({ name: document.name, content: '正在加载文档...' });
+    try {
+      const res = await projectsApi.getDocument(id, document.stage);
+      setViewingProcessDocument({
+        name: document.name,
+        content: res.data?.content || '此文档暂无内容',
+      });
+    } catch (err) {
+      console.error('[project_detail:process_documents] 正文加载失败:', err);
+      setViewingProcessDocument({ name: document.name, content: '文档加载失败，请稍后重试。' });
+    }
+  };
+
   // 在线预览 PDF：生成后在新窗口用浏览器原生查看器阅读
   const handlePreviewPdf = async (documentType: 'proposal' | 'technical' | 'final') => {
     if (!project?.id) return;
@@ -350,12 +389,6 @@ export default function ProjectDetail() {
       sessionStorage.setItem('finestem_restore_project', JSON.stringify(fallbackRestoreData));
     }
     navigate('/create');
-  };
-
-  // 「AI 讲解代码」：复用进入工作台的恢复链路，附加 pending_action 让工作台自动发讲解提示词
-  const handleExplainCode = async () => {
-    sessionStorage.setItem('finestem_pending_action', 'explain');
-    await handleEnterCodeEditor();
   };
 
   // ========== 精选管理操作（仅管理员/作者）==========
@@ -657,6 +690,23 @@ export default function ProjectDetail() {
                 </CardContent>
               </Card>
             )}
+
+            <Card data-testid="process-documents-card">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <FolderOpen className="h-4 w-4 text-teal-600" />
+                  过程文档
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ProcessDocumentList
+                  documents={processDocuments}
+                  loading={processDocumentsLoading}
+                  emptyMessage="暂无过程文档，完成对应阶段后自动生成"
+                  onView={(document) => void handleViewProcessDocument(document)}
+                />
+              </CardContent>
+            </Card>
 
             {/* 导出与文档（从右侧边栏移下来） */}
             <Card>
@@ -1032,6 +1082,14 @@ export default function ProjectDetail() {
           </div>
         </div>
       </div>
+
+      {viewingProcessDocument && (
+        <DocumentViewerModal
+          title={viewingProcessDocument.name}
+          content={viewingProcessDocument.content}
+          onClose={() => setViewingProcessDocument(null)}
+        />
+      )}
 
       {/* 讲解文档查看弹窗（渲染方式同 ProjectFilesPanel 文档查看） */}
       {showExplanationModal && explanationDoc && (

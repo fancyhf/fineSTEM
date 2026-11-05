@@ -46,7 +46,7 @@ from app.schemas.common import ApiResponse, PaginationResult
 from app.schemas.auth import UserResponse
 from app.repositories.runtime_db import db
 from app.api.auth import get_current_user, require_admin
-from app.services.document_service import document_service
+from app.services.document_service import build_process_documents, document_service
 from app.services.pbl_engine import advance_with_gate, save_artifact
 from app.services.stage08_sync import build_stage08_payload, merge_stage08_into_standard_data
 from app.services.demo_fork import build_demo_workspace_payload
@@ -1336,30 +1336,12 @@ async def append_project_explanation(
 
 # ── 项目文档列表/内容接口（阶段工件浏览） ───────────────────────────
 
-# 阶段工件元数据：阶段标识 → (工件名, 显示名, blob_key, 文件名)
-_ARTIFACT_META = [
-    ("stage_01_brainstorm", "头脑风暴", "brainstorm_content", "00_brainstorm.md"),
-    ("stage_02_opening",    "开题立项", "brief_content",      "01_project_brief.md"),
-    ("stage_03_scope",      "范围裁剪", "constraints_content", "02_constraints.md"),
-    ("stage_04_track",      "技术轨道", "track_plan_content",  "03_track_plan.md"),
-    ("stage_05_design",     "设计蓝图", "design_content",      "04_design.md"),
-    ("stage_06_plan",       "分步计划", "step_plan_content",   "05_step_plan.md"),
-    ("stage_07_execute",    "开发日志", "dev_log_content",     "06_dev_log.md"),
-    ("stage_08_review",     "验收评估", "evaluate_content",    "07_evaluation.md"),
-    # 讲解文档（2026-07-31）：跨阶段累加式工件，伪阶段键 explanation
-    ("explanation",         "讲解文档", "explanation_content", "08_code_explanation.md"),
-]
-
-
 @router.get("/{project_id}/documents", response_model=ApiResponse[list])
 async def list_project_documents(
     project_id: str,
     current_user: UserResponse = Depends(get_current_user),
 ):
-    """
-    获取项目阶段文档列表（从 standard_step_data 和 light_step_data 中提取）
-    返回每个文档的：阶段、名称、是否有内容、摘要
-    """
+    """作者文档列表与公开读取共用同一套标准/轻量项目文档构造。"""
     project = db.get_project(project_id)
     if not project:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
@@ -1369,32 +1351,11 @@ async def list_project_documents(
     skill_state = db.get_skill_state(project_id)
     if not skill_state:
         return ApiResponse(data=[], message="项目状态不存在")
-
-    documents = []
-    standard_data = skill_state.standard_step_data or {}
-    light_data = {}
-    if skill_state.light_step_data:
-        light_data = skill_state.light_step_data.model_dump() if hasattr(skill_state.light_step_data, 'model_dump') else {}
-
-    for stage, display_name, blob_key, filename in _ARTIFACT_META:
-        content = ""
-        # 优先从 standard_step_data 获取
-        if isinstance(standard_data, dict):
-            content = str(standard_data.get(blob_key, "") or "")
-        # 回退到 light_step_data
-        if not content and isinstance(light_data, dict):
-            content = str(light_data.get(blob_key, "") or "")
-
-        documents.append({
-            'stage': stage,
-            'name': display_name,
-            'filename': filename,
-            'has_content': bool(content.strip()),
-            'summary': content[:200] if content else "",
-            'content_length': len(content),
-        })
-
-    return ApiResponse(data=documents, message="获取成功")
+    documents = build_process_documents(skill_state.model_dump(mode="json"))
+    return ApiResponse(
+        data=[document.model_dump(mode="json") for document in documents],
+        message="获取成功",
+    )
 
 
 @router.get("/{project_id}/documents/{stage}", response_model=ApiResponse[dict])
@@ -1403,9 +1364,7 @@ async def get_project_document(
     stage: str,
     current_user: UserResponse = Depends(get_current_user),
 ):
-    """
-    获取指定阶段文档的完整内容
-    """
+    """作者按稳定阶段键读取同公开页一致的完整可读正文。"""
     project = db.get_project(project_id)
     if not project:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
@@ -1415,36 +1374,11 @@ async def get_project_document(
     skill_state = db.get_skill_state(project_id)
     if not skill_state:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目状态不存在")
-
-    # 查找对应阶段的工件元数据
-    artifact_info = None
-    for s, display_name, blob_key, filename in _ARTIFACT_META:
-        if s == stage:
-            artifact_info = (display_name, blob_key, filename)
-            break
-
-    if not artifact_info:
+    documents = build_process_documents(skill_state.model_dump(mode="json"))
+    document = next((item for item in documents if item.stage == stage), None)
+    if document is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"未知阶段: {stage}")
-
-    display_name, blob_key, filename = artifact_info
-    standard_data = skill_state.standard_step_data or {}
-    light_data = {}
-    if skill_state.light_step_data:
-        light_data = skill_state.light_step_data.model_dump() if hasattr(skill_state.light_step_data, 'model_dump') else {}
-
-    content = ""
-    if isinstance(standard_data, dict):
-        content = str(standard_data.get(blob_key, "") or "")
-    if not content and isinstance(light_data, dict):
-        content = str(light_data.get(blob_key, "") or "")
-
-    return ApiResponse(data={
-        'stage': stage,
-        'name': display_name,
-        'filename': filename,
-        'content': content,
-        'has_content': bool(content.strip()),
-    }, message="获取成功")
+    return ApiResponse(data=document.model_dump(mode="json"), message="获取成功")
 
 
 @router.get("/{project_id}/achievement-draft", response_model=ApiResponse[Optional[dict]])

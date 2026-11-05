@@ -25,6 +25,7 @@ import {
   FileEntry,
   ProjectDocument,
   ProjectDocumentDetail,
+  PublicProjectDocument,
   CodeTemplate,
   CodeTemplateDetail,
   AchievementCard,
@@ -599,6 +600,9 @@ export const chatApi = {
 };
 
 export const documentsApi = {
+  /** 匿名读取公开成果卡关联项目的过程文档 */
+  listPublic: (cardId: string) =>
+    api.get<PublicProjectDocument[]>(`/documents/public/${cardId}`),
   generate: (
     projectId: string,
     documentType: 'proposal' | 'technical' | 'final',

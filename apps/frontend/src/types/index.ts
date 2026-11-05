@@ -352,6 +352,11 @@ export interface ProjectDocumentDetail {
   has_content: boolean;
 }
 
+export interface PublicProjectDocument extends ProjectDocumentDetail {
+  summary: string;
+  content_length: number;
+}
+
 // 代码模板
 export interface CodeTemplate {
   id: string;
