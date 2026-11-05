@@ -4,7 +4,7 @@
 - created_at: 2026-11-05 07:40:08.696
 - maintainer: AI Agent
 - deployed_at: 2026-11-05 12:39:42.070
-- status: 修正版已部署；公开主页常驻文档与 JSON 可读化生产验收通过；**v1.1（§7，2026-11-05 晚）：真实数据三份报告复测不达标问题已修（附录全文设计，实测 ≈18050 字符/份），待随下一轮部署发布**
+- status: 修正版已部署；公开主页常驻文档与 JSON 可读化生产验收通过；**v1.1（§7，2026-11-05 晚）：真实数据三份报告复测不达标问题已修（附录全文设计，实测 ≈18050 字符/份），已于 2026-11-05 22:28 部署生产并通过只读验收（§7.7）**
 
 ## 0. 结论
 
@@ -200,7 +200,7 @@
 
 - 四项改造代码已由上一轮会话提交：commit `5d6e2c6`（feat(apps): 文档与成果展示功能、PBL 引擎及配套测试，2026-11-05 21:40，含 v1.0/v1.1 之前全部文件；本单 §1/§6 所述"未提交 Git commit"已被该提交取代）。
 - 生产当前运行 v1.0 修正版（§3/§6 三次部署的产物）：**公开页过程文档、作者页过程文档卡、公开端点、UTF-8 校验均已在生产生效并通过验收；唯报告拼装仍为 v1.0 摘要方案（开题/结题字数不达标）。**
-- v1.1 修正（`document_service.py` + `test_documents.py`）目前仅在工作树，**待部署**。
+- v1.1 修正（`document_service.py` + `test_documents.py`）已于 2026-11-05 22:28 部署生产，**部署与验收记录见 §7.7**。
 
 ### 7.5 给部署 Agent 的增量部署指令草稿（v1.1）
 
@@ -219,3 +219,15 @@
 - 本轮**未部署、未重启任何服务、未写生产**；对生产的全部请求为：匿名 GET（公开文档端点、登录、报告生成、项目/进度/证据/成果卡只读读取）。登录与报告生成均为任务书明确授权的验证通道，报告生成为 GET 只读。
 - 本轮仅改动本地 `apps/backend/app/services/document_service.py` 与 `apps/backend/tests/test_documents.py` 两个文件（外加本交付文档与 staging 报告留存），未触碰 04f835ac 之外任何数据，未动九阶段推进逻辑/门禁/账号体系/Know 子系统/`save_standard_step`。
 - 工作树中 `交付/F_媒体制作/sources/工程脚本/` 的改动系他人并行工作，本轮未触碰。
+
+## 8. v1.1 生产部署记录（2026-11-05 22:28，部署 Agent）
+
+- 部署范围：**仅 `document_service.py` 单文件**（§7.5 增量），`test_documents.py` 不上线。
+- 备份：`/opt/finestem/backups/report-v11-20261105-222814/`（v1.0 版 `document_service.py`，17834 字节）。
+- 上传与校验：经 IDE Lighthouse 集成上传至服务器暂存目录后核验——18145 字节与本地验证版字节一致，含 `## 附录：过程文档全文` 章节定义，旧常量 `REPORT_SUMMARY_LENGTH` 已移除。
+- 安装：`python3 -m py_compile` 语法检查通过后覆盖 `/opt/finestem/app/app/services/document_service.py`，属主 `root:root`、权限 `644`。
+- 重启：`systemctl restart finestem-backend` → `active`；日志 `Application startup complete`，Uvicorn 运行于 `127.0.0.1:8001`，无报错。
+- 只读验收：`GET /health` → 200；匿名公开卡 `GET /api/v1/documents/public/5107fb7b-745b-4087-a3f1-9e4d9976caee` → 200 且 9 份文档全部 `has_content=true`；不存在卡 → 404。
+- 未验证项（如实声明）：三份报告真实数据字符数复测（§7.5 第 4 步后半）需作者账号登录，本轮无该凭据未执行；达标依据为 §7.3 本地重建实测 ≈18050 字符/份 + 生产文件与该验证版字节一致。
+- 清理：服务器暂存目录与本地暂存目录均已删除；备份保留用于回滚。
+- 回滚方式：`cp /opt/finestem/backups/report-v11-20261105-222814/document_service.py /opt/finestem/app/app/services/` 后 `systemctl restart finestem-backend`。无数据库改动、无前端回滚面。

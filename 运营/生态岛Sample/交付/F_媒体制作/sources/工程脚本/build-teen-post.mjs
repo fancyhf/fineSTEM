@@ -21,10 +21,15 @@ const run = (args) => execFileSync(FFMPEG, args, { env: ENV, stdio: ["ignore", "
 const silence = (sec, file) => run(["-y", "-f", "lavfi", "-t", sec.toFixed(3), "-i", "anullsrc=r=24000:cl=mono", "-c:a", "pcm_s16le", file]);
 
 // ---------- 1) 逐镜音轨 + 全轨 + 时间轴 ----------
-const fmtTime = (t, comma = true) => {
+// SRT 用 HH:MM:SS,mmm；ASS 必须用 H:MM:SS.cc——本机 libass 对"2 位小时+3 位小数"会静默错乱事件
+// （v4 修复：此前 teen 烧录字幕全片错位/相邻事件叠显；parent 管线 v2 起已用 H:MM:SS.cc，本次 teen 同步）
+const fmtTime = (t) => {
   const h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), s = t % 60;
-  const ms = comma ? "," : ".";
-  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(Math.floor(s)).padStart(2, "0")}${ms}${String(Math.round((s - Math.floor(s)) * 1000)).padStart(3, "0")}`;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(Math.floor(s)).padStart(2, "0")},${String(Math.round((s - Math.floor(s)) * 1000)).padStart(3, "0")}`;
+};
+const fmtTimeAss = (t) => {
+  const h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), s = t % 60;
+  return `${h}:${String(m).padStart(2, "0")}:${String(Math.floor(s)).padStart(2, "0")}.${String(Math.round((s - Math.floor(s)) * 100)).padStart(2, "0")}`;
 };
 
 let segOffset = 0;
@@ -96,7 +101,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 `;
 const assEvents = subs.map(s => {
   const lines = splitLines(s.text);
-  return `Dialogue: 0,${fmtTime(s.start, false)},${fmtTime(s.end, false)},Sub,,0,0,0,,${lines.join("\\N")}`;
+  return `Dialogue: 0,${fmtTimeAss(s.start)},${fmtTimeAss(s.end)},Sub,,0,0,0,,${lines.join("\\N")}`;
 }).join("\n");
 writeFileSync(`${TMP}/teen.ass`, "\uFEFF" + assHeader + assEvents + "\n", "utf8");
 
