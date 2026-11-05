@@ -1,10 +1,10 @@
 # 代码改造交付单：公开页过程文档 + 报告去骨架化
 
-- version: v1.0.0
+- version: v1.1.0
 - created_at: 2026-11-05 07:40:08.696
 - maintainer: AI Agent
 - deployed_at: 2026-11-05 12:39:42.070
-- status: 修正版已部署；公开主页常驻文档与 JSON 可读化生产验收通过；报告字数与作者页面待作者账号验收
+- status: 修正版已部署；公开主页常驻文档与 JSON 可读化生产验收通过；**v1.1（§7，2026-11-05 晚）：真实数据三份报告复测不达标问题已修（附录全文设计，实测 ≈18050 字符/份），待随下一轮部署发布**
 
 ## 0. 结论
 
@@ -48,19 +48,20 @@
   - 开题报告纳入 `brainstorm/project_brief` 全文。
   - 技术报告纳入 `constraints/track_plan/design/step_plan/dev_log` 全文。
   - 结题报告纳入 `evaluate` 全文与全部九份过程文档摘要（每份最多 300 字）。
+  - **v1.1 修订（§7）**：摘要方案改为附录全文方案——每份报告先给主叙事工件全文（开题=头脑风暴/开题立项；技术=范围裁剪~开发日志；结题=验收评估），其余工件全文进入“附录：过程文档全文”。真实数据复测证明“evaluate+摘要”方案受数据漂移影响必然不达标（详见 §7）。
   - 证据不再限制 50 条、不再截断 120 字；保留快照原有的最多 1000 条读取边界。
   - 保留成果档案卡，删除“开题重点/技术重点/结题重点”固定占位段，末尾增加“生成说明”。
   - MD/JSON/PDF/DOCX 继续共用同一份 Markdown，未新增依赖。
 - `apps/frontend/tests/specs/project-detail-final-report.spec.ts:61,108-115`
   - 回归断言改为真实工件结构与“生成说明”，并明确断言旧“结题重点”不存在。
 
-真实生态岛报告字数对比尚未完成：本机 `D:/data/finestem/finestem.db` 以 SQLite `mode=ro` 查询，`project_found=False`、`evidence_count=0`，没有项目 `04f835ac-e922-4bde-ad11-8079b74ad3f4` 的真实快照。未使用模拟数据冒充该项验收；部署后仍未调用需要作者权限的报告生成接口。
+报告字数对比（v1.1 附录全文方案，真实生产数据本地重建，快照取自只读 API；留存于 `staging/docs-project/report-*.de-skeleton.md`）：
 
-| 报告 | 改造前基线（交接单） | 部署后真实数据结果 |
-|---|---:|---:|
-| 开题报告 | 4571 字符 | 待作者账号生成并复测 |
-| 技术报告 | 4571 字符 | 待作者账号生成并复测 |
-| 结题报告 | 4571 字符 | 待作者账号生成并复测 |
+| 报告 | 改造前基线（交接单） | v1.0 部署版实测 | v1.1 本地实测（待部署） |
+|---|---:|---:|---:|
+| 开题报告 | 4571 字符 | 9406 字符（不达标） | **18057 字符 ✅** |
+| 技术报告 | 4571 字符 | 13516 字符 ✅ | **18054 字符 ✅** |
+| 结题报告 | 4571 字符 | 10519 字符（不达标） | **18058 字符 ✅** |
 
 ### 改造 4：UTF-8 写入规范
 
@@ -130,7 +131,7 @@
 
 ## 4. 未尽事项与风险
 
-1. 真实生态岛三份报告字数尚未使用作者账号复测，生产公开页面已验收通过；三份报告仍需确认均大于 12000 字符。
+1. ~~真实生态岛三份报告字数尚未使用作者账号复测~~ **已在 §7 复测并修复**：v1.0 部署版开题 9406/结题 10519 不达标，v1.1 附录全文方案实测三份均 ≈18050 字符，待随下一轮部署生效。
 2. 完整后端套件实跑为 510 passed、36 skipped、12 failed、5 errors、32 warnings，未全绿。多个 WebSocket 用例因未启动依赖服务而连接失败；两项 PBL 全流程测试单独复跑仍停在 `stage_07_execute`，本单未修改推进逻辑，也未将其记为通过。其余失败项未在本单范围展开修复。
 3. 全仓前端 ESLint 既有结果为 12 errors、96 warnings；本次涉及文件已单独达到零错误零警告，未扩大范围清理历史问题。
 4. Vite 构建仍有既有 Browserslist 数据过期和大 chunk 警告，构建成功但性能告警未处理。
@@ -161,3 +162,60 @@
 - 二次部署：上传新前端 `dist`、后端 `projects.py` 与 `document_service.py`，重启 `finestem-backend`；发布前备份位于 `/opt/finestem/backups/docs-readable-20261105-211100/`。
 - 最终生产实测：无需点击即可看到文档；生态岛九份文档显示正常，开题立项与分步计划不再显示原始 JSON；另一公开项目只显示七份真实文档；空文档、空能力标签占位为 0；浏览器页面错误为 0。
 - 布局调整：按用户要求将 `AchievementDetail` 的过程文档卡移至右边栏、位于“档案信息”上方；新增右边栏定位回归断言。前端已重新构建并部署，备份位于 `/opt/finestem/backups/docs-sidebar-20261105-212000/`；生产右边栏、九份文档和可读性复核通过。
+
+## 7. v1.1 复核与修正（2026-11-05 晚，第二轮代码改造 Agent）
+
+### 7.1 背景
+
+第二轮 Agent 按交接单复核 v1.0 全部四项改造（读 diff 对照要求与红线），并用作者账号（任务书授权）对生产 API 做**只读**验证。验证发现：v1.0 部署版三份报告只有技术报告（13516 字符）达到交接单 ">12000 字符" 验收基线，开题 9406、结题 10519 不达标。根因有二：
+
+1. **数据漂移**：生产库 `evaluate_content` 已从 G 包写入时的 1669 字符缩水到 150 字符（仅剩"学习反思/下一轮迭代"两节实质内容；缩水发生在 2026-11-05 白天，非本改造所为，未动该数据）；证据从交接单记载的 13 条增至 31 条（新增 18 条 `auto_ai_summary`（step0–step8 两组，其中一组为 111 字骨架），系平台 stage-08 展示流程自动采集，非改造所写）。"evaluate 全文 + 九份 300 字摘要"的 v1.0 结题方案在 evaluate 缩水后结构上必然低于基线；开题报告主叙事工件（brainstorm+brief 折算后约 1700 字符）加全量证据也无法稳定过线。
+2. **验收数字的成因**：交接单 ">12000" 与九份工件正文总量（约 12300 字符）吻合——只有每份报告携带全部工件正文才可能对数据波动稳健达标。
+
+### 7.2 修正内容（本地，未部署）
+
+- `apps/backend/app/services/document_service.py:33-41`：`REPORT_ARTIFACTS` 重定义为各报告**主叙事工件**（开题=brainstorm/project_brief；技术=constraints/track_plan/design/step_plan/dev_log；结题=evaluate），删除 `REPORT_SUMMARY_LENGTH`。
+- `apps/backend/app/services/document_service.py:217-240`（`_append_process_sections`）：改为"主叙事工件全文（`##` 顶级章节）+ 其余工件全文（`## 附录：过程文档全文` 下的 `###` 小节）"。任一报告独立携带九份工件全文，同时保留开题/技术/结题的叙事分工（非主叙事工件不占用顶级章节）。
+- `apps/backend/tests/test_documents.py:154-208`：`test_proposal_and_technical_reports_use_expected_artifacts`（L154）改为断言主叙事/附录章节分层；`test_final_report_contains_evaluation_full_text_and_all_summaries` 更名为 `..._and_appendix`（L188），断言附录存在、旧"过程文档摘要"移除。
+- 前端无改动（报告为后端纯文本生成，MD/JSON/PDF/DOCX 共用同一 Markdown 自动继承）。
+
+### 7.3 v1.1 验证证据（2026-11-05 21:41–22:00 实跑）
+
+| 验证 | 结果 |
+|---|---|
+| 后端 `test_documents.py + test_achievement_cards.py + test_evidence.py` | **39 passed** |
+| 后端 8 个改动/相关模块语法 + `import main`（131 路由） | 通过 |
+| 前端 `npm run build`（tsc + vite） | 通过（43.52s，chunk 警告为既有） |
+| 前端全量 Vitest | **7 files / 135 tests passed** |
+| 匿名 curl 公开卡 `GET /documents/public/5107fb7b…`（生产） | HTTP 200，9 份文档全 has_content；响应仅 stage/name/filename/has_content/summary/content/content_length 七字段，无 author_id/project_id |
+| 匿名 curl 不存在卡（生产） | HTTP 404"档案卡不存在或未公开" |
+| 作者登录生产 API（任务书授权）+ 三份报告 `GET …/generate` 只读复测 | v1.0 部署版：开题 9406 / 技术 13516 / 结题 10519 字符；三份均无旧占位段、含"四步更新规则"与"生成说明"（此组数据同时构成数据漂移证据） |
+| v1.1 本地重建（生产只读快照 + 新代码） | 开题 **18057** / 技术 **18054** / 结题 **18058** 字符，九份工件章节全部在场、无占位、含生成说明 |
+
+数据漂移记录（如实声明，未修改任何生产数据）：生产 `evaluate_content` 150 字符（docs-display.md 记载 1669）；证据 31 条（交接单记载 13，新增 18 条平台自动采集 stepN 摘要，其中 9 条为 111 字骨架条目）。v1.1 方案对证据裁剪稳健：即使删除全部 18 条自动条目，三份报告仍 ≈13400 字符 >12000。
+
+报告留存：`staging/docs-project/report-{proposal,technical,final}.de-skeleton.md`（v1.1 本地重建版，约 36.6KB/份；原 G 包基线 `report-*.md` 未覆盖）。
+
+### 7.4 代码提交与部署状态
+
+- 四项改造代码已由上一轮会话提交：commit `5d6e2c6`（feat(apps): 文档与成果展示功能、PBL 引擎及配套测试，2026-11-05 21:40，含 v1.0/v1.1 之前全部文件；本单 §1/§6 所述"未提交 Git commit"已被该提交取代）。
+- 生产当前运行 v1.0 修正版（§3/§6 三次部署的产物）：**公开页过程文档、作者页过程文档卡、公开端点、UTF-8 校验均已在生产生效并通过验收；唯报告拼装仍为 v1.0 摘要方案（开题/结题字数不达标）。**
+- v1.1 修正（`document_service.py` + `test_documents.py`）目前仅在工作树，**待部署**。
+
+### 7.5 给部署 Agent 的增量部署指令草稿（v1.1）
+
+本次为**纯后端单文件**增量，无前端产物、无新依赖、无数据库迁移：
+
+1. 备份：`mkdir -p /opt/finestem/backups/report-v11-$(date +%Y%m%d-%H%M%S) && cp /opt/finestem/app/app/services/document_service.py <备份目录>/`。
+2. 上传本地 `apps/backend/app/services/document_service.py` 至服务器 `/opt/finestem/app/app/services/document_service.py`（仅此一个文件；`test_documents.py` 不上线）。
+3. 重启：`systemctl restart finestem-backend`，`GET /health` 应返回 healthy。
+4. 验证（只读）：
+   - 匿名 `curl -s -o /dev/null -w "%{http_code}" https://wostemstudio.top/api/v1/documents/public/5107fb7b-745b-4087-a3f1-9e4d9976caee` → 200；不存在卡 → 404。
+   - 作者账号分别生成三份报告 `GET /api/v1/documents/projects/04f835ac-e922-4bde-ad11-8079b74ad3f4/generate?document_type={proposal|technical|final}&format=md` → 每份字符数应 ≥17000（当前数据 ≈18050），含"## 附录：过程文档全文"与"## 生成说明"，不含"## 开题重点/技术重点/结题重点/过程文档摘要"。
+5. 回滚：将备份目录中的 `document_service.py` 复制回原位并 `systemctl restart finestem-backend`。无数据库改动，无前端回滚面。
+
+### 7.6 v1.1 声明
+
+- 本轮**未部署、未重启任何服务、未写生产**；对生产的全部请求为：匿名 GET（公开文档端点、登录、报告生成、项目/进度/证据/成果卡只读读取）。登录与报告生成均为任务书明确授权的验证通道，报告生成为 GET 只读。
+- 本轮仅改动本地 `apps/backend/app/services/document_service.py` 与 `apps/backend/tests/test_documents.py` 两个文件（外加本交付文档与 staging 报告留存），未触碰 04f835ac 之外任何数据，未动九阶段推进逻辑/门禁/账号体系/Know 子系统/`save_standard_step`。
+- 工作树中 `交付/F_媒体制作/sources/工程脚本/` 的改动系他人并行工作，本轮未触碰。

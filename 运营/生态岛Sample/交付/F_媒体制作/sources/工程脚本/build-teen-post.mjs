@@ -1,4 +1,6 @@
 // 少年视频后期：逐镜音轨（旁白+静音补齐）→ 全轨 → SRT/ASS 字幕 → 拼接+烧录+混流
+// v4（2026-11-05）：输出名升级 v4（岛民口径稿）；镜 6（平台实录 seg6，60s 真实操作 take 的剪接入片）
+//   以 segments 清单里的 offset/sgap 参数化接入（offset=8.0 对位动作，见 record-shot6-v3.mjs 文件头），字幕全量 102 句。
 import { execFileSync } from "node:child_process";
 import { writeFileSync, readFileSync, mkdirSync, rmSync } from "node:fs";
 
@@ -63,7 +65,7 @@ run(["-y", "-i", `${TMP}/full-24k.wav`, "-af", "loudnorm=I=-16:TP=-1.5:LRA=11", 
 
 // ---------- 2) SRT + ASS ----------
 const srt = subs.map((s, i) => `${i + 1}\n${fmtTime(s.start)} --> ${fmtTime(s.end)}\n${s.text}\n`).join("\n");
-writeFileSync(`${OUTDIR}/生态岛-少年操作讲解-v3.srt`, "\uFEFF" + srt, "utf8");
+writeFileSync(`${OUTDIR}/生态岛-少年操作讲解-v4.srt`, "\uFEFF" + srt, "utf8");
 
 // ASS：双语行拆分（≤26 字符/行，按标点贪心），底部居中，雅黑粗体
 function splitLines(text, max = 26) {
@@ -101,7 +103,7 @@ writeFileSync(`${TMP}/teen.ass`, "\uFEFF" + assHeader + assEvents + "\n", "utf8"
 // ---------- 3) 视频拼接 + 烧字幕 + 混流 ----------
 const videoList = segments.map(s => `file '${s.file.replace(/\\/g, "/")}'`).join("\n");
 writeFileSync(`${TMP}/video-list.txt`, videoList);
-const finalMp4 = `${OUTDIR}/生态岛-少年操作讲解-测试片-v3.mp4`;
+const finalMp4 = `${OUTDIR}/生态岛-少年操作讲解-测试片-v4.mp4`;
 execFileSync(FFMPEG, ["-y",
   "-f", "concat", "-safe", "0", "-i", "video-list.txt",
   "-i", "full-norm.wav",

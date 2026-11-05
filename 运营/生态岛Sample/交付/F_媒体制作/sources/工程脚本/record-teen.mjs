@@ -369,7 +369,7 @@ for (const t of shots) {
       await at(starts[2] + 0.3); await hover(tab(), ".stepLine");       // s3[2] 草>50加2 / <20减3
       await at(starts[3] + 0.3); await hover(tab(), ".stats");          // s3[3] 开局吃16长2
       await at(starts[4] + 0.2); await setSelect(tab(), "#speedSel", "slow"); // 🐢 0.6s一步：第9步抢拍窗口大
-      await at(17.8); await click(tab(), "#btnStart");                  // 定点起跑：第9步≈23.2s（s3[7] 23.08 起）
+      await at(19.4); await click(tab(), "#btnStart");                  // 定点起跑：第9步≈24.7s（v4 岛民口径稿 s3[7] 24.69 起；=starts[7]−5.28）
       await hover(tab(), "#btnPause");                                  // 提前把指针放到暂停键上
       const pz = await selCenter(tab(), "#btnPause");
       await poll(tab(), `vHerb.textContent`, "0", 30000);               // 第9步 动物归零
