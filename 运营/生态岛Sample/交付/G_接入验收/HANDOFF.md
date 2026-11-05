@@ -1,6 +1,6 @@
 # HANDOFF：G 包（平台接入与验收）
 
-日期：2026-11-03｜modelVersion: eco-island-v1（A 冻结）｜codeVersion: B reference v3（=线上 04f835ac 现行）｜contentVersion: 六包 2026-11-03 冻结稿 + G 暂存包 v1.0｜校验日期：2026-11-03｜交付状态：**两段全部完成（待复核）**｜适用运行入口：本地 B 包 HTML + 平台项目 04f835ac + Know 暂存包（draft，未发布）
+日期：2026-11-03｜modelVersion: eco-island-v1（A 冻结）｜codeVersion: B reference v3（=线上 04f835ac 现行）｜contentVersion: 六包 2026-11-03 冻结稿 + G 暂存包 v1.0｜校验日期：2026-11-03｜交付状态：**两段全部完成（待复核）；第三段 G-docs 主页过程文档填充与验证完成（2026-11-05，见 §8 与 docs-display.md）**｜适用运行入口：本地 B 包 HTML + 平台项目 04f835ac + Know 暂存包（draft，未发布）
 
 ## 1. 当前状态
 
@@ -72,3 +72,20 @@
 3. **"单步可越过 60 步"是否拦截**：A HANDOFF 变更建议 #2 悬置中；不拦截则建议在 Know 说明与 code-map 写明"60 步后仍可手动单步，数值仍确定性"。
 4. **发布走查标准化**：建议把 release-checklist §4.2 的"匿名视角全链走查"固化为每次 Know 发布的必检步骤（本 sample 之后复用）。
 5. （沿用第一段建议，仍有效）分享 token 清理交部署 Agent；分段协议维持写进 C 助教卡；缺陷②③修复后再录对话式复刻视频。
+
+## 8. G-docs 补充执行（2026-11-05）：主页过程文档填充、验证与平台改进需求
+
+**任务**：项目主页要显示项目过程中的文档（当时主页"导出与文档"区只有生成按钮，且生成的报告内容骨架化）。执行与详细记录：**docs-display.md**（本目录，含完整研究/操作/验证）。
+
+**做了什么**（作者账号，仅动 04f835ac；平台代码零改动）：
+1. 研究结论：主页文档显示面 = 在线查看报告（document_service 实时生成）+ 讲解回顾卡（explanation 工件）+ 证据面板；**8 份阶段文档在主页无列表区块**（只在工作台 ProjectFilesPanel，api.ts listDocuments 已封装未接线）；报告骨架化根因 = document_service._build_markdown 不读工件正文、每条证据只取前 120 字、结尾三段固定占位文案；**平台无面向页面的文档创建端点**（写入只有 AI 工具 artifact_writer 与测试用 POST /pbl/complete-stage 两条路）。
+2. 填充：按 PBL 门禁链顺序写入 8 份阶段工件（内容全部取自 A/B/C 包与 dev-log 真实记录，含真实失败与锚点数字），项目 current_stage 由 stage_01 推进至 stage_08（与项目真实已完成一致；**如实声明**：stage_history 追加的 7 个节点时间戳=本次补录时间）；讲解文档追加「stepModel 四步更新规则（给家长和孩子的讲解）」章节；证据补 3 条（知识来源与三类口径 8b006060 / 任务计划 4dad6581 / AI 帮助与分工 188cb720）至 13 条；顺手修复既有截图证据乱码标题（ÏîÄ¿ËµÃ÷¿¨→「项目说明卡」，GBK 双重编码，建议排查 evidence 上传链路编码）。evaluate_content 原为系统骨架已以实质内容覆盖（save_artifact 语义，原骨架无独有信息）。
+3. 验证：浏览器实测主页 + 截图 G-E003~G-E006b（见 G-E-index 第三段）；documents 列表 9/9 has_content；结题报告在线弹窗含 13 条证据清单；讲解回顾显示 3 段含新章节。三份报告 md 留存 staging/docs-project/。
+
+**平台改进需求（给平台/Apps 团队，按优先级）**：
+- **P1 主页直显过程文档**：ProjectDetail 增加「过程文档」卡，复用现成 `GET /projects/{id}/documents[/{stage}]`（api.ts listDocuments/getDocument 已封装），列表+弹窗阅读组件化自 ProjectFilesPanel；无需新后端。
+- **P1 报告去骨架化**：document_service._build_markdown 纳入 standard_step_data 的 `*_content` 工件正文（节选或全文），替换"开题重点/技术重点/结题重点"三段固定占位——数据已在 _snapshot，纯模板改动。
+- **P2 正式的文档写入端点**：如需支持作者/家长在页面补写过程文档，增加带门禁的 `PUT /projects/{id}/documents/{stage}`（复用 save_artifact），complete-stage 明确标注测试专用。
+- **P3 证据编码**：evidence 上传/展示链路的标题编码排查（本例 GBK→Latin-1 双重编码，仅 1 条受影响，已修复数据）。
+
+**编号与遗留**：G-E003–G-E006b 已被本任务占用（HANDOFF §6"发布走查登记 G-E003"的预留作废，下一可用编号 G-E007）；其余遗留（分享 token 清理、缺陷②③④⑤、待拍板 9 项）不变。

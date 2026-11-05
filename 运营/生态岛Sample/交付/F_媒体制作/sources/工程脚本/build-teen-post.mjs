@@ -63,7 +63,7 @@ run(["-y", "-i", `${TMP}/full-24k.wav`, "-af", "loudnorm=I=-16:TP=-1.5:LRA=11", 
 
 // ---------- 2) SRT + ASS ----------
 const srt = subs.map((s, i) => `${i + 1}\n${fmtTime(s.start)} --> ${fmtTime(s.end)}\n${s.text}\n`).join("\n");
-writeFileSync(`${OUTDIR}/生态岛-少年操作讲解.srt`, "\uFEFF" + srt, "utf8");
+writeFileSync(`${OUTDIR}/生态岛-少年操作讲解-v3.srt`, "\uFEFF" + srt, "utf8");
 
 // ASS：双语行拆分（≤26 字符/行，按标点贪心），底部居中，雅黑粗体
 function splitLines(text, max = 26) {
@@ -101,7 +101,7 @@ writeFileSync(`${TMP}/teen.ass`, "\uFEFF" + assHeader + assEvents + "\n", "utf8"
 // ---------- 3) 视频拼接 + 烧字幕 + 混流 ----------
 const videoList = segments.map(s => `file '${s.file.replace(/\\/g, "/")}'`).join("\n");
 writeFileSync(`${TMP}/video-list.txt`, videoList);
-const finalMp4 = `${OUTDIR}/生态岛-少年操作讲解-测试片-v2.mp4`;
+const finalMp4 = `${OUTDIR}/生态岛-少年操作讲解-测试片-v3.mp4`;
 execFileSync(FFMPEG, ["-y",
   "-f", "concat", "-safe", "0", "-i", "video-list.txt",
   "-i", "full-norm.wav",
