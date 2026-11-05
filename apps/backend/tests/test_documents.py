@@ -153,22 +153,45 @@ def test_reports_include_full_process_content_and_generation_note(document_type:
 
 def test_proposal_and_technical_reports_use_expected_artifacts():
     snapshot = _report_snapshot()
+    technical_display_names = {
+        "constraints": "范围裁剪",
+        "track_plan": "轨道选择",
+        "design": "设计蓝图",
+        "step_plan": "分步计划",
+        "dev_log": "开发日志",
+    }
 
     proposal = DocumentService()._build_markdown("proposal", snapshot)
     technical = DocumentService()._build_markdown("technical", snapshot)
 
-    assert "brainstorm正文标记" in proposal
-    assert "project_brief正文标记" in proposal
-    assert "design正文标记" not in proposal
-    for artifact_name in ("constraints", "track_plan", "design", "step_plan", "dev_log"):
+    # 主叙事工件以顶级章节出现在对应报告中
+    assert "## 头脑风暴" in proposal
+    assert "## 开题立项" in proposal
+    for artifact_name, display_name in technical_display_names.items():
+        assert f"## {display_name}" in technical
+
+    # 其余工件全文进入附录，任一报告都完整携带九份工件正文
+    assert "## 附录：过程文档全文" in proposal
+    assert "## 附录：过程文档全文" in technical
+    for artifact_name in PROCESS_ARTIFACT_ORDER:
+        assert f"{artifact_name}正文标记" in proposal
         assert f"{artifact_name}正文标记" in technical
 
+    # 非主叙事工件不占用顶级章节，避免开题报告冒充全过程叙事
+    proposal_top_headings = {line for line in proposal.splitlines() if line.startswith("## ")}
+    technical_top_headings = {line for line in technical.splitlines() if line.startswith("## ")}
+    assert "## 设计蓝图" not in proposal_top_headings
+    assert "### 设计蓝图" in proposal
+    assert "## 头脑风暴" not in technical_top_headings
 
-def test_final_report_contains_evaluation_full_text_and_all_summaries():
+
+def test_final_report_contains_evaluation_full_text_and_appendix():
     report = DocumentService()._build_markdown("final", _report_snapshot())
 
     assert "evaluate正文标记" + ("\n" + "完整过程内容" * 100) in report
-    assert "## 过程文档摘要" in report
+    assert "## 验收评估" in report
+    assert "## 附录：过程文档全文" in report
+    assert "## 过程文档摘要" not in report
     for artifact_name in PROCESS_ARTIFACT_ORDER:
         assert f"{artifact_name}正文标记" in report
 

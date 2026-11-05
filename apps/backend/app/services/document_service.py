@@ -27,16 +27,17 @@ from app.services.stage_constants import (
 )
 
 DOCUMENT_SUMMARY_LENGTH = 100
-REPORT_SUMMARY_LENGTH = 300
 REPORT_TITLES: dict[DocumentType, str] = {
     "proposal": "开题报告",
     "technical": "技术报告",
     "final": "结题报告",
 }
+# 各报告的主叙事工件（对应开题/中期/结题的语义分工）；其余工件全文进入附录，
+# 保证任一份报告都独立携带全部 9 份过程文档正文（验收基线 >12000 字符）。
 REPORT_ARTIFACTS: dict[DocumentType, tuple[str, ...]] = {
     "proposal": ("brainstorm", "project_brief"),
     "technical": ("constraints", "track_plan", "design", "step_plan", "dev_log"),
-    "final": (),
+    "final": ("evaluate",),
 }
 
 
@@ -216,21 +217,26 @@ def build_process_documents(progress: dict[str, Any]) -> list[PublicProjectDocum
 def _append_process_sections(
     lines: list[str], document_type: DocumentType, artifacts: dict[str, str]
 ) -> None:
-    """将真实工件全文或摘要追加到对应报告。"""
-    if document_type != "final":
-        for artifact_name in REPORT_ARTIFACTS[document_type]:
-            display_name = ARTIFACT_DISPLAY_NAMES[artifact_name]
-            content = format_document_content(artifacts[artifact_name])
-            lines.extend(["", f"## {display_name}", content or f"暂无{display_name}文档"])
-        return
-
-    evaluate_content = format_document_content(artifacts["evaluate"])
-    lines.extend(["", "## 验收评估", evaluate_content or "暂无验收评估文档"])
-    lines.extend(["", "## 过程文档摘要"])
-    for artifact_name in PROCESS_ARTIFACT_ORDER:
+    """主叙事工件全文置顶，其余过程文档全文进附录，任一报告都完整携带九份工件。"""
+    for artifact_name in REPORT_ARTIFACTS[document_type]:
+        display_name = ARTIFACT_DISPLAY_NAMES[artifact_name]
         content = format_document_content(artifacts[artifact_name])
-        summary = _document_summary(content, REPORT_SUMMARY_LENGTH) if content else "暂无文档"
-        lines.extend(["", f"### {ARTIFACT_DISPLAY_NAMES[artifact_name]}", summary])
+        lines.extend(["", f"## {display_name}", content or f"暂无{display_name}文档"])
+
+    appendix_names = [
+        artifact_name
+        for artifact_name in PROCESS_ARTIFACT_ORDER
+        if artifact_name not in REPORT_ARTIFACTS[document_type]
+    ]
+    lines.extend([
+        "",
+        "## 附录：过程文档全文",
+        "以下为项目其余阶段文档的完整正文，与主叙事部分共同构成完整过程档案。",
+    ])
+    for artifact_name in appendix_names:
+        display_name = ARTIFACT_DISPLAY_NAMES[artifact_name]
+        content = format_document_content(artifacts[artifact_name])
+        lines.extend(["", f"### {display_name}", content or f"暂无{display_name}文档"])
 
 
 class DocumentService:
