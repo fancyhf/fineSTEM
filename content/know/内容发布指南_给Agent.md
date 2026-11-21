@@ -37,7 +37,7 @@ Agent 源路径和 B 站 BV 号**，Agent 执行搬运入库（本 SOP）。
 
 ```
 content/know/
-├── PUBLISH.md                 ← 本文
+├── 内容发布指南_给Agent.md    ← 本文
 ├── index.json                 ← 频道名 + 首页主打位（featured）
 ├── assets/                    ← 公共资源（默认封面 SVG、自托管字体）
 └── series/<系列slug>/
