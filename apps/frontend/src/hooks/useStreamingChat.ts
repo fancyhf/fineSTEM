@@ -285,7 +285,7 @@ function buildOutgoingMessage(
           `【强制】如果是新会话或你不确定学生之前选过什么，第一件事必须调用 ` +
           `skill_state_reader（include 含 standard_step_data 和 metadata）读取已收集的学生画像` +
           `（metadata.student_profile）和各阶段工件，严禁重复问已答过的问题` +
-          `（如年级、兴趣、方向、选题等）。</memory_hint>`,
+          `（如年级、兴趣、方向、选题、时间预算等）——即使标准流程模板包含调研步骤也必须跳过。</memory_hint>`,
       );
     } else if (Array.isArray(studentProfile) && studentProfile.length > 0) {
       // 2026-07-30 失忆修复：初始化阶段（stage_00/无阶段）也要防重复问——
@@ -293,7 +293,8 @@ function buildOutgoingMessage(
       // 防重复指令，会重走初始化提问流程（用户反馈的"重复问阶段初始化问题"）。
       parts.push(
         `<memory_hint>学生已回答过 <context> 中 student_profile 列出的问题，` +
-          `严禁重复提问这些已有答案的问题（如年级、兴趣、方向），` +
+          `严禁重复提问这些已有答案的问题（如年级、兴趣、方向、选题、时间预算等），` +
+          `即使标准流程模板包含调研步骤也必须跳过，` +
           `请直接基于已有答案继续下一步。</memory_hint>`,
       );
     }
