@@ -1,0 +1,33 @@
+{
+  "slug": "ep04",
+  "episode_no": 4,
+  "title": "高三家长11月份抓紧做这些",
+  "summary": "两分多钟口播，讲 11 月里高三家长要做的几件准备，以及多元升学要提前备好的材料。",
+  "description_md": "11 月里的一支短口播，讲高三家长要做的几件准备，以及多元升学要提前备好的材料。\n\n视频把多元升学放在高考志愿方案之外，作为另一套安排来讲。要看每一步怎么建文件夹、发指令、打开文档，看《高三家长2027》那一集。\n\n下方资料包里有升学时间轴与家庭升学工作区，下载解压后可对照着排这段时间的准备。",
+  "audience": "parent",
+  "tags": ["多元升学", "高三", "升学准备", "口播"],
+  "status": "published",
+  "published_at": "2026-11-21",
+  "cover": "cover.jpg",
+  "default_tab": "parent-video",
+  "announce": {},
+  "resources": {
+    "videos": [
+      {
+        "id": "parent-video",
+        "audience": "parent",
+        "title": "高三家长11月份 · 短口播",
+        "embed_url": "//player.bilibili.com/player.html?bvid=BV1CPWq6BEY6&autoplay=0",
+        "page": "https://www.bilibili.com/video/BV1CPWq6BEY6"
+      }
+    ],
+    "docs": [
+      {
+        "title": "跟做资料包 · 家庭升学工作区（Gitee 下载）",
+        "path": "https://gitee.com/fancyhf/duoyuan-shengxuebuchou",
+        "format": "link"
+      }
+    ],
+    "projects": []
+  }
+}
