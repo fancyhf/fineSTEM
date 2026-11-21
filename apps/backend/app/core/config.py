@@ -66,6 +66,20 @@ class Settings(BaseSettings):
     # 旧命名（兼容保留，勿在新配置中使用）
     glm_key: Optional[str] = None
     deepseek_key: Optional[str] = None
+
+    # ── 语音数字人伴学助手（小知）─────────────────────────────────────────
+    # BAILIAN_API_KEY 阿里云百炼：语音识别 ASR（Qwen3-ASR）。.env 已有该变量，
+    # 2026-11-06 起正式进入 Settings。未配置时 /voice/asr 返回引导性错误。
+    BAILIAN_API_KEY: Optional[str] = None
+    # GLM-TTS 音色（数字人说话声音）：tongtong=彤彤（童声，儿童陪伴场景）
+    GLM_TTS_VOICE: str = "tongtong"
+    GLM_TTS_SPEED: float = 1.05
+    # TTS 音频缓存目录（按文本指纹缓存，命中零成本）
+    VOICE_TTS_CACHE_DIR: str = str(Path("runtime") / "tts_cache")
+    # 数字人语音接口总开关（可被 runtime/feature_flags.json 覆盖）
+    FF_VOICE_COMPANION_ENABLED: bool = True
+    # 单次 TTS 文本长度上限（字），防御超长文本意外计费
+    VOICE_TTS_MAX_CHARS: int = 300
     AGENT_SKILL_TIMEOUT_MS: int = 15000
     AGENT_ALLOW_NETWORK_SKILL: bool = False
     AGENT_ALLOWED_FS_PATHS: list[str] = []
@@ -84,6 +98,8 @@ class Settings(BaseSettings):
     FF_METRICS_PERSISTENCE_ENABLED: bool = True
     # 非高峰时段切换 DeepSeek（默认关闭=全程 qwen-plus；开启后非高峰用 deepseek-v4-flash）
     FF_OFFPEAK_DEEPSEEK_ENABLED: bool = False
+    # 数字人语音伴学（小知）：/api/v1/voice/* 总开关
+    FF_VOICE_COMPANION_ROLLOUT_PERCENT: int = 100
     # 文件存储配置
     STORAGE_BASE_PATH: str = r"D:\data\finestem"
     STORAGE_UPLOAD_DIR: str = "uploads"

@@ -1,0 +1,179 @@
+/* ============================================================
+   数字人伴学助手「小知」动画样式
+   眨眼 / 待机轻摆 / 双马尾飘动 / 说话微跳 / 听取呼吸光环 / 思考悬浮
+   全部纯 CSS，无依赖；prefers-reduced-motion 时停用摆动类动画。
+   ============================================================ */
+
+/* 待机：整体轻微呼吸浮动 */
+@keyframes companion-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+.companion-float { animation: companion-float 3.2s ease-in-out infinite; }
+
+/* 待机：身体轻摆（原地小幅摇晃，元气感） */
+@keyframes companion-sway {
+  0%, 100% { transform: rotate(-1.2deg); }
+  50% { transform: rotate(1.2deg); }
+}
+.companion-sway {
+  transform-origin: 100px 175px;
+  animation: companion-sway 3.8s ease-in-out infinite;
+}
+
+/* 双马尾：左右反向飘动（origin 用 px 坐标，半身/全身两套 viewBox 通用） */
+@keyframes companion-tail-left {
+  0%, 100% { transform: rotate(2deg); }
+  50% { transform: rotate(-3deg); }
+}
+@keyframes companion-tail-right {
+  0%, 100% { transform: rotate(-2deg); }
+  50% { transform: rotate(3deg); }
+}
+.companion-tail-left {
+  transform-origin: 136px 84px;
+  animation: companion-tail-left 4.2s ease-in-out infinite;
+}
+.companion-tail-right {
+  transform-origin: 64px 84px;
+  animation: companion-tail-right 4.6s ease-in-out infinite;
+}
+
+/* 眨眼：整个眼组快速压扁再睁开（周期内绝大多数时间睁眼） */
+@keyframes companion-blink {
+  0%, 90%, 100% { transform: scaleY(1); }
+  93%, 96% { transform: scaleY(0.08); }
+}
+.companion-eye {
+  transform-box: fill-box;
+  transform-origin: 50% 55%;
+  animation: companion-blink 4.6s ease-in-out infinite;
+}
+.companion-eye-right { animation-delay: 0.05s; }
+
+/* 说话：轻微上下弹跳（节奏感） */
+@keyframes companion-talk-bounce {
+  0%, 100% { transform: translateY(0); }
+  30% { transform: translateY(-2px); }
+  60% { transform: translateY(1px); }
+}
+.companion-talking { animation: companion-talk-bounce 0.9s ease-in-out infinite; }
+
+/* 听取中：耳机麦克风呼吸光环 */
+@keyframes companion-listen-pulse {
+  0%, 100% { opacity: 0.25; transform: scale(1); }
+  50% { opacity: 0.85; transform: scale(1.08); }
+}
+.companion-listening .companion-mic-glow {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: companion-listen-pulse 1.4s ease-in-out infinite;
+}
+
+/* 思考中：问号气泡上下悬浮 */
+@keyframes companion-think-bob {
+  0%, 100% { transform: translateY(0) rotate(-4deg); }
+  50% { transform: translateY(-5px) rotate(3deg); }
+}
+.companion-think-bubble {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: companion-think-bob 2.2s ease-in-out infinite;
+}
+
+/* 开心：星星闪烁 */
+@keyframes companion-star-twinkle {
+  0%, 100% { opacity: 0.4; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1.15); }
+}
+.companion-sparkle {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: companion-star-twinkle 1.6s ease-in-out infinite;
+}
+.companion-sparkle-2 { animation-delay: 0.5s; }
+.companion-sparkle-3 { animation-delay: 1s; }
+
+/* 呆毛：轻微摇晃（小知的招牌） */
+@keyframes companion-ahoge {
+  0%, 100% { transform: rotate(-6deg); }
+  50% { transform: rotate(8deg); }
+}
+.companion-ahoge {
+  transform-origin: 104px 40px;
+  animation: companion-ahoge 3.4s ease-in-out infinite;
+}
+
+/* ── 全身立绘：游戏角色待机 ─────────────────────────────── */
+
+/* 重心左右轻移（游戏待机感：旋转+浮动复合，origin 在脚底） */
+@keyframes companion-idle-shift {
+  0%, 100% { transform: rotate(-1.4deg) translateY(0); }
+  50% { transform: rotate(1.4deg) translateY(-4px); }
+}
+.companion-idle-shift {
+  transform-origin: 100px 326px;
+  animation: companion-idle-shift 4.4s ease-in-out infinite;
+}
+
+/* 手臂反向小幅摆（配合重心移动，origin 在肩点） */
+@keyframes companion-arm-left {
+  0%, 100% { transform: rotate(3deg); }
+  50% { transform: rotate(-2deg); }
+}
+@keyframes companion-arm-right {
+  0%, 100% { transform: rotate(-3deg); }
+  50% { transform: rotate(2deg); }
+}
+.companion-arm-left {
+  transform-origin: 138px 162px;
+  animation: companion-arm-left 4.4s ease-in-out infinite;
+}
+.companion-arm-right {
+  transform-origin: 62px 162px;
+  animation: companion-arm-right 4.4s ease-in-out infinite;
+}
+
+/* 脚下影子随浮动呼吸 */
+@keyframes companion-shadow {
+  0%, 100% { transform: scale(1); opacity: 0.28; }
+  50% { transform: scale(0.92); opacity: 0.18; }
+}
+.companion-ground-shadow {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: companion-shadow 4.4s ease-in-out infinite;
+}
+
+/* 裙摆微摆 */
+@keyframes companion-skirt {
+  0%, 100% { transform: skewX(0deg); }
+  50% { transform: skewX(-1.6deg); }
+}
+.companion-skirt {
+  transform-origin: 100px 242px;
+  animation: companion-skirt 3.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .companion-idle-shift,
+  .companion-arm-left,
+  .companion-arm-right,
+  .companion-ground-shadow,
+  .companion-skirt {
+    animation: none;
+  }
+}
+
+/* 减少动态偏好：停用装饰性摆动，保留必要的口型（JS 驱动） */
+@media (prefers-reduced-motion: reduce) {
+  .companion-float,
+  .companion-sway,
+  .companion-tail-left,
+  .companion-tail-right,
+  .companion-talking,
+  .companion-think-bubble,
+  .companion-ahoge {
+    animation: none;
+  }
+}

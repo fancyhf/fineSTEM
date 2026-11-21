@@ -140,3 +140,19 @@ certbot --nginx -d know.wostemstudio.top --non-interactive --agree-tos --redirec
 ---
 
 **Prompt 结束**
+
+---
+
+## 附录：语音数字人伴学（小知，2026-11-06 新增）服务器 env 要求
+
+主站 backend（finestem-backend，/opt/finestem/app）的 `.env` 需包含：
+
+- `GLM_API_KEY` —— 已有。数字人 TTS（GLM-TTS，童声 tongtong）用它，无需新增。
+- `BAILIAN_API_KEY` —— **新增**。语音识别 ASR（百炼 qwen3-asr-flash）用它。
+  注意：该 key 需在阿里云百炼控制台开通 qwen3-asr-flash 且关闭"仅用免费额度"
+  限制（2026-11-06 本地实测：key 存在但免费额度耗尽报 403）。
+- 功能总开关：`FF_VOICE_COMPANION_ENABLED`（默认 true；紧急止损可设 false，
+  或经管理端 feature-flags 接口改 `voice_companion` flag，即时生效免重启）。
+- 验收：`curl -s -X POST http://127.0.0.1:8001/api/v1/voice/tts -H "Authorization: Bearer <有效token>" -H "Content-Type: application/json" -d '{"text":"你好"}'` → `success:true` 且音频 URL 可 200 访问。
+
+**Prompt 附录结束**

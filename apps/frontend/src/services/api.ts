@@ -198,7 +198,7 @@ async function requestBlob(
 }
 
 export const api = {
-  get: <T>(endpoint: string) => request<T>(endpoint, { method: 'GET' }),
+  get: <T>(endpoint: string, silent = false) => request<T>(endpoint, { method: 'GET' }, silent),
   post: <T>(endpoint: string, body: unknown, silent = false) =>
     request<T>(endpoint, {
       method: 'POST',
@@ -572,7 +572,10 @@ export const agentApi = {
   // 前端拿到后注入 WS 直连 daemon 的消息文本，让两条链路共享同一套场景提示词
   scenePrompts: () => api.get<Record<string, string>>('/agent/scene-prompts'),
   // 灰度开关：admin 可读全部、可写 offpeak_deepseek 等
-  featureFlags: () => api.get<Record<string, { enabled: boolean; rollout_percent: number }>>('/agent/feature-flags'),
+  // silent：后台能力探测（useStreamingChat 挂载即拉，含未登录页面）。非 silent 的
+  // 401 会触发 request() 里的 window.location='/login' —— 2026-11-06 数字人浮窗
+  // 全站挂载后曾在 /login 造成 401 重载死循环（登录表单无法填写，E2E 全挂）。
+  featureFlags: () => api.get<Record<string, { enabled: boolean; rollout_percent: number }>>('/agent/feature-flags', true),
   updateFeatureFlag: (name: string, enabled: boolean) =>
     api.patch<Record<string, { enabled: boolean; rollout_percent: number }>>(`/agent/feature-flags/${name}`, { enabled }),
 };

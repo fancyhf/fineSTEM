@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { MessageSquare, Code, Rocket, FileText, ChevronUp, Paperclip, Image as ImageIcon, FolderOpen, Plus, Sparkles, User, Zap, Play, Copy, Check, ArrowRight, BookOpen, PanelLeftClose, PanelLeftOpen, Terminal, Eye, Pencil, MoreHorizontal, Maximize2, PanelLeft, Loader2, X, Save, Wand2 } from 'lucide-react';
+import { MessageSquare, Code, Rocket, FileText, ChevronUp, Paperclip, Image as ImageIcon, FolderOpen, Plus, Sparkles, User, Zap, Play, Copy, Check, ArrowRight, BookOpen, PanelLeftClose, PanelLeftOpen, Terminal, Eye, Pencil, MoreHorizontal, Maximize2, PanelLeft, Loader2, X, Save, Wand2, Mic, MicOff, Volume2, VolumeX } from 'lucide-react';
 import { ContinueButton } from '../components/ContinueButton';
 import { Card } from '../components/ui/Card';
 import { CodeGeneratedEvent, useStreamingChat, abortActiveStream, isAbortError } from '../hooks/useStreamingChat';
@@ -13,6 +13,9 @@ import { CodePreview } from '../components/CodePreview';
 import { CodeEditor } from '../components/CodeEditor';
 import { ProjectFilesPanel } from '../components/ProjectFilesPanel';
 import { QuestionCard, QuestionData } from '../components/QuestionCard';
+import { CompanionCharacter, type CompanionMood } from '../components/Companion/CompanionCharacter';
+import { useCompanion } from '../contexts/CompanionContext';
+import { isVoiceModeOn, COMPANION_VOICE_STYLE_INSTRUCTIONS, COMPANION_NAME, COMPANION_USAGE_HINT } from '../lib/companionPrompts';
 import { useAuth } from '../contexts/AuthContext';
 import { projectsApi, codeExecutionApi, authStorage, chatApi } from '../services/api';
 import { ProjectWorkspaceResponse, FileEntry, CopyGuidanceNode } from '../types';
@@ -735,8 +738,11 @@ const MessageItem = React.memo(function MessageItem({
         msg.role === 'user' ? 'bg-teal-600 text-white rounded-br-sm' : 'bg-gray-50 text-gray-800 rounded-bl-sm border border-gray-100'
       }`}>
         <div className={`flex items-center gap-1.5 mb-1 text-xs ${msg.role === 'user' ? 'text-teal-200' : 'text-gray-400'}`}>
-          {msg.role === 'user' ? <User className="w-3 h-3" /> : <Sparkles className="w-3 h-3" />}
-          <span>{msg.role === 'user' ? '你' : 'fineSTEM AI'}</span>
+          {msg.role === 'user' ? <User className="w-3 h-3" /> : (
+            // 2026-11-06 数字人伴学：assistant 头像换成小知（与右下角浮窗同一角色）
+            <CompanionCharacter size={16} showBackdrop={false} />
+          )}
+          <span>{msg.role === 'user' ? '你' : '小知'}</span>
         </div>
         {msg.role === 'assistant' ? (
           <>
@@ -1008,6 +1014,9 @@ function buildStreamlitIframeHtml(url: string, statusMsg: string): string {
 export function Create() {
   const { stream } = useStreamingChat();
   const { user } = useAuth();
+  // 数字人导师「小知」：全局语音引擎（嗓子+耳朵）。她的形象在聊天区头部，
+  // 孩子按住🎤说话、她朗读回复——聊天框即"和小知对话"的界面。
+  const companion = useCompanion();
   const [searchParams] = useSearchParams();
   const [messages, setMessages] = useState<Message[]>([]);
   // messagesRef：保存最新 messages 快照，供异步回调（项目创建后补存、页面离开保存）
@@ -2723,6 +2732,25 @@ const handleSend = async (
         if (scenePromptText) sceneInstructionParts.push(scenePromptText);
       }
       sceneInstructionParts.push(OUTPUT_VISIBILITY_RULE);
+      // 2026-11-07 防重复调研（用户反馈：轨道选择/技术选型环节总重问时间预算、
+      // 项目方向等前面环节已答内容，项目 18aef160 实证）。student_profile 已注入
+      // 本条消息，这里以最高优先级显式禁止重问——即使标准流程模板带调研步骤也跳过。
+      {
+        const answeredCount = (effectiveContext.student_profile as string[] | undefined)?.length ?? 0;
+        sceneInstructionParts.push(
+          `【防重复调研（最高优先级，覆盖标准流程模板）】student_profile 已含学生 ${answeredCount} 条已答内容` +
+          `（年级/兴趣/选题/时间/必须做与不做等）。严禁以任何形式重新提问这些已有答案的问题，` +
+          `即使该阶段的标准流程模板包含调研步骤也必须直接跳过；需要这些信息时直接引用已有答案。` +
+          `本阶段只推进本阶段的新决策（如技术选型阶段只决定技术路线）。` +
+          `【会话连续性】本消息带 <context>（含 project_id/current_stage）即进行中项目的继续会话：` +
+          `严禁任何开场问候与 stage_00 初始化问卷，直接从 current_stage 继续。`,
+        );
+      }
+      // 2026-11-06 数字人伴学：语音朗读开启时追加"适合朗读"的风格约束
+      // （sessionStorage 标记由 CompanionContext 维护，读实时值不加依赖）
+      if (isVoiceModeOn()) {
+        sceneInstructionParts.push(COMPANION_VOICE_STYLE_INSTRUCTIONS);
+      }
       effectiveContext.scene_instructions = sceneInstructionParts.join('\n\n');
     }
 
@@ -2928,7 +2956,14 @@ let rawAssistantContent = '';
           context: effectiveContext,
           skillId: activeSkill.id,
           messages: historyMessages,
-          sessionId: lastSessionIdRef.current || undefined,
+          // 2026-11-07 防重复提问根因修复（项目 18aef160 实证）：sessionId 与项目绑定，
+          // 刷新/重开页面不再换新会话——daemon 保留本项目完整对话记忆，AI 不会再把
+          // 前面环节问过的（时间/方向/年级）当作新问题重新调研。
+          // 无已保存项目时保持旧行为（沿用页内会话/临时会话）。
+          sessionId:
+            projectContext.projectId && !projectContext.projectId.startsWith('local-')
+              ? `finestem-p-${projectContext.projectId}`
+              : lastSessionIdRef.current || undefined,
         },
         (token) => {
           // 同步累积原始 token（不丢字），重渲染交给 raf 节流
@@ -3164,6 +3199,8 @@ let rawAssistantContent = '';
               assistantContentLength: assistantContent.length,
               maxVisibleContentLength: maxVisibleContent.length,
             });
+            // 2026-11-06 数字人伴学：小知开口朗读最终回复（voiceOn 才读；口型同步到聊天区头部的她）
+            try { companion.speakMaybe(finalContent || ''); } catch (e) { console.error('[companion] speak failed', e); }
 
             // 流末兜底：服务端最终事件抵达时，立即尝试代码提取并写入编辑器
             // 这是修复"AI 说生成了代码但编辑器为空"的关键路径
@@ -3555,6 +3592,124 @@ let rawAssistantContent = '';
   useEffect(() => {
     handleSendRef.current = handleSend;
   });
+
+  // ── 数字人导师语音输入（2026-11-06 晚）：按住🎤说话 → 识别文字 → 直接发送 ──
+  // 小知的形象在聊天区头部。孩子可以全程不动键盘：说话 → 她语音回答。
+  const onCreateMicDown = useCallback(() => {
+    if (isLoading || companion.asrBusy) return;
+    companion.clearAsrError();
+    companion.speech.stop();
+    companion.speech.unlock();
+    companion.recorder.start().catch(() => { /* recorder 内部已置 error */ });
+  }, [isLoading, companion]);
+
+  const onCreateMicUp = useCallback(() => {
+    if (!companion.recorder.recording) return;
+    companion.transcribe()
+      .then((text) => {
+        const trimmed = text.trim();
+        if (!trimmed) return;
+        // 识别文字先进输入框（孩子看得见自己说了什么），随即自动发送
+        setInputValue(trimmed);
+        void handleSendRef.current(trimmed);
+      })
+      .catch(() => { /* 错误已由 context 置为友好提示，在头部条显示 */ });
+  }, [companion]);
+
+  // 用法气泡：进创造页提示一次怎么用（点关闭或 15 秒后自动消失）
+  const [showBarBubble, setShowBarBubble] = useState(() => {
+    try { return sessionStorage.getItem('finestem_companion_bar_hint') !== 'done'; } catch { return true; }
+  });
+  useEffect(() => {
+    if (!showBarBubble) return;
+    const t = setTimeout(() => {
+      setShowBarBubble(false);
+      try { sessionStorage.setItem('finestem_companion_bar_hint', 'done'); } catch { /* ignore */ }
+    }, 15000);
+    return () => clearTimeout(t);
+  }, [showBarBubble]);
+  const dismissBarBubble = useCallback(() => {
+    setShowBarBubble(false);
+    try { sessionStorage.setItem('finestem_companion_bar_hint', 'done'); } catch { /* ignore */ }
+  }, []);
+
+  // 编码区大立绘模式（2026-11-07 用户定稿，11-08 修正）：默认站在编码编辑器上面，
+  // 点击缩小回左侧通道小立绘；点击小知放大回去。**纯页面内状态，不持久化**——
+  // 每次进入项目/刷新页面都默认回到代码区大立绘（用户实测反馈：重进项目应在代码区）。
+  const [editorCompanionBig, setEditorCompanionBig] = useState(true);
+  const setEditorCompanionMode = useCallback((big: boolean) => {
+    setEditorCompanionBig(big);
+  }, []);
+
+  // 统一手势（2026-11-08 用户定稿，大/小尺寸通用）：
+  //   单击 = 说话切换（开始听 → 再点说完发送；她正在说话时单击=打断并转入聆听）
+  //   双击 = 放大/缩小切换（编码区大立绘 ↔ 左下角小立绘）
+  // 单击延迟 260ms 判定：双击的第一次点击会取消单击定时器，由 dblclick 接管。
+  const companionClickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onCompanionClick = useCallback(() => {
+    if (companionClickTimerRef.current) {
+      // 第二次点击：属于双击，取消待发的单击动作，交给 onCompanionDblClick
+      clearTimeout(companionClickTimerRef.current);
+      companionClickTimerRef.current = null;
+      return;
+    }
+    companionClickTimerRef.current = setTimeout(() => {
+      companionClickTimerRef.current = null;
+      railVoiceRef.current();
+    }, 260);
+  }, []);
+  const onCompanionDblClick = useCallback(() => {
+    if (companionClickTimerRef.current) {
+      clearTimeout(companionClickTimerRef.current);
+      companionClickTimerRef.current = null;
+    }
+    setEditorCompanionMode(!editorCompanionBig);
+  }, [editorCompanionBig, setEditorCompanionMode]);
+
+  // 小知在聊天区的表情状态机
+  const companionMood: CompanionMood = companion.recorder.recording
+    ? 'listening'
+    : companion.asrBusy
+      ? 'thinking'
+      : isLoading
+        ? 'thinking'
+        : companion.speech.speaking
+          ? 'talking'
+          : 'idle';
+  const companionStatus = companion.recorder.recording
+    ? '在听呢，说完再点我一下'
+    : companion.asrBusy
+      ? '听听你说了什么…'
+      : isLoading
+        ? '让我想一想…'
+        : companion.speech.speaking
+          ? (companion.speech.currentSentence || '')
+          : '点我说话，或直接打字';
+
+  // 小知先说话：进页打招呼（首次手势后正式出声；AI 正在回答时会让位）
+  useEffect(() => { companion.tryGreet(); }, [companion]);
+
+  // 点击小知 = 进语音模式：点她开始听，再点结束并识别 → 直接发送
+  const onClickXiaozhi = useCallback(() => {
+    if (companion.asrBusy || isLoading) return;
+    if (companion.recorder.recording) {
+      companion.finishVoiceInput()
+        .then((text) => {
+          const trimmed = text.trim();
+          if (!trimmed) return;
+          setInputValue(trimmed);
+          void handleSendRef.current(trimmed);
+        })
+        .catch(() => { /* 错误已由 context 置为友好提示 */ });
+    } else {
+      // 单击=说话切换：她正在说话时单击=打断她，转入聆听（像打断真人一样）
+      if (companion.speech.speaking) companion.speech.stop();
+      companion.startVoiceInput();
+    }
+  }, [companion, isLoading]);
+  // 单击手势经 ref 转发（onCompanionClick 定义在 onClickXiaozhi 之前）
+  const railVoiceRef = useRef<() => void>(() => {});
+  useEffect(() => { railVoiceRef.current = onClickXiaozhi; }, [onClickXiaozhi]);
 
   // 处理继续生成（手动续接）
   // 关键修复（2026-07-21）：原来调用 handleSend('继续') 把"继续"当一条全新用户消息，
@@ -4034,8 +4189,73 @@ let rawAssistantContent = '';
         </Card>
       </div>
 
+      {/* 常驻立绘（缩小态）：编码区大立绘点击缩小后回到这里；双击可放大回编码区 */}
+      {!(editorCompanionBig && showEditor) && (
+        <div className="hidden xl:flex w-[96px] flex-shrink-0 flex-col items-center justify-end pb-2 select-none" data-testid="create-companion-rail">
+          <button
+            type="button"
+            data-testid="create-companion-rail-button"
+            onClick={onCompanionClick}
+            onDoubleClick={onCompanionDblClick}
+            title="单击说话（再点一下发送）· 双击放大"
+            className={`rounded-2xl transition-transform hover:scale-105 active:scale-95 ${companion.recorder.recording ? 'ring-2 ring-red-300 rounded-full' : ''}`}
+          >
+            <CompanionCharacter variant="full" mood={companionMood} mouthSignal={companion.speech.mouthSignal} size={92} showBackdrop={false} />
+          </button>
+        </div>
+      )}
       <div className="flex-1 flex flex-col min-w-0">
         <Card className="flex-1 flex flex-col p-0 overflow-hidden border-gray-200 shadow-sm">
+          {/* 数字人导师「小知」形象条：可视化的对话对象（说话时口型动/听你说/思考中） */}
+          <div className="relative flex items-center gap-2.5 px-3 py-1.5 bg-gradient-to-r from-teal-50 to-cyan-50 border-b border-teal-100" data-testid="create-companion-bar">
+            <button
+              type="button"
+              data-testid="create-companion-button"
+              onClick={onClickXiaozhi}
+              title="点我说话（再点一下就说完了）"
+              className={`flex-shrink-0 -my-2 rounded-2xl transition-transform hover:scale-105 active:scale-95 ${companion.recorder.recording ? 'ring-2 ring-red-300 rounded-full' : ''}`}
+            >
+              <CompanionCharacter mood={companionMood} mouthSignal={companion.speech.mouthSignal} size={76} showBackdrop={false} />
+            </button>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1 text-sm font-semibold text-teal-800">
+                {COMPANION_NAME}
+                <Sparkles className="w-3 h-3 text-amber-400" />
+              </div>
+              <div className="text-[11px] text-teal-600/80 truncate h-4" data-testid="companion-status">
+                {companionStatus}
+              </div>
+            </div>
+            {(companion.asrError || companion.recorder.error) && (
+              <span className="text-[11px] text-orange-600 truncate max-w-[160px]" data-testid="companion-asr-error">
+                {companion.asrError || companion.recorder.error}
+              </span>
+            )}
+            <button
+              onClick={companion.toggleVoice}
+              data-testid="companion-voice-toggle"
+              title={companion.voiceOn ? '关闭语音朗读' : '开启语音朗读'}
+              className="flex-shrink-0 p-1.5 rounded-lg hover:bg-teal-100 text-teal-600 transition-colors"
+            >
+              {companion.voiceOn ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+            </button>
+            {/* 用法气泡：教孩子怎么跟小知互动 */}
+            {showBarBubble && (
+              <div
+                className="absolute left-[84px] top-full mt-1 z-20 max-w-[340px] bg-white rounded-xl rounded-bl-sm shadow-lg border border-teal-100 px-3 py-2 text-xs text-gray-700 leading-relaxed"
+                data-testid="companion-usage-bubble"
+              >
+                {COMPANION_USAGE_HINT}
+                <button
+                  onClick={dismissBarBubble}
+                  className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-gray-200 hover:bg-gray-300 text-gray-500 flex items-center justify-center"
+                  title="知道了"
+                >
+                  <X className="w-2.5 h-2.5" />
+                </button>
+              </div>
+            )}
+          </div>
           {/* 聊天区顶部工具栏：项目文件面板入口 */}
           {projectContext.projectId && (
             <div className="flex items-center gap-1 px-3 py-1.5 bg-gray-50 border-b border-gray-100">
@@ -4298,6 +4518,32 @@ let rawAssistantContent = '';
                 </div>
                 <div className="flex items-center gap-2">
                   {!user && <span className="text-[10px] text-amber-600">匿名剩余 {5 - Number(localStorage.getItem('anonymous_chat_count') || '0')} 次</span>}
+                  {/* 按住说话：对小知语音输入（识别→自动发送），孩子可以不动键盘 */}
+                  <button
+                    data-testid="chat-mic"
+                    onPointerDown={(e) => { e.preventDefault(); onCreateMicDown(); }}
+                    onPointerUp={(e) => { e.preventDefault(); onCreateMicUp(); }}
+                    onPointerLeave={() => onCreateMicUp()}
+                    onContextMenu={(e) => e.preventDefault()}
+                    style={{ touchAction: 'none' }}
+                    disabled={isAnalyzingImages}
+                    title="按住说话（对小知说）"
+                    className={`p-1.5 rounded-full text-white transition-all ${
+                      companion.recorder.recording
+                        ? 'bg-red-500 scale-110 shadow-md shadow-red-200'
+                        : companion.asrBusy
+                          ? 'bg-teal-400'
+                          : 'bg-teal-600 hover:bg-teal-500 active:scale-95'
+                    } disabled:opacity-40`}
+                  >
+                    {companion.asrBusy ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : companion.recorder.recording ? (
+                      <MicOff className="w-4 h-4" />
+                    ) : (
+                      <Mic className="w-4 h-4" />
+                    )}
+                  </button>
                   {/* 2026-07-31 Q-038：loading 时发送按钮变停止按钮，随时可中止卡住的流 */}
                   {isLoading ? (
                     <button data-testid="stop-button" onClick={() => abortActiveStream()} title="停止本次回复"
@@ -4347,9 +4593,30 @@ let rawAssistantContent = '';
 
       {/* 代码编辑器区 */}
       <div
-        className={`flex-shrink-0 transition-all duration-300 self-stretch ${showEditor ? '' : 'w-10'}`}
+        className={`relative flex-shrink-0 transition-all duration-300 self-stretch ${showEditor ? '' : 'w-10'}`}
         style={showEditor ? { width: editorWidth, height: '100%', display: 'grid', gridTemplateRows: 'auto 1fr' } : undefined}
       >
+        {/* 编码区大立绘（默认）：小知站在代码编辑器上，点击缩小回左下通道 */}
+        {showEditor && editorCompanionBig && (
+          <button
+            type="button"
+            data-testid="editor-companion-button"
+            onClick={onCompanionClick}
+            onDoubleClick={onCompanionDblClick}
+            title="单击说话（再点一下发送）· 双击缩小"
+            className="absolute z-30 rounded-2xl transition-transform hover:scale-105 active:scale-95"
+            style={{ right: 28, bottom: 10 }}
+          >
+            <CompanionCharacter
+              variant="full"
+              mood={companionMood}
+              mouthSignal={companion.speech.mouthSignal}
+              size={150}
+              showBackdrop={false}
+              className="drop-shadow-xl"
+            />
+          </button>
+        )}
         {showEditor ? (
           <>
             {/* 工具栏 - grid auto 行，高度由内容决定，Monaco 无法影响 */}

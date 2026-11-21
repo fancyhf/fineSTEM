@@ -44,6 +44,10 @@ class FeatureFlagService:
                 "enabled": settings.FF_OFFPEAK_DEEPSEEK_ENABLED,
                 "rollout_percent": 100,
             },
+            "voice_companion": {
+                "enabled": settings.FF_VOICE_COMPANION_ENABLED,
+                "rollout_percent": settings.FF_VOICE_COMPANION_ROLLOUT_PERCENT,
+            },
         }
         self._path = Path(settings.AGENT_FEATURE_FLAGS_PATH)
         self._load_from_file()

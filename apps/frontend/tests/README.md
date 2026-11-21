@@ -10,6 +10,7 @@
 
 | 你要测什么 | 去这个文件 | 说明 |
 |------------|-----------|------|
+| **数字人伴学小知** | `specs/companion-xiaozhi.spec.ts` | ★ 全身立绘/拖动/缩小、语音面板、TTS 朗读、Create 页联动（@ai 走真实 ZeroClaw） |
 | **冒烟测试** | `specs/smoke-test.spec.ts` | 基本页面加载/导航 |
 | **导航与权限守卫** | `specs/navigation-and-guards.spec.ts` | 路由守卫/重定向 |
 | **完整用户旅程** | `specs/full-user-journey.spec.ts` | 端到端全流程 |

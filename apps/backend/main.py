@@ -39,6 +39,7 @@ from app.api import (
     know,
     skills,
     system,
+    voice,
 )
 from app.api.auth import get_password_hash
 from app.core.config import settings
@@ -151,6 +152,9 @@ app.include_router(notifications.router, prefix=API_PREFIX)
 
 # 节目频道（Know 子系统，know.wostemstudio.top）只读接口
 app.include_router(know.router, prefix=API_PREFIX)
+
+# 语音数字人伴学助手（小知）：TTS/ASR，feature flag voice_companion 门禁
+app.include_router(voice.router, prefix=API_PREFIX)
 
 # Know 内容静态资源（开发环境由后端直接服务；生产环境走 nginx location /content/）
 # main.py 位于 apps/backend/，上溯 2 级到仓库根

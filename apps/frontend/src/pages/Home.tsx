@@ -1,8 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, Sparkles, ClipboardList, ArrowRight, MessageCircle, Paperclip, Image as ImageIcon, Send, X } from 'lucide-react';
+import { Search, Sparkles, ClipboardList, ArrowRight, MessageCircle, Paperclip, Image as ImageIcon, Send, X, Mic, MicOff, Loader2 } from 'lucide-react';
+import { COMPANION_USAGE_HINT } from '../lib/companionPrompts';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '../components/ui/Card';
 import { useAuth } from '../contexts/AuthContext';
+import { useCompanion } from '../contexts/CompanionContext';
+import { CompanionCharacter, type CompanionMood } from '../components/Companion/CompanionCharacter';
 import { achievementCardsApi, demosApi } from '../services/api';
 import { AchievementCard, Demo, FeaturedCard } from '../types';
 import { resolveImageUrl } from '../lib/image';
@@ -18,6 +21,7 @@ const ATTACHMENT_ACCEPT = '.pdf,.doc,.docx,.txt,.md,.zip,.csv,.json';
 export function Home() {
   useAuth();
   const navigate = useNavigate();
+  const companion = useCompanion();
   const [demos, setDemos] = useState<Demo[]>([]);
   const [inspirationCards, setInspirationCards] = useState<AchievementCard[]>([]);
   const [featuredCards, setFeaturedCards] = useState<FeaturedCard[]>([]);
@@ -25,6 +29,79 @@ export function Home() {
   const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // ── 数字人导师「小知」：首页智能对话区的可见化身 ──
+  // 孩子按住 🎤 说话 → 识别文字进输入框 → 自动带着问题进入 /create，
+  // 小知在创造页开口回答（语音引擎是全局的，跨页朗读不中断）。
+  const homeMood: CompanionMood = companion.recorder.recording
+    ? 'listening'
+    : companion.asrBusy
+      ? 'thinking'
+      : companion.speech.speaking
+        ? 'talking'
+        : 'idle';
+  const homeStatus = companion.recorder.recording
+    ? '在听呢，说完再点我一下'
+    : companion.asrBusy
+      ? '听听你说了什么…'
+      : companion.speech.speaking
+        ? '去创造页继续聊～'
+        : '点我说话';
+
+  // 小知先说话：进站打招呼（无手势时大概率被自动播放拦截，首次点击会再触发）
+  useEffect(() => { companion.tryGreet(); }, [companion]);
+
+  // 用法气泡：进首页提示一次怎么用（点关闭或 15 秒后自动消失）
+  const [showHomeBubble, setShowHomeBubble] = useState(() => {
+    try { return sessionStorage.getItem('finestem_companion_home_hint') !== 'done'; } catch { return true; }
+  });
+  useEffect(() => {
+    if (!showHomeBubble) return;
+    const t = setTimeout(() => {
+      setShowHomeBubble(false);
+      try { sessionStorage.setItem('finestem_companion_home_hint', 'done'); } catch { /* ignore */ }
+    }, 15000);
+    return () => clearTimeout(t);
+  }, [showHomeBubble]);
+  const dismissHomeBubble = useCallback(() => {
+    setShowHomeBubble(false);
+    try { sessionStorage.setItem('finestem_companion_home_hint', 'done'); } catch { /* ignore */ }
+  }, []);
+
+  // 点击小知 = 进语音模式：点她开始听，再点结束并识别 → 带着问题去创造页
+  const onClickXiaozhi = () => {
+    if (companion.asrBusy) return;
+    if (companion.recorder.recording) {
+      companion.finishVoiceInput()
+        .then((text) => {
+          if (!text.trim()) return;
+          setQuickInput(text);
+          handleQuickAsk(text);
+        })
+        .catch(() => { /* 错误已由 context 置为友好提示 */ });
+    } else {
+      companion.startVoiceInput();
+    }
+  };
+
+  const onHomeMicDown = () => {
+    if (companion.asrBusy) return;
+    companion.clearAsrError();
+    companion.speech.stop();
+    companion.speech.unlock();
+    companion.recorder.start().catch(() => { /* recorder 内部已置 error */ });
+  };
+
+  const onHomeMicUp = () => {
+    if (!companion.recorder.recording) return;
+    companion.transcribe()
+      .then((text) => {
+        if (!text.trim()) return;
+        setQuickInput(text);
+        handleQuickAsk(text);
+      })
+      .catch(() => { /* 错误已由 context 置为友好提示 */ });
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -42,8 +119,8 @@ export function Home() {
     void load();
   }, []);
 
-  const handleQuickAsk = () => {
-    const message = quickInput.trim();
+  const handleQuickAsk = (overrideText?: string) => {
+    const message = (overrideText ?? quickInput).trim();
     if (!message) return;
     // 把附件文件名以行内标注形式追加到提问里，带去 /create。
     // 这样不引入新的上传端点；Create 页 ?q= 解析会把它当作首条消息的一部分。
@@ -103,7 +180,39 @@ export function Home() {
         <p className="text-base text-gray-500 max-w-xl mx-auto mb-6">
           探索精彩项目，使用 AI 助手，完成你的研究，分享你的成就
         </p>
-        <div className="max-w-lg mx-auto">
+        {/* 智能对话区：小知全身立绘站在输入框左侧（可视数字人导师，支持语音） */}
+        <div className="flex items-end justify-center gap-1 sm:gap-4 px-2">
+          <div className="hidden md:flex flex-col items-center flex-shrink-0 select-none relative" data-testid="home-companion">
+            {/* 用法气泡：教孩子怎么跟小知互动（点关闭或 15 秒后消失） */}
+            {showHomeBubble && (
+              <div
+                className="absolute bottom-[115%] left-1/2 -translate-x-1/2 w-max max-w-[230px] bg-white rounded-2xl rounded-bl-sm shadow-xl border border-teal-100 px-3 py-2 text-xs text-gray-700 leading-relaxed text-left z-10"
+                data-testid="home-usage-bubble"
+              >
+                {COMPANION_USAGE_HINT}
+                <button
+                  onClick={dismissHomeBubble}
+                  className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-gray-200 hover:bg-gray-300 text-gray-500 flex items-center justify-center"
+                  title="知道了"
+                >
+                  <X className="w-2.5 h-2.5" />
+                </button>
+              </div>
+            )}
+            <button
+              type="button"
+              data-testid="home-companion-button"
+              onClick={onClickXiaozhi}
+              title="点我说话（再点一下就说完了）"
+              className="rounded-2xl transition-transform hover:scale-105 active:scale-95"
+            >
+              <CompanionCharacter variant="full" mood={homeMood} size={130} showBackdrop={false} />
+            </button>
+            <div className={`text-xs font-medium -mt-1 ${companion.recorder.recording ? 'text-red-500 animate-pulse' : 'text-teal-700'}`}>
+              {homeStatus}
+            </div>
+          </div>
+          <div className="w-full max-w-lg text-left">
           <div className="relative border border-gray-200 rounded-xl bg-white focus-within:border-teal-400 focus-within:ring-1 focus-within:ring-teal-100 transition-all">
             <div className="flex items-start gap-2 px-3 pt-3 pb-2">
               <MessageCircle className="w-4 h-4 text-gray-400 flex-shrink-0 mt-2" />
@@ -157,6 +266,37 @@ export function Home() {
                 >
                   <ImageIcon className="w-4 h-4" />
                 </button>
+                {/* 按住说话：小知导师语音输入（识别文字进输入框，松开自动带去创造页） */}
+                <button
+                  type="button"
+                  data-testid="home-mic"
+                  onPointerDown={(e) => { e.preventDefault(); onHomeMicDown(); }}
+                  onPointerUp={(e) => { e.preventDefault(); onHomeMicUp(); }}
+                  onPointerLeave={() => onHomeMicUp()}
+                  onContextMenu={(e) => e.preventDefault()}
+                  style={{ touchAction: 'none' }}
+                  className={`p-1.5 rounded-lg transition-colors ${
+                    companion.recorder.recording
+                      ? 'bg-red-50 text-red-500'
+                      : companion.asrBusy
+                        ? 'text-teal-400'
+                        : 'text-gray-400 hover:text-teal-600 hover:bg-gray-100'
+                  }`}
+                  title="按住说话（对小知说）"
+                >
+                  {companion.asrBusy ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : companion.recorder.recording ? (
+                    <MicOff className="w-4 h-4" />
+                  ) : (
+                    <Mic className="w-4 h-4" />
+                  )}
+                </button>
+                {(companion.asrError || companion.recorder.error) && (
+                  <span className="text-[11px] text-orange-600 truncate max-w-[180px]">
+                    {companion.asrError || companion.recorder.error}
+                  </span>
+                )}
                 <input
                   ref={imageInputRef}
                   type="file"
@@ -175,7 +315,7 @@ export function Home() {
                 />
               </div>
               <button
-                onClick={handleQuickAsk}
+                onClick={() => handleQuickAsk()}
                 disabled={!quickInput.trim()}
                 className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 disabled:bg-gray-200 text-white text-xs font-medium rounded-lg transition-colors flex items-center gap-1 flex-shrink-0"
               >
@@ -183,6 +323,7 @@ export function Home() {
                 提问
               </button>
             </div>
+          </div>
           </div>
         </div>
       </section>
